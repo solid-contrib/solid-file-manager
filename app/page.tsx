@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import AuthWrapper from "./components/AuthWrapper";
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import Breadcrumb from "./components/Breadcrumb";
@@ -151,45 +152,47 @@ export default function Home() {
   };
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-white">
-      <Header
-        selectedFileCount={selectedFileIds.length}
-        onShareClick={selectedFileIds.length > 0 ? handleShareClick : undefined}
-        onMenuClick={() => setSidebarOpen(true)}
-      />
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar
-          drives={mockDrives}
-          selectedDriveId={selectedDriveId}
-          onDriveSelect={handleDriveSelect}
-          isOpen={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
+    <AuthWrapper>
+      <div className="flex h-screen flex-col overflow-hidden bg-white">
+        <Header
+          selectedFileCount={selectedFileIds.length}
+          onShareClick={selectedFileIds.length > 0 ? handleShareClick : undefined}
+          onMenuClick={() => setSidebarOpen(true)}
         />
-        <main className="flex flex-1 flex-col overflow-hidden">
-          <Breadcrumb items={breadcrumbItems} onNavigate={handleBreadcrumbNavigate} />
-          <FileList
-            files={files}
-            currentPath={currentPath}
-            onFileSelect={handleFileSelect}
-            onFileDoubleClick={handleFileDoubleClick}
-            selectedFileIds={selectedFileIds}
+        <div className="flex flex-1 overflow-hidden">
+          <Sidebar
+            drives={mockDrives}
+            selectedDriveId={selectedDriveId}
+            onDriveSelect={handleDriveSelect}
+            isOpen={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
           />
-        </main>
+          <main className="flex flex-1 flex-col overflow-hidden">
+            <Breadcrumb items={breadcrumbItems} onNavigate={handleBreadcrumbNavigate} />
+            <FileList
+              files={files}
+              currentPath={currentPath}
+              onFileSelect={handleFileSelect}
+              onFileDoubleClick={handleFileDoubleClick}
+              selectedFileIds={selectedFileIds}
+            />
+          </main>
+        </div>
+        {selectedFileForPermissions && (
+          <PermissionsDialog
+            isOpen={permissionsDialogOpen}
+            onClose={() => {
+              setPermissionsDialogOpen(false);
+              setSelectedFileForPermissions(null);
+            }}
+            fileName={selectedFileForPermissions.name}
+            permissions={permissions}
+            onAddPermission={handleAddPermission}
+            onRemovePermission={handleRemovePermission}
+            onUpdatePermission={handleUpdatePermission}
+          />
+        )}
       </div>
-      {selectedFileForPermissions && (
-        <PermissionsDialog
-          isOpen={permissionsDialogOpen}
-          onClose={() => {
-            setPermissionsDialogOpen(false);
-            setSelectedFileForPermissions(null);
-          }}
-          fileName={selectedFileForPermissions.name}
-          permissions={permissions}
-          onAddPermission={handleAddPermission}
-          onRemovePermission={handleRemovePermission}
-          onUpdatePermission={handleUpdatePermission}
-        />
-      )}
-    </div>
+    </AuthWrapper>
   );
 }

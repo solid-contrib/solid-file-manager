@@ -1,5 +1,8 @@
 "use client";
 
+import Button from "./shared/Button";
+import { XMarkIcon, FolderIcon } from "@heroicons/react/24/outline";
+
 interface Drive {
   id: string;
   name: string;
@@ -39,27 +42,14 @@ export default function Sidebar({
               Drives
             </h2>
             {onClose && (
-              <button
-                type="button"
+              <Button
+                variant="icon"
                 onClick={onClose}
-                className="cursor-pointer rounded-md p-1 text-gray-600 hover:bg-gray-100 lg:hidden"
+                className="lg:hidden"
                 aria-label="Close sidebar"
               >
-                <svg
-                  className="h-5 w-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
+                <XMarkIcon className="h-5 w-5" />
+              </Button>
             )}
           </div>
           <ul className="space-y-1" role="list">
@@ -75,26 +65,13 @@ export default function Sidebar({
                   }}
                   className={`cursor-pointer w-full rounded-md px-3 py-2 text-left text-sm font-medium transition-colors ${
                     selectedDriveId === drive.id
-                      ? "bg-purple-100 text-black"
+                      ? "bg-[#F3EDFF] text-black"
                       : "text-gray-700 hover:bg-gray-100"
                   }`}
                   aria-current={selectedDriveId === drive.id ? "page" : undefined}
                 >
                   <div className="flex items-center gap-3">
-                    <svg
-                      className="h-5 w-5 flex-shrink-0 text-gray-600"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                      />
-                    </svg>
+                    <FolderIcon className="h-5 w-5 flex-shrink-0 text-gray-600" />
                     <span className="truncate">{drive.name}</span>
                   </div>
                 </button>

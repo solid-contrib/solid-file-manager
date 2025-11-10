@@ -1,5 +1,7 @@
 "use client";
 
+import { ChevronRightIcon } from "@heroicons/react/24/outline";
+
 interface BreadcrumbItem {
   name: string;
   path: string;
@@ -27,20 +29,7 @@ export default function Breadcrumb({ items, onNavigate }: BreadcrumbProps) {
               >
                 {items[0].name}
               </button>
-              <svg
-                className="h-4 w-4 flex-shrink-0 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5l7 7-7 7"
-                />
-              </svg>
+              <ChevronRightIcon className="h-4 w-4 flex-shrink-0 text-gray-400" />
             </li>
             <li className="text-sm text-gray-400">...</li>
           </>
@@ -50,29 +39,15 @@ export default function Breadcrumb({ items, onNavigate }: BreadcrumbProps) {
           return (
             <li key={item.path} className="flex items-center gap-1 sm:gap-2">
               {actualIndex > 0 && (
-                <svg
-                  className="h-4 w-4 flex-shrink-0 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5l7 7-7 7"
-                  />
-                </svg>
+                <ChevronRightIcon className="h-4 w-4 flex-shrink-0 text-gray-400" />
               )}
               <button
                 type="button"
                 onClick={() => onNavigate(item.path)}
-                className={`cursor-pointer truncate text-sm ${
-                  actualIndex === items.length - 1
+                className={`cursor-pointer truncate text-sm ${actualIndex === items.length - 1
                     ? "font-medium text-black"
                     : "text-gray-600 hover:text-black"
-                }`}
+                  }`}
                 aria-current={actualIndex === items.length - 1 ? "page" : undefined}
               >
                 {item.name}
