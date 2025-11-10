@@ -1,0 +1,1 @@
+# solid-file-manager
