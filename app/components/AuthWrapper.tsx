@@ -22,8 +22,18 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
     async function checkAuth() {
       try {
         setError(null);
-        await handleIncomingRedirect();
+        const redirectInfo = await handleIncomingRedirect();
         const session = getDefaultSession();
+        
+        // Log authentication response after redirect
+        console.log("=== Authentication Response ===");
+        console.log("Redirect Info:", redirectInfo);
+        console.log("Session Info:", session.info);
+        console.log("WebID:", session.info.webId);
+        console.log("Is Logged In:", session.info.isLoggedIn);
+        console.log("Session ID:", session.info.sessionId);
+        console.log("===============================");
+        
         setIsAuthenticated(session.info.isLoggedIn);
       } catch (err) {
         console.error("Auth check failed:", err);
@@ -44,9 +54,18 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
     if (!isAuthenticated && !error) {
       const interval = setInterval(async () => {
         try {
-          await handleIncomingRedirect();
+          const redirectInfo = await handleIncomingRedirect();
           const session = getDefaultSession();
           if (session.info.isLoggedIn) {
+            // Log authentication response after redirect (from polling)
+            console.log("=== Authentication Response (from polling) ===");
+            console.log("Redirect Info:", redirectInfo);
+            console.log("Session Info:", session.info);
+            console.log("WebID:", session.info.webId);
+            console.log("Is Logged In:", session.info.isLoggedIn);
+            console.log("Session ID:", session.info.sessionId);
+            console.log("==============================================");
+            
             setIsAuthenticated(true);
             setError(null);
           }

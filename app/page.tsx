@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AuthWrapper from "./components/AuthWrapper";
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
@@ -8,53 +8,17 @@ import Breadcrumb from "./components/Breadcrumb";
 import FileList from "./components/FileList";
 import PermissionsDialog, { Permission } from "./components/PermissionsDialog";
 import { FileItemData } from "./components/FileItem";
-
-// Mock data for development
-const mockDrives = [
-  { id: "1", name: "My Drive", url: "https://storage.example.com/" },
-  { id: "2", name: "Shared with me", url: "https://storage.example.com/shared/" },
-];
-
-const mockFiles: FileItemData[] = [
-  {
-    id: "1",
-    name: "Documents",
-    type: "folder",
-    url: "https://storage.example.com/documents/",
-    lastModified: new Date(Date.now() - 86400000),
-  },
-  {
-    id: "2",
-    name: "example.pdf",
-    type: "document",
-    url: "https://storage.example.com/example.pdf",
-    lastModified: new Date(Date.now() - 3600000),
-    size: 1024000,
-    mimeType: "application/pdf",
-  },
-  {
-    id: "3",
-    name: "photo.jpg",
-    type: "image",
-    url: "https://storage.example.com/photo.jpg",
-    lastModified: new Date(Date.now() - 7200000),
-    size: 2048000,
-    mimeType: "image/jpeg",
-  },
-  {
-    id: "4",
-    name: "Notes",
-    type: "folder",
-    url: "https://storage.example.com/notes/",
-    lastModified: new Date(Date.now() - 172800000),
-  },
-];
+import { useSolidStorages } from "./lib/hooks";
+import LoadingSpinner from "./components/shared/LoadingSpinner";
+import ErrorDisplay from "./components/shared/ErrorDisplay";
 
 export default function Home() {
-  const [selectedDriveId, setSelectedDriveId] = useState<string>("1");
+  const { storages, isLoading: isLoadingStorages, error: storagesError } = useSolidStorages();
+  
+  const [selectedStorageId, setSelectedStorageId] = useState<string | null>(null);
   const [currentPath, setCurrentPath] = useState<string>("/");
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
-  const [files, setFiles] = useState<FileItemData[]>(mockFiles);
+  const [files, setFiles] = useState<FileItemData[]>([]);
   const [permissionsDialogOpen, setPermissionsDialogOpen] = useState(false);
   const [selectedFileForPermissions, setSelectedFileForPermissions] =
     useState<FileItemData | null>(null);
@@ -62,16 +26,45 @@ export default function Home() {
   // Sidebar is open by default on desktop, closed on mobile
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // Convert storages to FileItemData format for display in FileList
+  const storageFiles: FileItemData[] = storages.map((storage) => ({
+    id: storage.id,
+    name: storage.name,
+    type: "folder" as const,
+    url: storage.url,
+    lastModified: new Date(), // Storages don't have a lastModified date
+  }));
+
+  // Combine storage files with actual files
+  // If no storage is selected, show storages. If a storage is selected, show files in that storage
+  const displayFiles = selectedStorageId ? files : storageFiles;
+
+  // Get selected storage name for breadcrumb
+  const selectedStorage = storages.find((s) => s.id === selectedStorageId);
   const breadcrumbItems = [
-    { name: "My Drive", path: "/" },
+    { name: "My Solid Storages", path: "/" },
     ...(currentPath !== "/" ? [{ name: currentPath.split("/").pop() || "", path: currentPath }] : []),
   ];
 
-  const handleDriveSelect = (driveId: string) => {
-    setSelectedDriveId(driveId);
-    setCurrentPath("/");
-    setSelectedFileIds([]);
-    // In real implementation, fetch files for the selected drive
+  const handleFileDoubleClick = (file: FileItemData) => {
+    if (file.type === "folder") {
+      // If it's a storage (not yet selected), select it
+      if (!selectedStorageId && storages.some(s => s.id === file.id)) {
+        setSelectedStorageId(file.id);
+        setCurrentPath("/");
+        setSelectedFileIds([]);
+        // In real implementation, fetch files for the selected storage
+        console.log("Selected storage:", file);
+      } else {
+        // Navigate into folder
+        setCurrentPath(file.url);
+        setSelectedFileIds([]);
+        // In real implementation, navigate into folder and fetch its contents
+      }
+    } else {
+      // In real implementation, open/preview the file
+      console.log("Open file:", file);
+    }
   };
 
   const handleFileSelect = (file: FileItemData) => {
@@ -83,21 +76,18 @@ export default function Home() {
     });
   };
 
-  const handleFileDoubleClick = (file: FileItemData) => {
-    if (file.type === "folder") {
-      setCurrentPath(file.url);
-      setSelectedFileIds([]);
-      // In real implementation, navigate into folder and fetch its contents
-    } else {
-      // In real implementation, open/preview the file
-      console.log("Open file:", file);
-    }
-  };
 
   const handleBreadcrumbNavigate = (path: string) => {
-    setCurrentPath(path);
-    setSelectedFileIds([]);
-    // In real implementation, navigate to the path and fetch files
+    if (path === "/") {
+      // Navigate back to storages view
+      setSelectedStorageId(null);
+      setCurrentPath("/");
+      setSelectedFileIds([]);
+    } else {
+      setCurrentPath(path);
+      setSelectedFileIds([]);
+      // In real implementation, navigate to the path and fetch files
+    }
   };
 
   const handleShareClickForFile = (file: FileItemData) => {
@@ -141,7 +131,7 @@ export default function Home() {
 
   const handleShareClick = () => {
     if (selectedFileIds.length === 1) {
-      const file = files.find((f) => f.id === selectedFileIds[0]);
+      const file = displayFiles.find((f) => f.id === selectedFileIds[0]);
       if (file) {
         handleShareClickForFile(file);
       }
@@ -150,6 +140,48 @@ export default function Home() {
       console.log("Share multiple files:", selectedFileIds);
     }
   };
+
+  console.log("storages", storages);
+
+  // Show loading state while fetching storages
+  if (isLoadingStorages) {
+    return (
+      <AuthWrapper>
+        <div className="flex min-h-screen items-center justify-center bg-white">
+          <LoadingSpinner size="md" text="Loading your Solid storages..." />
+        </div>
+      </AuthWrapper>
+    );
+  }
+
+  // Show error state if storage fetch failed
+  if (storagesError) {
+    return (
+      <AuthWrapper>
+        <ErrorDisplay
+          title="Failed to Load Storages"
+          message={storagesError.message || "Unable to discover your Solid storage roots. Please try again."}
+          onRetry={() => window.location.reload()}
+        />
+      </AuthWrapper>
+    );
+  }
+
+  // Show empty state if no storages found
+  if (storages.length === 0) {
+    return (
+      <AuthWrapper>
+        <div className="flex min-h-screen items-center justify-center bg-white">
+          <div className="text-center">
+            <h2 className="mb-2 text-xl font-semibold text-black">No Storages Found</h2>
+            <p className="text-gray-600">
+              Unable to discover any Solid storage roots from your WebID profile.
+            </p>
+          </div>
+        </div>
+      </AuthWrapper>
+    );
+  }
 
   return (
     <AuthWrapper>
@@ -161,16 +193,14 @@ export default function Home() {
         />
         <div className="flex flex-1 overflow-hidden">
           <Sidebar
-            drives={mockDrives}
-            selectedDriveId={selectedDriveId}
-            onDriveSelect={handleDriveSelect}
             isOpen={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
+            activeTab="my-storages"
           />
           <main className="flex flex-1 flex-col overflow-hidden">
             <Breadcrumb items={breadcrumbItems} onNavigate={handleBreadcrumbNavigate} />
             <FileList
-              files={files}
+              files={displayFiles}
               currentPath={currentPath}
               onFileSelect={handleFileSelect}
               onFileDoubleClick={handleFileDoubleClick}
