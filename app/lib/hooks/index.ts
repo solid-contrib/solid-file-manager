@@ -11,4 +11,6 @@
 
 export { useSolidStorages } from "./useSolidStorages";
 export type { SolidStorage } from "./useSolidStorages";
+export { useUserProfile } from "./useUserProfile";
+export type { UserProfile } from "./useUserProfile";
 
