@@ -9,6 +9,6 @@
  * ```
  */
 
-// Export hooks here as they are created
-// Example: export { useCustomHook } from './useCustomHook';
+export { useSolidStorages } from "./useSolidStorages";
+export type { SolidStorage } from "./useSolidStorages";
 
