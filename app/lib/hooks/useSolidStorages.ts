@@ -155,8 +155,13 @@ export function useSolidStorages(): UseSolidStoragesResult {
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
+    let checkInterval: NodeJS.Timeout | null = null;
+    
     async function fetchStorages() {
       try {
+        if (!isMounted) return;
+        
         setIsLoading(true);
         setError(null);
 
@@ -171,19 +176,37 @@ export function useSolidStorages(): UseSolidStoragesResult {
           console.log("=========================");
           
           // Set up a polling mechanism to check when authentication completes
-          const checkInterval = setInterval(() => {
+          // Keep isLoading as true while waiting for authentication
+          checkInterval = setInterval(() => {
+            if (!isMounted) {
+              if (checkInterval) clearInterval(checkInterval);
+              return;
+            }
+            
             const currentSession = getDefaultSession();
             if (currentSession.info.isLoggedIn && currentSession.info.webId) {
-              clearInterval(checkInterval);
-              // Trigger re-fetch by updating state
+              if (checkInterval) clearInterval(checkInterval);
+              // Trigger re-fetch by calling fetchStorages again
               fetchStorages();
             }
           }, 500);
           
           // Clear interval after 10 seconds to avoid infinite polling
-          setTimeout(() => clearInterval(checkInterval), 10000);
+          setTimeout(() => {
+            if (checkInterval) {
+              clearInterval(checkInterval);
+              checkInterval = null;
+            }
+            // Only set loading to false if we've given up waiting and component is still mounted
+            if (isMounted) {
+              const finalSession = getDefaultSession();
+              if (!finalSession.info.isLoggedIn || !finalSession.info.webId) {
+                setIsLoading(false);
+              }
+            }
+          }, 10000);
           
-          setIsLoading(false);
+          // Don't set isLoading to false here - keep it true while waiting
           return;
         }
 
@@ -581,6 +604,11 @@ export function useSolidStorages(): UseSolidStoragesResult {
     
     // Also set up a listener for session changes
     const checkSession = setInterval(() => {
+      if (!isMounted) {
+        clearInterval(checkSession);
+        return;
+      }
+      
       const session = getDefaultSession();
       if (session.info.isLoggedIn && session.info.webId && storages.length === 0 && !isLoading) {
         console.log("Session state changed, re-fetching storages...");
@@ -588,7 +616,11 @@ export function useSolidStorages(): UseSolidStoragesResult {
       }
     }, 1000);
     
-    return () => clearInterval(checkSession);
+    return () => {
+      isMounted = false;
+      if (checkInterval) clearInterval(checkInterval);
+      clearInterval(checkSession);
+    };
   }, []);
 
   return { storages, isLoading, error };
