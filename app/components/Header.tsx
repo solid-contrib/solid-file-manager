@@ -4,6 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import Button from "./shared/Button";
 import Input from "./shared/Input";
+import ProfileIcon from "./ProfileIcon";
 import {
   Bars3Icon,
   MagnifyingGlassIcon,
@@ -74,6 +75,8 @@ export default function Header({ selectedFileCount = 0, onShareClick, onMenuClic
               <PlusIcon className="h-4 w-4" />
               <span className="hidden sm:inline">New</span>
             </Button>
+            
+            <ProfileIcon />
           </div>
         </div>
 

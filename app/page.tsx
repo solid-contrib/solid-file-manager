@@ -9,6 +9,7 @@ import FileList from "./components/FileList";
 import PermissionsDialog, { Permission } from "./components/PermissionsDialog";
 import { FileItemData } from "./components/FileItem";
 import { useSolidStorages } from "./lib/hooks";
+import { filterProfileItems } from "./lib/helpers";
 import LoadingSpinner from "./components/shared/LoadingSpinner";
 import ErrorDisplay from "./components/shared/ErrorDisplay";
 
@@ -27,7 +28,8 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Convert storages to FileItemData format for display in FileList
-  const storageFiles: FileItemData[] = storages.map((storage) => ({
+  // Filter out profile-related items (profile/, card, etc.)
+  const storageFiles: FileItemData[] = filterProfileItems(storages).map((storage) => ({
     id: storage.id,
     name: storage.name,
     type: "folder" as const,
@@ -35,9 +37,12 @@ export default function Home() {
     lastModified: new Date(), // Storages don't have a lastModified date
   }));
 
+  // Filter out profile-related files from the files list
+  const filteredFiles = filterProfileItems(files);
+
   // Combine storage files with actual files
   // If no storage is selected, show storages. If a storage is selected, show files in that storage
-  const displayFiles = selectedStorageId ? files : storageFiles;
+  const displayFiles = selectedStorageId ? filteredFiles : storageFiles;
 
   // Get selected storage name for breadcrumb
   const selectedStorage = storages.find((s) => s.id === selectedStorageId);
