@@ -36,8 +36,9 @@ export default function Breadcrumb({ items, onNavigate }: BreadcrumbProps) {
         )}
         {displayItems.slice(items.length > 2 ? 1 : 0).map((item, index) => {
           const actualIndex = items.length > 2 ? items.length - 2 + index : index;
+          // Use a combination of path and index to ensure unique keys
           return (
-            <li key={item.path} className="flex items-center gap-1 sm:gap-2">
+            <li key={`${item.path}-${actualIndex}`} className="flex items-center gap-1 sm:gap-2">
               {actualIndex > 0 && (
                 <ChevronRightIcon className="h-4 w-4 flex-shrink-0 text-gray-400" />
               )}

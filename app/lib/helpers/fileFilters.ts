@@ -4,6 +4,7 @@
 
 /**
  * Checks if a URL or name represents a profile-related item that should be hidden from the file manager
+ * Only filters out the actual profile card document, not the profile folder
  * @param url - The URL to check
  * @param name - Optional name to check (for additional filtering)
  * @returns true if the item should be filtered out (is profile-related)
@@ -12,12 +13,13 @@ export function isProfileItem(url: string, name?: string): boolean {
   const urlLower = url.toLowerCase();
   const nameLower = name?.toLowerCase() || "";
   
+  // Only filter out the profile card document, not the profile folder
+  // Profile card is typically at /profile/card or ends with /card
   return (
-    urlLower.includes('/profile/') ||
-    urlLower.includes('/card') ||
-    urlLower.endsWith('/profile') ||
-    urlLower.includes('profile/card') ||
-    nameLower.includes('card')
+    urlLower.includes('/profile/card') ||
+    urlLower.endsWith('/card') ||
+    (urlLower.includes('/card') && !urlLower.endsWith('/')) ||
+    nameLower === 'card'
   );
 }
 

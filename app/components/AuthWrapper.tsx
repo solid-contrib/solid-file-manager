@@ -22,48 +22,30 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
     async function checkAuth() {
       try {
         setError(null);
-        
-        // Always handle incoming redirect first - this is necessary to restore sessions
+
         // The library uses this to restore session state from localStorage
-        // Set restorePreviousSession to true to enable session restoration on page refresh
         const redirectInfo = await handleIncomingRedirect({
           restorePreviousSession: true,
         });
-        
+
         // Get the session instance after handling redirect
         const session = getDefaultSession();
-        
-        // development logs (will remove later)
-        console.log("=== Session Check ===");
-        console.log("Redirect Info:", redirectInfo);
-        console.log("Session Info:", session.info);
-        console.log("Is Logged In:", session.info.isLoggedIn);
-        console.log("WebID:", session.info.webId);
-        console.log("Session ID:", session.info.sessionId);
-        if (session.info.expirationDate) {
-          const expDate = new Date(session.info.expirationDate);
-          console.log("Expiration Date:", expDate.toISOString());
-          console.log("Is Expired:", expDate <= new Date());
-        }
-        
-        // Check if we have a valid session
+
         let isLoggedIn = session.info.isLoggedIn && !!session.info.webId;
-        
+
         // Check expiration if session exists
         if (isLoggedIn && session.info.expirationDate) {
           const expirationDate = new Date(session.info.expirationDate);
           const now = new Date();
           if (expirationDate <= now) {
-            console.log("Session expired, user needs to re-login");
             isLoggedIn = false;
           }
         }
-        
-      
-        
+
+
+
         setIsAuthenticated(isLoggedIn);
       } catch (err) {
-        console.error("Auth check failed:", err);
         const errorMessage =
           err instanceof Error ? err : new Error("Authentication check failed");
         setError(errorMessage);
@@ -78,28 +60,19 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
 
   // Re-check authentication state periodically in case user logs in from another tab
   useEffect(() => {
-      if (!isAuthenticated && !error) {
-        const interval = setInterval(async () => {
-          try {
-            const redirectInfo = await handleIncomingRedirect({
-              restorePreviousSession: true,
-            });
-            const session = getDefaultSession();
+    if (!isAuthenticated && !error) {
+      const interval = setInterval(async () => {
+        try {
+          const redirectInfo = await handleIncomingRedirect({
+            restorePreviousSession: true,
+          });
+          const session = getDefaultSession();
           if (session.info.isLoggedIn) {
-            // Log authentication response after redirect (from polling)
-            console.log("=== Authentication Response (from polling) ===");
-            console.log("Redirect Info:", redirectInfo);
-            console.log("Session Info:", session.info);
-            console.log("WebID:", session.info.webId);
-            console.log("Is Logged In:", session.info.isLoggedIn);
-            console.log("Session ID:", session.info.sessionId);
-            console.log("==============================================");
-            
             setIsAuthenticated(true);
             setError(null);
           }
         } catch (err) {
-          console.error("Auth polling failed:", err);
+          // Silent fail for polling
         }
       }, 1000);
 
@@ -111,7 +84,7 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
     setError(null);
     setIsChecking(true);
     setIsAuthenticated(null);
-    // Trigger re-check
+
     handleIncomingRedirect({ restorePreviousSession: true })
       .then(() => {
         const session = getDefaultSession();

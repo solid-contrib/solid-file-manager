@@ -51,8 +51,6 @@ async function discoverStorageViaTraversal(
     
     while (currentUrl && level < maxLevels) {
       try {
-        console.log(`[Traversal] Checking container: ${currentUrl}`);
-        
         // Fetch the container with content negotiation
         const response = await fetchFn(currentUrl, {
           method: 'GET',
@@ -62,7 +60,6 @@ async function discoverStorageViaTraversal(
         });
         
         if (!response.ok) {
-          console.log(`[Traversal] Container not accessible: ${response.status} ${response.statusText}`);
           // Move up one level and continue
           const parentUrl = currentUrl.substring(0, currentUrl.lastIndexOf('/', currentUrl.length - 2) + 1);
           if (parentUrl === currentUrl || parentUrl === `${url.origin}/`) {
@@ -90,7 +87,6 @@ async function discoverStorageViaTraversal(
             const quads = parser.parse(content);
             store.addQuads(quads);
           } catch (e) {
-            console.warn(`[Traversal] Failed to parse content from ${currentUrl}:`, e);
             // Move up one level and continue
             const parentUrl = currentUrl.substring(0, currentUrl.lastIndexOf('/', currentUrl.length - 2) + 1);
             if (parentUrl === currentUrl || parentUrl === `${url.origin}/`) {
@@ -114,7 +110,6 @@ async function discoverStorageViaTraversal(
           // Ensure URL ends with /
           const storageUrl = currentUrl.endsWith('/') ? currentUrl : currentUrl + '/';
           storageUrls.push(storageUrl);
-          console.log(`[Traversal] Found pim:Storage at: ${storageUrl}`);
           break; // Found storage, no need to continue
         }
         
@@ -127,7 +122,6 @@ async function discoverStorageViaTraversal(
         level++;
       } catch (error) {
         // If we can't fetch a container, try the parent
-        console.debug(`[Traversal] Could not fetch ${currentUrl}, trying parent:`, error);
         const parentUrl = currentUrl.substring(0, currentUrl.lastIndexOf('/', currentUrl.length - 2) + 1);
         if (parentUrl === currentUrl || parentUrl === `${url.origin}/`) {
           break;
@@ -137,7 +131,7 @@ async function discoverStorageViaTraversal(
       }
     }
   } catch (error) {
-    console.error("[Traversal] Error discovering storage via traversal:", error);
+    // Silent error handling
   }
   
   return storageUrls;
@@ -169,12 +163,6 @@ export function useSolidStorages(): UseSolidStoragesResult {
         
         // Wait a bit for authentication to complete
         if (!session.info.isLoggedIn || !session.info.webId) {
-          console.log("=== Storage Discovery ===");
-          console.log("User not logged in or WebID not available");
-          console.log("Session:", session.info);
-          console.log("Waiting for authentication...");
-          console.log("=========================");
-          
           // Set up a polling mechanism to check when authentication completes
           // Keep isLoading as true while waiting for authentication
           checkInterval = setInterval(() => {
@@ -211,9 +199,6 @@ export function useSolidStorages(): UseSolidStoragesResult {
         }
 
         const webId = session.info.webId;
-        console.log("=== Storage Discovery ===");
-        console.log("WebID:", webId);
-        console.log("Fetching profile document...");
 
         // Try different Accept headers to get the profile
         const acceptHeaders = [
@@ -227,7 +212,6 @@ export function useSolidStorages(): UseSolidStoragesResult {
 
         for (const acceptHeader of acceptHeaders) {
           try {
-            console.log(`Trying Accept header: ${acceptHeader}`);
             // Always use the authenticated session's fetch function
             const fetchFn = session.fetch || fetch;
             const response = await fetchFn(webId, {
@@ -240,17 +224,9 @@ export function useSolidStorages(): UseSolidStoragesResult {
             if (response.ok) {
               contentType = response.headers.get('content-type') || '';
               content = await response.text();
-              console.log(`Successfully fetched profile with content-type: ${contentType}`);
-              console.log(`Content length: ${content.length} characters`);
-              console.log(`\n=== Raw Profile Content (Full) ===`);
-              console.log(content);
-              console.log(`\n=== End of Raw Content ===`);
               break;
-            } else {
-              console.log(`Failed with status ${response.status} for Accept: ${acceptHeader}`);
             }
           } catch (err) {
-            console.log(`Error with Accept header ${acceptHeader}:`, err);
             continue;
           }
         }
@@ -264,22 +240,17 @@ export function useSolidStorages(): UseSolidStoragesResult {
         
         if (contentType.includes('text/turtle') || contentType.includes('application/turtle') || 
             contentType.includes('text/n3') || contentType.includes('application/n3')) {
-          console.log("Parsing as Turtle/N3...");
           const parser = new Parser();
           const quads = parser.parse(content);
           store.addQuads(quads);
-          console.log(`Parsed ${quads.length} quads from Turtle`);
         } else if (contentType.includes('application/ld+json')) {
-          console.log("Parsing as JSON-LD...");
           // For JSON-LD, we'd need a different parser, but for now let's try to extract from Turtle
           // Most Solid servers return Turtle even if JSON-LD is requested
           try {
             const parser = new Parser();
             const quads = parser.parse(content);
             store.addQuads(quads);
-            console.log(`Parsed ${quads.length} quads from JSON-LD (as Turtle)`);
           } catch (e) {
-            console.warn("Failed to parse as Turtle, might be actual JSON-LD:", e);
             // TODO: Add JSON-LD parsing if needed
           }
         }
@@ -293,8 +264,6 @@ export function useSolidStorages(): UseSolidStoragesResult {
           new NamedNode(baseUrl + '#card'),
         ];
 
-        console.log("Looking for main subject with variants:", subjectVariants.map(s => s.value));
-
         // Find the main subject by looking for common profile properties
         let mainSubject: NamedNode | null = null;
         
@@ -302,7 +271,6 @@ export function useSolidStorages(): UseSolidStoragesResult {
           const nameQuads = store.getQuads(subject, new NamedNode(FOAF_NAME), null, null);
           if (nameQuads.length > 0) {
             mainSubject = subject;
-            console.log(`Found main subject: ${subject.value} (via FOAF name)`);
             break;
           }
         }
@@ -313,14 +281,12 @@ export function useSolidStorages(): UseSolidStoragesResult {
           const personQuads = store.getQuads(null, new NamedNode('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'), personType, null);
           if (personQuads.length > 0 && personQuads[0].subject.termType === 'NamedNode') {
             mainSubject = personQuads[0].subject as NamedNode;
-            console.log(`Found main subject: ${mainSubject.value} (via Person type)`);
           }
         }
 
         // Fallback to WebID itself
         if (!mainSubject) {
           mainSubject = new NamedNode(webId);
-          console.log(`Using WebID as main subject: ${webId}`);
         }
 
         // Get profile name
@@ -339,15 +305,12 @@ export function useSolidStorages(): UseSolidStoragesResult {
         const profileName = getName(mainSubject) || 
                            webId.split("/").pop()?.split("#")[0] || 
                            "My Storage";
-        
-        console.log("Profile name:", profileName);
 
         // Get storage roots using both pim:storage and solid:storage predicates
         const storageUrls: string[] = [];
         
         // Try pim:storage
         const pimStorageQuads = store.getQuads(mainSubject, new NamedNode(PIM_STORAGE), null, null);
-        console.log(`Found ${pimStorageQuads.length} pim:storage quads`);
         pimStorageQuads.forEach(quad => {
           if (quad.object instanceof NamedNode) {
             let storageUrl = quad.object.value;
@@ -358,7 +321,6 @@ export function useSolidStorages(): UseSolidStoragesResult {
             if (storageUrl === 'undefined/' || storageUrl.includes('undefined')) {
               const baseUrlObj = new URL(baseUrl);
               storageUrl = `${baseUrlObj.protocol}//${baseUrlObj.host}/`;
-              console.log(`Fixed undefined prefix: ${originalValue} -> ${storageUrl}`);
             } else if (!storageUrl.startsWith('http://') && !storageUrl.startsWith('https://')) {
               // Resolve relative URLs
               const baseUrlObj = new URL(baseUrl);
@@ -367,38 +329,31 @@ export function useSolidStorages(): UseSolidStoragesResult {
               } else {
                 storageUrl = new URL(storageUrl, baseUrl).href;
               }
-              console.log(`Resolved relative storage URL: ${originalValue} -> ${storageUrl}`);
             }
             
             if (storageUrl && storageUrl.startsWith('http') && !storageUrls.includes(storageUrl)) {
               storageUrls.push(storageUrl);
-              console.log("Found storage via pim:storage:", storageUrl);
             }
           }
         });
 
         // Try solid:storage
         const solidStorageQuads = store.getQuads(mainSubject, new NamedNode(SOLID_STORAGE), null, null);
-        console.log(`Found ${solidStorageQuads.length} solid:storage quads`);
         solidStorageQuads.forEach(quad => {
           if (quad.object instanceof NamedNode) {
             const storageUrl = quad.object.value;
             if (!storageUrls.includes(storageUrl)) {
               storageUrls.push(storageUrl);
-              console.log("Found storage via solid:storage:", storageUrl);
             }
           }
         });
 
         // Also check all quads in the store for storage predicates (in case subject is different)
         const allPimStorageQuads = store.getQuads(null, new NamedNode(PIM_STORAGE), null, null);
-        console.log(`Found ${allPimStorageQuads.length} total pim:storage quads in store`);
         allPimStorageQuads.forEach(quad => {
           if (quad.object instanceof NamedNode) {
             let storageUrl = quad.object.value;
             const originalValue = storageUrl;
-            
-            console.log(`Processing storage URL: ${storageUrl} (original: ${originalValue})`);
             
             // Handle the case where n3 parser didn't resolve the prefix correctly
             // "pre:" prefix resolves to "</.>" which should be the root "/"
@@ -407,7 +362,6 @@ export function useSolidStorages(): UseSolidStoragesResult {
               // The prefix "pre:" resolves to "</.>" which is the root
               const baseUrlObj = new URL(baseUrl);
               storageUrl = `${baseUrlObj.protocol}//${baseUrlObj.host}/`;
-              console.log(`Fixed undefined prefix: ${originalValue} -> ${storageUrl}`);
             }
             // Handle relative URLs that end with "/." or are just "/"
             else if (storageUrl.endsWith('/.') || storageUrl.endsWith('/./') || 
@@ -428,7 +382,6 @@ export function useSolidStorages(): UseSolidStoragesResult {
                   }
                 }
               }
-              console.log(`Resolved relative storage URL: ${originalValue} -> ${storageUrl}`);
             }
             // Also check if it's a relative URL without protocol
             else if (!storageUrl.startsWith('http://') && !storageUrl.startsWith('https://')) {
@@ -439,9 +392,8 @@ export function useSolidStorages(): UseSolidStoragesResult {
                 } else {
                   storageUrl = new URL(storageUrl, baseUrl).href;
                 }
-                console.log(`Resolved non-absolute storage URL: ${originalValue} -> ${storageUrl}`);
               } catch (e) {
-                console.warn(`Failed to resolve storage URL: ${originalValue}`, e);
+                // Silent error handling
               }
             }
             
@@ -449,10 +401,7 @@ export function useSolidStorages(): UseSolidStoragesResult {
             if (storageUrl && storageUrl.startsWith('http')) {
               if (!storageUrls.includes(storageUrl)) {
                 storageUrls.push(storageUrl);
-                console.log("Found storage via pim:storage (from any subject):", storageUrl);
               }
-            } else {
-              console.warn(`Skipping invalid storage URL: ${storageUrl}`);
             }
           } else if (quad.object instanceof Literal) {
             // Sometimes storage might be a literal, try to resolve it
@@ -464,93 +413,38 @@ export function useSolidStorages(): UseSolidStoragesResult {
                 : new URL(storageValue, baseUrl).href;
               if (!storageUrls.includes(resolvedUrl)) {
                 storageUrls.push(resolvedUrl);
-                console.log("Found storage via pim:storage (literal, resolved):", resolvedUrl);
               }
             }
           }
         });
 
         const allSolidStorageQuads = store.getQuads(null, new NamedNode(SOLID_STORAGE), null, null);
-        console.log(`Found ${allSolidStorageQuads.length} total solid:storage quads in store`);
         allSolidStorageQuads.forEach(quad => {
           if (quad.object instanceof NamedNode) {
             const storageUrl = quad.object.value;
             if (!storageUrls.includes(storageUrl)) {
               storageUrls.push(storageUrl);
-              console.log("Found storage via solid:storage (from any subject):", storageUrl);
             }
           }
         });
 
-        // Log all quads for debugging
-        console.log("=== All Quads in Store ===");
-        const allQuads = store.getQuads(null, null, null, null);
-        console.log(`Total quads: ${allQuads.length}`);
-        
-        // Group quads by subject for better readability
-        const quadsBySubject = new Map<string, Array<{ predicate: string; object: string; objectType: string }>>();
-        
-        allQuads.forEach(quad => {
-          const subject = quad.subject.value;
-          if (!quadsBySubject.has(subject)) {
-            quadsBySubject.set(subject, []);
-          }
-          quadsBySubject.get(subject)!.push({
-            predicate: quad.predicate.value,
-            object: quad.object instanceof NamedNode ? quad.object.value : 
-                   quad.object instanceof Literal ? quad.object.value : 
-                   quad.object.value,
-            objectType: quad.object.termType,
-          });
-        });
-        
-        console.log(`Found ${quadsBySubject.size} unique subjects`);
-        console.log("\n=== Quads Grouped by Subject ===");
-        quadsBySubject.forEach((quads, subject) => {
-          console.log(`\nSubject: ${subject}`);
-          quads.forEach(quad => {
-            console.log(`  ${quad.predicate}`);
-            console.log(`    -> ${quad.object} (${quad.objectType})`);
-          });
-        });
-        
-        // Also log all quads in a flat list
-        console.log("\n=== All Quads (Flat List) ===");
-        allQuads.forEach((quad, idx) => {
-          const objectValue = quad.object instanceof NamedNode ? quad.object.value : 
-                             quad.object instanceof Literal ? quad.object.value : 
-                             quad.object.value;
-          console.log(`Quad ${idx + 1}:`, {
-            subject: quad.subject.value,
-            predicate: quad.predicate.value,
-            object: objectValue,
-            objectType: quad.object.termType,
-          });
-        });
-        console.log("=========================");
-
         // Method 2: Hierarchical traversal (if no storage found via predicates)
         // Based on: https://github.com/SolidLabResearch/Bashlib/blob/80de25cbb4b3ed057f95e25bc057f1be9b00cef3/src/utils/util.ts#L73-L104
         if (storageUrls.length === 0) {
-          console.log("No storage found via predicates, attempting hierarchical traversal...");
-          
           try {
             const traversalStorages = await discoverStorageViaTraversal(webId, session.fetch || fetch);
             traversalStorages.forEach(url => {
               if (!storageUrls.includes(url)) {
                 storageUrls.push(url);
-                console.log("Found storage via hierarchical traversal:", url);
               }
             });
           } catch (err) {
-            console.warn("Hierarchical traversal failed:", err);
+            // Silent error handling
           }
         }
 
         // If still no storage found, try to infer from WebID
         if (storageUrls.length === 0) {
-          console.log("No storage found via predicates or traversal, attempting to infer from WebID...");
-          
           // Extract base URL from WebID
           const webIdUrl = new URL(webId);
           const baseUrl = `${webIdUrl.protocol}//${webIdUrl.host}/`;
@@ -558,11 +452,9 @@ export function useSolidStorages(): UseSolidStoragesResult {
           // For solidcommunity.net, storage is typically at the root
           if (webId.includes("solidcommunity.net")) {
             storageUrls.push(baseUrl);
-            console.log("Inferred storage from solidcommunity.net:", baseUrl);
           } else {
             // For other providers, try common patterns
             storageUrls.push(baseUrl);
-            console.log("Inferred storage from WebID base URL:", baseUrl);
           }
         }
 
@@ -572,9 +464,6 @@ export function useSolidStorages(): UseSolidStoragesResult {
           (url.startsWith('http://') || url.startsWith('https://')) &&
           !url.includes('undefined')
         );
-        
-        console.log("All discovered storage URLs (before filtering):", storageUrls);
-        console.log("Valid storage URLs (after filtering):", validStorageUrls);
 
         // Convert to SolidStorage format
         const discoveredStorages: SolidStorage[] = validStorageUrls.map((url, index) => {
@@ -585,12 +474,8 @@ export function useSolidStorages(): UseSolidStoragesResult {
           };
         });
 
-        console.log("Discovered storages:", discoveredStorages);
-        console.log("=========================");
-
         setStorages(discoveredStorages);
       } catch (err) {
-        console.error("Error fetching storages:", err);
         const errorMessage =
           err instanceof Error ? err : new Error("Failed to fetch storage roots");
         setError(errorMessage);
@@ -611,7 +496,6 @@ export function useSolidStorages(): UseSolidStoragesResult {
       
       const session = getDefaultSession();
       if (session.info.isLoggedIn && session.info.webId && storages.length === 0 && !isLoading) {
-        console.log("Session state changed, re-fetching storages...");
         fetchStorages();
       }
     }, 1000);
