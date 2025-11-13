@@ -8,17 +8,14 @@ import ProfileIcon from "./ProfileIcon";
 import {
   Bars3Icon,
   MagnifyingGlassIcon,
-  ShareIcon,
   PlusIcon,
 } from "@heroicons/react/24/outline";
 
 interface HeaderProps {
-  selectedFileCount?: number;
-  onShareClick?: () => void;
   onMenuClick?: () => void;
 }
 
-export default function Header({ selectedFileCount = 0, onShareClick, onMenuClick }: HeaderProps) {
+export default function Header({ onMenuClick }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState("");
 
   return (
@@ -54,18 +51,6 @@ export default function Header({ selectedFileCount = 0, onShareClick, onMenuClic
 
           {/* Action Buttons */}
           <div className="ml-auto flex items-center gap-1 sm:gap-2">
-            {selectedFileCount > 0 && onShareClick && (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={onShareClick}
-                className="flex h-9 items-center gap-1 sm:gap-2 sm:px-3"
-                aria-label="Share selected files"
-              >
-                <ShareIcon className="h-4 w-4" />
-                <span className="hidden sm:inline">Share</span>
-              </Button>
-            )}
             <Button
               variant="secondary"
               size="sm"

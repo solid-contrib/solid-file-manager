@@ -8,67 +8,63 @@ import Breadcrumb from "./components/Breadcrumb";
 import FileList from "./components/FileList";
 import PermissionsDialog, { Permission } from "./components/PermissionsDialog";
 import { FileItemData } from "./components/FileItem";
-import { useSolidStorages } from "./lib/hooks";
-import { filterProfileItems } from "./lib/helpers";
+import { useSolidStorages, useBrowseStorage } from "./lib/hooks";
+import { filterProfileItems, buildBreadcrumbItems } from "./lib/helpers";
 import LoadingSpinner from "./components/shared/LoadingSpinner";
 import ErrorDisplay from "./components/shared/ErrorDisplay";
 
 export default function Home() {
   const { storages, isLoading: isLoadingStorages, error: storagesError } = useSolidStorages();
-  
   const [selectedStorageId, setSelectedStorageId] = useState<string | null>(null);
   const [currentPath, setCurrentPath] = useState<string>("/");
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
-  const [files, setFiles] = useState<FileItemData[]>([]);
+  
+  const containerUrlToBrowse = selectedStorageId
+    ? currentPath === "/"
+      ? storages.find((s) => s.id === selectedStorageId)?.url || null
+      : currentPath
+    : null;
+  
+  const { files: browsedFiles, isLoading: isLoadingFiles, error: browseError } = useBrowseStorage(containerUrlToBrowse);
   const [permissionsDialogOpen, setPermissionsDialogOpen] = useState(false);
   const [selectedFileForPermissions, setSelectedFileForPermissions] =
     useState<FileItemData | null>(null);
   const [permissions, setPermissions] = useState<Permission[]>([]);
-  // Sidebar is open by default on desktop, closed on mobile
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Convert storages to FileItemData format for display in FileList
-  // Filter out profile-related items (profile/, card, etc.)
   const storageFiles: FileItemData[] = filterProfileItems(storages).map((storage) => ({
     id: storage.id,
     name: storage.name,
     type: "folder" as const,
     url: storage.url,
-    lastModified: new Date(), // Storages don't have a lastModified date
+    lastModified: new Date(),
   }));
 
-  // Filter out profile-related files from the files list
-  const filteredFiles = filterProfileItems(files);
-
-  // Combine storage files with actual files
-  // If no storage is selected, show storages. If a storage is selected, show files in that storage
+  const filteredFiles = filterProfileItems(browsedFiles);
   const displayFiles = selectedStorageId ? filteredFiles : storageFiles;
 
-  // Get selected storage name for breadcrumb
   const selectedStorage = storages.find((s) => s.id === selectedStorageId);
-  const breadcrumbItems = [
-    { name: "My Solid Storages", path: "/" },
-    ...(currentPath !== "/" ? [{ name: currentPath.split("/").pop() || "", path: currentPath }] : []),
-  ];
+  const breadcrumbItems = buildBreadcrumbItems(
+    selectedStorageId,
+    selectedStorage?.url,
+    selectedStorage?.name,
+    currentPath
+  );
 
   const handleFileDoubleClick = (file: FileItemData) => {
     if (file.type === "folder") {
-      // If it's a storage (not yet selected), select it
-      if (!selectedStorageId && storages.some(s => s.id === file.id)) {
+      const isStorage = storages.some(s => s.id === file.id);
+      
+      if (!selectedStorageId && isStorage) {
         setSelectedStorageId(file.id);
         setCurrentPath("/");
         setSelectedFileIds([]);
-        // In real implementation, fetch files for the selected storage
-        console.log("Selected storage:", file);
-      } else {
-        // Navigate into folder
+      } else if (selectedStorageId) {
         setCurrentPath(file.url);
         setSelectedFileIds([]);
-        // In real implementation, navigate into folder and fetch its contents
       }
     } else {
-      // In real implementation, open/preview the file
-      console.log("Open file:", file);
+      window.open(file.url, "_blank");
     }
   };
 
@@ -84,21 +80,23 @@ export default function Home() {
 
   const handleBreadcrumbNavigate = (path: string) => {
     if (path === "/") {
-      // Navigate back to storages view
       setSelectedStorageId(null);
       setCurrentPath("/");
       setSelectedFileIds([]);
     } else {
-      setCurrentPath(path);
+      const selectedStorage = storages.find((s) => s.id === selectedStorageId);
+      if (selectedStorage && path === selectedStorage.url) {
+        setCurrentPath("/");
+      } else {
+        setCurrentPath(path);
+      }
       setSelectedFileIds([]);
-      // In real implementation, navigate to the path and fetch files
     }
   };
 
   const handleShareClickForFile = (file: FileItemData) => {
     setSelectedFileForPermissions(file);
     setPermissionsDialogOpen(true);
-    // In real implementation, fetch permissions for the file
     setPermissions([
       {
         id: "1",
@@ -111,7 +109,6 @@ export default function Home() {
   };
 
   const handleAddPermission = async (webId: string, role: "viewer" | "editor") => {
-    // In real implementation, add permission via ACP
     const newPermission: Permission = {
       id: Date.now().toString(),
       type: "user",
@@ -123,32 +120,15 @@ export default function Home() {
   };
 
   const handleRemovePermission = (permissionId: string) => {
-    // In real implementation, remove permission via ACP
     setPermissions((prev) => prev.filter((p) => p.id !== permissionId));
   };
 
   const handleUpdatePermission = (permissionId: string, role: "viewer" | "editor") => {
-    // In real implementation, update permission via ACP
     setPermissions((prev) =>
       prev.map((p) => (p.id === permissionId ? { ...p, role } : p))
     );
   };
 
-  const handleShareClick = () => {
-    if (selectedFileIds.length === 1) {
-      const file = displayFiles.find((f) => f.id === selectedFileIds[0]);
-      if (file) {
-        handleShareClickForFile(file);
-      }
-    } else if (selectedFileIds.length > 1) {
-      // Handle multiple file sharing (could show a different dialog)
-      console.log("Share multiple files:", selectedFileIds);
-    }
-  };
-
-  console.log("storages", storages);
-
-  // Show loading state while fetching storages
   if (isLoadingStorages) {
     return (
       <AuthWrapper>
@@ -158,8 +138,9 @@ export default function Home() {
       </AuthWrapper>
     );
   }
+  
+  const isBrowsing = selectedStorageId && isLoadingFiles;
 
-  // Show error state if storage fetch failed
   if (storagesError) {
     return (
       <AuthWrapper>
@@ -172,7 +153,21 @@ export default function Home() {
     );
   }
 
-  // Show empty state if no storages found
+  if (browseError && selectedStorageId) {
+    return (
+      <AuthWrapper>
+        <ErrorDisplay
+          title="Failed to Load Container Contents"
+          message={browseError.message || "Unable to browse the storage container. Please try again."}
+          onRetry={() => {
+            // Reset to storage root
+            setCurrentPath("/");
+          }}
+        />
+      </AuthWrapper>
+    );
+  }
+
   if (storages.length === 0) {
     return (
       <AuthWrapper>
@@ -191,11 +186,9 @@ export default function Home() {
   return (
     <AuthWrapper>
       <div className="flex h-screen flex-col overflow-hidden bg-white">
-        <Header
-          selectedFileCount={selectedFileIds.length}
-          onShareClick={selectedFileIds.length > 0 ? handleShareClick : undefined}
-          onMenuClick={() => setSidebarOpen(true)}
-        />
+            <Header
+              onMenuClick={() => setSidebarOpen(true)}
+            />
         <div className="flex flex-1 overflow-hidden">
           <Sidebar
             isOpen={sidebarOpen}
@@ -204,13 +197,19 @@ export default function Home() {
           />
           <main className="flex flex-1 flex-col overflow-hidden">
             <Breadcrumb items={breadcrumbItems} onNavigate={handleBreadcrumbNavigate} />
-            <FileList
-              files={displayFiles}
-              currentPath={currentPath}
-              onFileSelect={handleFileSelect}
-              onFileDoubleClick={handleFileDoubleClick}
-              selectedFileIds={selectedFileIds}
-            />
+            {isBrowsing ? (
+              <div className="flex flex-1 items-center justify-center">
+                <LoadingSpinner size="md" text="Loading folder contents..." />
+              </div>
+            ) : (
+              <FileList
+                files={displayFiles}
+                currentPath={currentPath}
+                onFileSelect={handleFileSelect}
+                onFileDoubleClick={handleFileDoubleClick}
+                selectedFileIds={selectedFileIds}
+              />
+            )}
           </main>
         </div>
         {selectedFileForPermissions && (

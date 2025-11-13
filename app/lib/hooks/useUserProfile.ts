@@ -56,7 +56,6 @@ export function useUserProfile(): UseUserProfileResult {
         }
 
         const webId = session.info.webId;
-        console.log("[Profile] Fetching profile from WebID:", webId);
 
         // Fetch the profile document
         const acceptHeaders = [
@@ -106,7 +105,7 @@ export function useUserProfile(): UseUserProfileResult {
             const quads = parser.parse(content);
             store.addQuads(quads);
           } catch (e) {
-            console.warn("[Profile] Failed to parse profile content:", e);
+            // Silent error handling
           }
         }
 
@@ -193,7 +192,7 @@ export function useUserProfile(): UseUserProfileResult {
             try {
               photoUrl = new URL(photoUrl, baseUrl).href;
             } catch (e) {
-              console.warn("[Profile] Failed to resolve photo URL:", e);
+              // Silent error handling
             }
           }
         }
@@ -209,10 +208,8 @@ export function useUserProfile(): UseUserProfileResult {
           photoUrl,
         };
 
-        console.log("[Profile] Extracted profile:", profileData);
         setProfile(profileData);
       } catch (err) {
-        console.error("[Profile] Error fetching profile:", err);
         const errorMessage =
           err instanceof Error ? err : new Error("Failed to fetch user profile");
         setError(errorMessage);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Button from "./shared/Button";
 import { EllipsisVerticalIcon } from "@heroicons/react/24/outline";
 import { getFileIcon, formatFileSize, formatDate, type FileType } from "../lib/helpers";
@@ -33,6 +33,31 @@ export default function FileItem({
   isSelected = false,
 }: FileItemProps) {
   const [isHovered, setIsHovered] = useState(false);
+  const clickCountRef = useRef(0);
+  const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleClick = (e: React.MouseEvent) => {
+    clickCountRef.current += 1;
+    
+    if (clickCountRef.current === 1) {
+      clickTimeoutRef.current = setTimeout(() => {
+        if (clickCountRef.current === 1) {
+          onSelect(file);
+        }
+        clickCountRef.current = 0;
+        clickTimeoutRef.current = null;
+      }, 300);
+    } else if (clickCountRef.current === 2) {
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current);
+        clickTimeoutRef.current = null;
+      }
+      clickCountRef.current = 0;
+      e.preventDefault();
+      e.stopPropagation();
+      onDoubleClick(file);
+    }
+  };
 
   if (view === "grid") {
     return (
@@ -43,8 +68,7 @@ export default function FileItem({
           }`}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        onClick={() => onSelect(file)}
-        onDoubleClick={() => onDoubleClick(file)}
+        onClick={handleClick}
         role="button"
         tabIndex={0}
         aria-label={`${file.type === "folder" ? "Folder" : "File"}: ${file.name}`}
@@ -66,8 +90,7 @@ export default function FileItem({
         }`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      onClick={() => onSelect(file)}
-      onDoubleClick={() => onDoubleClick(file)}
+      onClick={handleClick}
       role="button"
       tabIndex={0}
       aria-label={`${file.type === "folder" ? "Folder" : "File"}: ${file.name}`}
@@ -91,7 +114,6 @@ export default function FileItem({
             aria-label="More options"
             onClick={(e) => {
               e.stopPropagation();
-              // Handle more options
             }}
           >
             <EllipsisVerticalIcon className="h-4 w-4 sm:h-5 sm:w-5" />
