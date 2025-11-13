@@ -51,7 +51,7 @@ export function useBrowseStorage(containerUrl: string | null): UseBrowseStorageR
         }
 
         const url = urlToBrowse.endsWith("/") ? urlToBrowse : urlToBrowse + "/";
-    
+  
 
         // Use @inrupt/solid-client to fetch the container dataset
         const containerDataset = await getSolidDataset(url, {
@@ -109,7 +109,7 @@ export function useBrowseStorage(containerUrl: string | null): UseBrowseStorageR
               name,
               type: finalIsContainer ? "folder" : "file",
               url: absoluteUrl,
-              lastModified: lastModified || new Date(),
+              lastModified,
               size,
             });
           } catch (err) {
