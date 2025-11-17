@@ -9,6 +9,7 @@ import Breadcrumb from "./Breadcrumb";
 import FileList from "./FileList";
 import PermissionsDialog, { Permission } from "./PermissionsDialog";
 import NewFolderDialog from "./NewFolderDialog";
+import RenameDialog from "./RenameDialog";
 import FileUploadHandler from "./FileUploadHandler";
 import { FileItemData } from "./FileItem";
 import { useSolidStorages, useBrowseStorage } from "../lib/hooks";
@@ -187,12 +188,23 @@ export default function FileManager() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
   const [fileUploadTrigger, setFileUploadTrigger] = useState(0);
+  const [showRenameDialog, setShowRenameDialog] = useState(false);
+  const [fileToRename, setFileToRename] = useState<FileItemData | null>(null);
 
   const handleFolderCreated = () => {
     setRefreshKey((prev) => prev + 1);
   };
 
   const handleFileUploaded = () => {
+    setRefreshKey((prev) => prev + 1);
+  };
+
+  const handleRename = (file: FileItemData) => {
+    setFileToRename(file);
+    setShowRenameDialog(true);
+  };
+
+  const handleRenamed = () => {
     setRefreshKey((prev) => prev + 1);
   };
 
@@ -354,6 +366,7 @@ export default function FileManager() {
       <div className="flex h-screen flex-col overflow-hidden bg-white">
         <Header
           onMenuClick={() => setSidebarOpen(true)}
+          sidebarOpen={sidebarOpen}
         />
         <div className="flex flex-1 overflow-hidden">
           <Sidebar
@@ -376,6 +389,7 @@ export default function FileManager() {
                 currentPath={currentPath}
                 onFileSelect={handleFileSelect}
                 onFileDoubleClick={handleFileDoubleClick}
+                onFileRename={handleRename}
                 selectedFileIds={selectedFileIds}
               />
             )}
@@ -400,6 +414,15 @@ export default function FileManager() {
           onClose={() => setShowNewFolderDialog(false)}
           currentContainerUrl={containerUrlToBrowse}
           onFolderCreated={handleFolderCreated}
+        />
+        <RenameDialog
+          isOpen={showRenameDialog}
+          onClose={() => {
+            setShowRenameDialog(false);
+            setFileToRename(null);
+          }}
+          file={fileToRename}
+          onRenamed={handleRenamed}
         />
         <FileUploadHandler
           currentContainerUrl={containerUrlToBrowse}

@@ -12,9 +12,10 @@ import {
 
 interface HeaderProps {
   onMenuClick?: () => void;
+  sidebarOpen?: boolean;
 }
 
-export default function Header({ onMenuClick }: HeaderProps) {
+export default function Header({ onMenuClick, sidebarOpen = false }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState("");
 
   return (

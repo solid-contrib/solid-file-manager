@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useRef } from "react";
-import Button from "./shared/Button";
-import { EllipsisVerticalIcon } from "@heroicons/react/24/outline";
 import { getFileIcon, formatFileSize, formatDate, type FileType } from "../lib/helpers";
+import FileItemMenu from "./FileItemMenu";
 
 export type { FileType };
 
@@ -22,6 +21,7 @@ interface FileItemProps {
   view: "grid" | "list";
   onSelect: (file: FileItemData) => void;
   onDoubleClick: (file: FileItemData) => void;
+  onRename?: (file: FileItemData) => void;
   isSelected?: boolean;
 }
 
@@ -30,13 +30,22 @@ export default function FileItem({
   view,
   onSelect,
   onDoubleClick,
+  onRename,
   isSelected = false,
 }: FileItemProps) {
   const [isHovered, setIsHovered] = useState(false);
   const clickCountRef = useRef(0);
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastTapRef = useRef(0);
+  const touchHandledRef = useRef(false);
 
   const handleClick = (e: React.MouseEvent) => {
+    // Prevent click handler from running if we just handled a touch event
+    if (touchHandledRef.current) {
+      touchHandledRef.current = false;
+      return;
+    }
+
     clickCountRef.current += 1;
     
     if (clickCountRef.current === 1) {
@@ -59,6 +68,41 @@ export default function FileItem({
     }
   };
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchHandledRef.current = true;
+    // Reset the flag after a delay to allow click events to be ignored
+    setTimeout(() => {
+      touchHandledRef.current = false;
+    }, 400);
+    
+    const currentTime = new Date().getTime();
+    const tapLength = currentTime - lastTapRef.current;
+    
+    if (tapLength < 300 && tapLength > 0) {
+      // Double tap detected
+      e.preventDefault();
+      e.stopPropagation();
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current);
+        clickTimeoutRef.current = null;
+      }
+      clickCountRef.current = 0;
+      onDoubleClick(file);
+    } else {
+      // Single tap - wait to see if there's a second tap
+      clickCountRef.current = 1;
+      clickTimeoutRef.current = setTimeout(() => {
+        if (clickCountRef.current === 1) {
+          onSelect(file);
+        }
+        clickCountRef.current = 0;
+        clickTimeoutRef.current = null;
+      }, 300);
+    }
+    
+    lastTapRef.current = currentTime;
+  };
+
   if (view === "grid") {
     return (
       <section
@@ -66,13 +110,26 @@ export default function FileItem({
             ? "border-[#7B42F6] bg-[#F9F6FF]"
             : "border-transparent bg-white hover:border-gray-300 hover:bg-gray-50"
           }`}
+        style={{ touchAction: 'manipulation' }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onClick={handleClick}
+        onTouchStart={handleTouchStart}
         role="button"
         tabIndex={0}
         aria-label={`${file.type === "folder" ? "Folder" : "File"}: ${file.name}`}
       >
+        {isHovered && (
+          <FileItemMenu
+            file={file}
+            position="top-right"
+            onRename={onRename}
+            onDownload={(f) => console.log("Download:", f.name)}
+            onCopy={(f) => console.log("Copy:", f.name)}
+            onMove={(f) => console.log("Move:", f.name)}
+            onDelete={(f) => console.log("Delete:", f.name)}
+          />
+        )}
         <div className="mb-1 flex h-12 w-12 items-center justify-center sm:mb-2 sm:h-16 sm:w-16">
           {getFileIcon(file.type, file.mimeType)}
         </div>
@@ -88,9 +145,11 @@ export default function FileItem({
     <section
       className={`group flex cursor-pointer items-center gap-2 border-b border-gray-100 px-2 py-2 transition-colors sm:gap-4 sm:px-4 sm:py-3 ${isSelected ? "bg-[#F9F6FF]" : "bg-white hover:bg-gray-50"
         }`}
+      style={{ touchAction: 'manipulation' }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={handleClick}
+      onTouchStart={handleTouchStart}
       role="button"
       tabIndex={0}
       aria-label={`${file.type === "folder" ? "Folder" : "File"}: ${file.name}`}
@@ -108,17 +167,15 @@ export default function FileItem({
         {file.size && formatFileSize(file.size)}
       </div>
       {isHovered && (
-        <div className="flex-shrink-0">
-          <Button
-            variant="icon"
-            aria-label="More options"
-            onClick={(e) => {
-              e.stopPropagation();
-            }}
-          >
-            <EllipsisVerticalIcon className="h-4 w-4 sm:h-5 sm:w-5" />
-          </Button>
-        </div>
+        <FileItemMenu
+          file={file}
+          position="right"
+          onRename={onRename}
+          onDownload={(f) => console.log("Download:", f.name)}
+          onCopy={(f) => console.log("Copy:", f.name)}
+          onMove={(f) => console.log("Move:", f.name)}
+          onDelete={(f) => console.log("Delete:", f.name)}
+        />
       )}
     </section>
   );
