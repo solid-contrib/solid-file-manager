@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { PlusIcon, FolderPlusIcon, ArrowUpTrayIcon } from "@heroicons/react/24/outline";
 import { useClickOutside } from "../lib/hooks";
+import Button from "./shared/Button";
 
 interface NewMenuButtonProps {
   currentContainerUrl: string | null;
@@ -41,20 +42,20 @@ export default function NewMenuButton({
 
   return (
     <div className="relative mb-4 px-2">
-      <button
+      <Button
         ref={newButtonRef}
-        type="button"
+        variant="primary"
         onClick={(e) => {
           e.stopPropagation();
           setShowNewMenu(!showNewMenu);
         }}
-        className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-md bg-[#7B42F6] text-white hover:bg-[#6B35E5] transition-colors focus:outline-none focus:ring-2 focus:ring-[#7B42F6] focus:ring-offset-2"
+        className="w-full flex items-center justify-center gap-2"
         aria-label="New"
         aria-expanded={showNewMenu}
       >
         <PlusIcon className="h-4 w-4" />
         <span>New</span>
-      </button>
+      </Button>
 
       {/* New Menu Dropdown */}
       {showNewMenu && (
@@ -67,7 +68,7 @@ export default function NewMenuButton({
           <button
             type="button"
             onClick={handleNewFolder}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 transition-colors border-b border-gray-100"
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 transition-colors border-b border-gray-100 cursor-pointer"
             role="menuitem"
           >
             <FolderPlusIcon className="h-5 w-5 text-gray-500" />
@@ -76,7 +77,7 @@ export default function NewMenuButton({
           <button
             type="button"
             onClick={handleFileUpload}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
             role="menuitem"
           >
             <ArrowUpTrayIcon className="h-5 w-5 text-gray-500" />

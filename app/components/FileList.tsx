@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import FileItem, { FileItemData } from "./FileItem";
 import Toolbar from "./shared/Toolbar";
 import EmptyState from "./shared/EmptyState";
@@ -10,17 +10,29 @@ interface FileListProps {
   currentPath: string;
   onFileSelect: (file: FileItemData) => void;
   onFileDoubleClick: (file: FileItemData) => void;
+  onFileRename?: (file: FileItemData) => void;
   selectedFileIds: string[];
 }
+
+const VIEW_STORAGE_KEY = "solid-file-manager-view";
 
 export default function FileList({
   files,
   currentPath,
   onFileSelect,
   onFileDoubleClick,
+  onFileRename,
   selectedFileIds,
 }: FileListProps) {
-  const [view, setView] = useState<"grid" | "list">("list");
+  const [view, setView] = useState<"grid" | "list">(() => {
+    if (typeof window === "undefined") return "list";
+    const stored = localStorage.getItem(VIEW_STORAGE_KEY);
+    return (stored === "grid" || stored === "list") ? stored : "list";
+  });
+
+  useEffect(() => {
+    localStorage.setItem(VIEW_STORAGE_KEY, view);
+  }, [view]);
 
   return (
     <main className="flex h-full flex-col">
@@ -43,6 +55,7 @@ export default function FileList({
                 view={view}
                 onSelect={onFileSelect}
                 onDoubleClick={onFileDoubleClick}
+                onRename={onFileRename}
                 isSelected={selectedFileIds.includes(file.id)}
               />
             ))}
@@ -56,6 +69,7 @@ export default function FileList({
                 view={view}
                 onSelect={onFileSelect}
                 onDoubleClick={onFileDoubleClick}
+                onRename={onFileRename}
                 isSelected={selectedFileIds.includes(file.id)}
               />
             ))}

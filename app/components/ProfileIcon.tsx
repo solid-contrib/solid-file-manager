@@ -192,7 +192,7 @@ export default function ProfileIcon() {
                     e.stopPropagation();
                     handleCopyWebId();
                   }}
-                  className="flex-shrink-0 p-1 rounded hover:bg-gray-100 transition-colors"
+                  className="flex-shrink-0 p-1 rounded hover:bg-gray-100 transition-colors cursor-pointer"
                   aria-label="Copy WebID"
                   title="Copy WebID"
                 >

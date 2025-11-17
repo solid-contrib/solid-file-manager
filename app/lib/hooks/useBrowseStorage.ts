@@ -9,11 +9,13 @@ import {
   getThing,
   getInteger,
   getDatetime,
+  getStringNoLocale,
   UrlString,
 } from "@inrupt/solid-client";
-import { DCTERMS, POSIX } from "@inrupt/vocab-common-rdf";
+import { DCTERMS, POSIX, RDFS } from "@inrupt/vocab-common-rdf";
 import { FileItemData } from "../../components/FileItem";
 import { extractNameFromUrl, resolveUrl, isLikelyFile } from "../helpers/urlUtils";
+import { getDisplayNameFromMeta } from "../helpers/metaFileUtils";
 
 interface UseBrowseStorageResult {
   files: FileItemData[];
@@ -83,31 +85,54 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
           try {
             const absoluteUrl = resolveUrl(itemUrl, url) as UrlString;
             const isContainerUrl = absoluteUrl.endsWith("/");
-            const name = extractNameFromUrl(absoluteUrl);
-
-            let finalIsContainer = isContainerUrl;
+            
+            // Try to get preferred name in this order:
+            // 1. .meta file (standard Solid metadata)
+            // 2. RDF metadata from container (dcterms:title or rdfs:label)
+            // 3. URL extraction (fallback)
+            let name = extractNameFromUrl(absoluteUrl);
             let lastModified: Date | undefined;
             let size: number | undefined;
 
-            const itemThing = getThing(containerDataset, absoluteUrl);
-            if (itemThing) {
-              const modifiedDate = getDatetime(itemThing, DCTERMS.modified);
-              if (modifiedDate) {
-                lastModified = modifiedDate;
-              }
-              
-              if (!lastModified) {
-                const mtime = getDatetime(itemThing, POSIX.mtime);
-                if (mtime) {
-                  lastModified = mtime;
+            // Check .meta file first (standard Solid approach)
+            const metaName = await getDisplayNameFromMeta(absoluteUrl, fetchWithCacheBust);
+            if (metaName) {
+              name = metaName;
+            } else {
+              // Check RDF metadata from container dataset
+              const itemThing = getThing(containerDataset, absoluteUrl);
+              if (itemThing) {
+                // Check for preferred name in metadata (dcterms:title or rdfs:label)
+                const title = getStringNoLocale(itemThing, DCTERMS.title);
+                if (title) {
+                  name = title;
+                } else {
+                  const label = getStringNoLocale(itemThing, RDFS.label);
+                  if (label) {
+                    name = label;
+                  }
+                }
+
+                const modifiedDate = getDatetime(itemThing, DCTERMS.modified);
+                if (modifiedDate) {
+                  lastModified = modifiedDate;
+                }
+                
+                if (!lastModified) {
+                  const mtime = getDatetime(itemThing, POSIX.mtime);
+                  if (mtime) {
+                    lastModified = mtime;
+                  }
+                }
+
+                const fileSize = getInteger(itemThing, POSIX.size);
+                if (fileSize !== null) {
+                  size = fileSize;
                 }
               }
-
-              const fileSize = getInteger(itemThing, POSIX.size);
-              if (fileSize !== null) {
-                size = fileSize;
-              }
             }
+
+            let finalIsContainer = isContainerUrl;
 
             if (!isContainerUrl && !isLikelyFile(absoluteUrl)) {
               try {
