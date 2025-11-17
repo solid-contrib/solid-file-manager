@@ -8,7 +8,6 @@ import ProfileIcon from "./ProfileIcon";
 import {
   Bars3Icon,
   MagnifyingGlassIcon,
-  PlusIcon,
 } from "@heroicons/react/24/outline";
 
 interface HeaderProps {
@@ -51,16 +50,6 @@ export default function Header({ onMenuClick }: HeaderProps) {
 
           {/* Action Buttons */}
           <div className="ml-auto flex items-center gap-1 sm:gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              className="flex h-9 items-center gap-1 sm:gap-2 sm:px-3"
-              aria-label="New"
-            >
-              <PlusIcon className="h-4 w-4" />
-              <span className="hidden sm:inline">New</span>
-            </Button>
-            
             <ProfileIcon />
           </div>
         </div>

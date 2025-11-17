@@ -9,12 +9,23 @@ const VCARD_FN = "http://www.w3.org/2006/vcard/ns#fn";
 const VCARD_HAS_EMAIL = "http://www.w3.org/2006/vcard/ns#hasEmail";
 const VCARD_VALUE = "http://www.w3.org/2006/vcard/ns#value";
 const VCARD_HAS_PHOTO = "http://www.w3.org/2006/vcard/ns#hasPhoto";
+const VCARD_HAS_TELEPHONE = "http://www.w3.org/2006/vcard/ns#hasTelephone";
+const VCARD_ORGANIZATION_NAME = "http://www.w3.org/2006/vcard/ns#organization-name";
+const VCARD_ROLE = "http://www.w3.org/2006/vcard/ns#role";
+const VCARD_TITLE = "http://www.w3.org/2006/vcard/ns#title";
+const VCARD_HAS_URL = "http://www.w3.org/2006/vcard/ns#hasURL";
 const FOAF_NAME = "http://xmlns.com/foaf/0.1/name";
+const FOAF_HOMEPAGE = "http://xmlns.com/foaf/0.1/homepage";
 
 export interface UserProfile {
   name: string | null;
   email: string | null;
   photoUrl: string | null;
+  phone: string | null;
+  organization: string | null;
+  role: string | null;
+  title: string | null;
+  website: string | null;
 }
 
 interface UseUserProfileResult {
@@ -146,6 +157,11 @@ export function useUserProfile(): UseUserProfileResult {
         let name: string | null = null;
         let email: string | null = null;
         let photoUrl: string | null = null;
+        let phone: string | null = null;
+        let organization: string | null = null;
+        let role: string | null = null;
+        let title: string | null = null;
+        let website: string | null = null;
 
         // Get name (try vcard:fn first, then foaf:name)
         const vcardFnQuads = store.getQuads(mainSubject, new NamedNode(VCARD_FN), null, null);
@@ -161,13 +177,11 @@ export function useUserProfile(): UseUserProfileResult {
         // Get email (vcard:hasEmail -> vcard:value)
         const emailQuads = store.getQuads(mainSubject, new NamedNode(VCARD_HAS_EMAIL), null, null);
         if (emailQuads.length > 0) {
-          // The email might be a direct URI (mailto:) or a blank node with vcard:value
           for (const emailQuad of emailQuads) {
             if (emailQuad.object instanceof NamedNode && emailQuad.object.value.startsWith('mailto:')) {
               email = emailQuad.object.value.replace('mailto:', '');
               break;
             } else {
-              // Check if it's a blank node with vcard:value
               const valueQuads = store.getQuads(emailQuad.object, new NamedNode(VCARD_VALUE), null, null);
               if (valueQuads.length > 0) {
                 const valueObj = valueQuads[0].object;
@@ -183,11 +197,62 @@ export function useUserProfile(): UseUserProfileResult {
           }
         }
 
+        // Get phone (vcard:hasTelephone -> vcard:value)
+        const phoneQuads = store.getQuads(mainSubject, new NamedNode(VCARD_HAS_TELEPHONE), null, null);
+        if (phoneQuads.length > 0) {
+          for (const phoneQuad of phoneQuads) {
+            if (phoneQuad.object instanceof NamedNode && phoneQuad.object.value.startsWith('tel:')) {
+              phone = phoneQuad.object.value.replace('tel:', '');
+              break;
+            } else {
+              const valueQuads = store.getQuads(phoneQuad.object, new NamedNode(VCARD_VALUE), null, null);
+              if (valueQuads.length > 0) {
+                const valueObj = valueQuads[0].object;
+                if (valueObj instanceof NamedNode && valueObj.value.startsWith('tel:')) {
+                  phone = valueObj.value.replace('tel:', '');
+                  break;
+                } else if (valueObj instanceof Literal) {
+                  phone = valueObj.value.replace('tel:', '');
+                  break;
+                }
+              }
+            }
+          }
+        }
+
+        // Get organization (vcard:organization-name)
+        const orgQuads = store.getQuads(mainSubject, new NamedNode(VCARD_ORGANIZATION_NAME), null, null);
+        if (orgQuads.length > 0 && orgQuads[0].object instanceof Literal) {
+          organization = orgQuads[0].object.value;
+        }
+
+        // Get role (vcard:role)
+        const roleQuads = store.getQuads(mainSubject, new NamedNode(VCARD_ROLE), null, null);
+        if (roleQuads.length > 0 && roleQuads[0].object instanceof Literal) {
+          role = roleQuads[0].object.value;
+        }
+
+        // Get title (vcard:title)
+        const titleQuads = store.getQuads(mainSubject, new NamedNode(VCARD_TITLE), null, null);
+        if (titleQuads.length > 0 && titleQuads[0].object instanceof Literal) {
+          title = titleQuads[0].object.value;
+        }
+
+        // Get website (vcard:hasURL or foaf:homepage)
+        const urlQuads = store.getQuads(mainSubject, new NamedNode(VCARD_HAS_URL), null, null);
+        if (urlQuads.length > 0 && urlQuads[0].object instanceof NamedNode) {
+          website = urlQuads[0].object.value;
+        } else {
+          const homepageQuads = store.getQuads(mainSubject, new NamedNode(FOAF_HOMEPAGE), null, null);
+          if (homepageQuads.length > 0 && homepageQuads[0].object instanceof NamedNode) {
+            website = homepageQuads[0].object.value;
+          }
+        }
+
         // Get photo (vcard:hasPhoto)
         const photoQuads = store.getQuads(mainSubject, new NamedNode(VCARD_HAS_PHOTO), null, null);
         if (photoQuads.length > 0 && photoQuads[0].object instanceof NamedNode) {
           photoUrl = photoQuads[0].object.value;
-          // Resolve relative URLs
           if (photoUrl && !photoUrl.startsWith('http://') && !photoUrl.startsWith('https://')) {
             try {
               photoUrl = new URL(photoUrl, baseUrl).href;
@@ -206,6 +271,11 @@ export function useUserProfile(): UseUserProfileResult {
           name,
           email,
           photoUrl,
+          phone,
+          organization,
+          role,
+          title,
+          website,
         };
 
         setProfile(profileData);
