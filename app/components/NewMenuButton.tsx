@@ -1,0 +1,90 @@
+"use client";
+
+import { useState, useRef } from "react";
+import { PlusIcon, FolderPlusIcon, ArrowUpTrayIcon } from "@heroicons/react/24/outline";
+import { useClickOutside } from "../lib/hooks";
+
+interface NewMenuButtonProps {
+  currentContainerUrl: string | null;
+  onNewFolderClick?: () => void;
+  onFileUploadClick?: () => void;
+}
+
+export default function NewMenuButton({
+  currentContainerUrl,
+  onNewFolderClick,
+  onFileUploadClick,
+}: NewMenuButtonProps) {
+  const [showNewMenu, setShowNewMenu] = useState(false);
+  const newMenuRef = useRef<HTMLDivElement>(null);
+  const newButtonRef = useRef<HTMLButtonElement>(null);
+
+  useClickOutside({
+    isEnabled: showNewMenu,
+    onOutsideClick: () => setShowNewMenu(false),
+    refs: [newMenuRef, newButtonRef],
+  });
+
+  const handleNewFolder = () => {
+    setShowNewMenu(false);
+    if (onNewFolderClick) {
+      onNewFolderClick();
+    }
+  };
+
+  const handleFileUpload = () => {
+    setShowNewMenu(false);
+    if (onFileUploadClick) {
+      onFileUploadClick();
+    }
+  };
+
+  return (
+    <div className="relative mb-4 px-2">
+      <button
+        ref={newButtonRef}
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setShowNewMenu(!showNewMenu);
+        }}
+        className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-md bg-[#7B42F6] text-white hover:bg-[#6B35E5] transition-colors focus:outline-none focus:ring-2 focus:ring-[#7B42F6] focus:ring-offset-2"
+        aria-label="New"
+        aria-expanded={showNewMenu}
+      >
+        <PlusIcon className="h-4 w-4" />
+        <span>New</span>
+      </button>
+
+      {/* New Menu Dropdown */}
+      {showNewMenu && (
+        <div
+          ref={newMenuRef}
+          className="absolute left-2 right-2 top-full mt-1 z-[100] rounded-lg bg-white border border-gray-200 shadow-lg overflow-hidden"
+          role="menu"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            onClick={handleNewFolder}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 transition-colors border-b border-gray-100"
+            role="menuitem"
+          >
+            <FolderPlusIcon className="h-5 w-5 text-gray-500" />
+            <span>New Folder</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleFileUpload}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+            role="menuitem"
+          >
+            <ArrowUpTrayIcon className="h-5 w-5 text-gray-500" />
+            <span>File Upload</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+

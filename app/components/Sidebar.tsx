@@ -2,20 +2,25 @@
 
 import Button from "./shared/Button";
 import { XMarkIcon } from "@heroicons/react/24/outline";
+import NewMenuButton from "./NewMenuButton";
 
 interface SidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
   activeTab?: string;
+  currentContainerUrl?: string | null;
+  onNewFolderClick?: () => void;
+  onFileUploadClick?: () => void;
 }
 
 export default function Sidebar({
   isOpen = true,
   onClose,
   activeTab = "my-storages",
+  currentContainerUrl,
+  onNewFolderClick,
+  onFileUploadClick,
 }: SidebarProps) {
-  // On desktop (lg+), sidebar is always visible, so isOpen doesn't matter
-  // On mobile, use isOpen state
   const isMobileOpen = isOpen;
 
   const navigationTabs = [
@@ -32,7 +37,6 @@ export default function Sidebar({
       >
         <nav className="p-2" aria-label="Navigation">
           <div className="mb-2 flex items-center justify-between px-3 py-2 lg:block">
-            
             {onClose && (
               <Button
                 variant="icon"
@@ -44,6 +48,12 @@ export default function Sidebar({
               </Button>
             )}
           </div>
+
+          <NewMenuButton
+            currentContainerUrl={currentContainerUrl || null}
+            onNewFolderClick={onNewFolderClick}
+            onFileUploadClick={onFileUploadClick}
+          />
           
           {/* Navigation Tabs */}
           <ul className="space-y-1" role="list">

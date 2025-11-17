@@ -11,7 +11,6 @@ import {
   getDatetime,
   UrlString,
 } from "@inrupt/solid-client";
-import { fetch } from "@inrupt/solid-client-authn-browser";
 import { DCTERMS, POSIX } from "@inrupt/vocab-common-rdf";
 import { FileItemData } from "../../components/FileItem";
 import { extractNameFromUrl, resolveUrl, isLikelyFile } from "../helpers/urlUtils";
@@ -26,7 +25,7 @@ interface UseBrowseStorageResult {
  * Hook to browse/list the contents of a Solid storage container
  * Uses LDP to fetch and parse container contents
  */
-export function useBrowseStorage(containerUrl: string | null): UseBrowseStorageResult {
+export function useBrowseStorage(containerUrl: string | null, refreshKey?: number): UseBrowseStorageResult {
   const [files, setFiles] = useState<FileItemData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -51,11 +50,28 @@ export function useBrowseStorage(containerUrl: string | null): UseBrowseStorageR
         }
 
         const url = urlToBrowse.endsWith("/") ? urlToBrowse : urlToBrowse + "/";
+        const sessionFetch = session.fetch || fetch;
   
+        // Create a fetch function that bypasses cache when refreshKey is provided
+        const fetchWithCacheBust = refreshKey !== undefined
+          ? async (input: RequestInfo | URL, init?: RequestInit) => {
+              const urlWithCacheBust = typeof input === 'string' 
+                ? `${input}${input.includes('?') ? '&' : '?'}_t=${Date.now()}`
+                : input;
+              return sessionFetch(urlWithCacheBust, {
+                ...init,
+                cache: 'no-store',
+                headers: {
+                  ...init?.headers,
+                  'Cache-Control': 'no-cache',
+                },
+              });
+            }
+          : sessionFetch;
 
         // Use @inrupt/solid-client to fetch the container dataset
         const containerDataset = await getSolidDataset(url, {
-          fetch: fetch,
+          fetch: fetchWithCacheBust,
         });
 
         // Get all contained resource URLs using @inrupt/solid-client
@@ -96,7 +112,7 @@ export function useBrowseStorage(containerUrl: string | null): UseBrowseStorageR
             if (!isContainerUrl && !isLikelyFile(absoluteUrl)) {
               try {
                 const itemDataset = await getSolidDataset(absoluteUrl, {
-                  fetch: fetch,
+                  fetch: fetchWithCacheBust,
                 });
                 finalIsContainer = isContainer(itemDataset);
               } catch (e) {
@@ -141,7 +157,7 @@ export function useBrowseStorage(containerUrl: string | null): UseBrowseStorageR
     }
 
     browseContainer();
-  }, [containerUrl]);
+  }, [containerUrl, refreshKey]);
 
   return { files, isLoading, error };
 }

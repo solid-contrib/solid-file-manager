@@ -8,6 +8,8 @@ import Sidebar from "./Sidebar";
 import Breadcrumb from "./Breadcrumb";
 import FileList from "./FileList";
 import PermissionsDialog, { Permission } from "./PermissionsDialog";
+import NewFolderDialog from "./NewFolderDialog";
+import FileUploadHandler from "./FileUploadHandler";
 import { FileItemData } from "./FileItem";
 import { useSolidStorages, useBrowseStorage } from "../lib/hooks";
 import { filterProfileItems, buildBreadcrumbItems } from "../lib/helpers";
@@ -176,12 +178,23 @@ export default function FileManager() {
       : currentPath
     : null;
   
-  const { files: browsedFiles, isLoading: isLoadingFiles, error: browseError } = useBrowseStorage(containerUrlToBrowse);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const { files: browsedFiles, isLoading: isLoadingFiles, error: browseError } = useBrowseStorage(containerUrlToBrowse, refreshKey);
   const [permissionsDialogOpen, setPermissionsDialogOpen] = useState(false);
   const [selectedFileForPermissions, setSelectedFileForPermissions] =
     useState<FileItemData | null>(null);
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
+  const [fileUploadTrigger, setFileUploadTrigger] = useState(0);
+
+  const handleFolderCreated = () => {
+    setRefreshKey((prev) => prev + 1);
+  };
+
+  const handleFileUploaded = () => {
+    setRefreshKey((prev) => prev + 1);
+  };
 
   const storageFiles: FileItemData[] = filterProfileItems(storages).map((storage) => ({
     id: storage.id,
@@ -347,6 +360,9 @@ export default function FileManager() {
             isOpen={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
             activeTab="my-storages"
+            currentContainerUrl={containerUrlToBrowse}
+            onNewFolderClick={() => setShowNewFolderDialog(true)}
+            onFileUploadClick={() => setFileUploadTrigger((prev) => prev + 1)}
           />
           <main className="flex flex-1 flex-col overflow-hidden">
             <Breadcrumb items={breadcrumbItems} onNavigate={handleBreadcrumbNavigate} />
@@ -379,6 +395,17 @@ export default function FileManager() {
             onUpdatePermission={handleUpdatePermission}
           />
         )}
+        <NewFolderDialog
+          isOpen={showNewFolderDialog}
+          onClose={() => setShowNewFolderDialog(false)}
+          currentContainerUrl={containerUrlToBrowse}
+          onFolderCreated={handleFolderCreated}
+        />
+        <FileUploadHandler
+          currentContainerUrl={containerUrlToBrowse}
+          onUploadComplete={handleFileUploaded}
+          triggerUpload={fileUploadTrigger}
+        />
       </div>
     </AuthWrapper>
   );
