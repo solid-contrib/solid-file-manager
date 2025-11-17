@@ -11,6 +11,7 @@ interface FileListProps {
   onFileSelect: (file: FileItemData) => void;
   onFileDoubleClick: (file: FileItemData) => void;
   onFileRename?: (file: FileItemData) => void;
+  onFilePreview?: (file: FileItemData) => void;
   selectedFileIds: string[];
 }
 
@@ -22,6 +23,7 @@ export default function FileList({
   onFileSelect,
   onFileDoubleClick,
   onFileRename,
+  onFilePreview,
   selectedFileIds,
 }: FileListProps) {
   const [view, setView] = useState<"grid" | "list">(() => {
@@ -56,6 +58,7 @@ export default function FileList({
                 onSelect={onFileSelect}
                 onDoubleClick={onFileDoubleClick}
                 onRename={onFileRename}
+                onPreview={onFilePreview}
                 isSelected={selectedFileIds.includes(file.id)}
               />
             ))}
@@ -70,6 +73,7 @@ export default function FileList({
                 onSelect={onFileSelect}
                 onDoubleClick={onFileDoubleClick}
                 onRename={onFileRename}
+                onPreview={onFilePreview}
                 isSelected={selectedFileIds.includes(file.id)}
               />
             ))}

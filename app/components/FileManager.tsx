@@ -10,6 +10,7 @@ import FileList from "./FileList";
 import PermissionsDialog, { Permission } from "./PermissionsDialog";
 import NewFolderDialog from "./NewFolderDialog";
 import RenameDialog from "./RenameDialog";
+import PreviewModal from "./PreviewModal";
 import FileUploadHandler from "./FileUploadHandler";
 import { FileItemData } from "./FileItem";
 import { useSolidStorages, useBrowseStorage } from "../lib/hooks";
@@ -27,12 +28,12 @@ export default function FileManager() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [savedUrl, setSavedUrl] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
-    
+
     try {
       const fullUrl = window.location.href;
       const urlObj = new URL(fullUrl);
       let urlParam = urlObj.searchParams.get("url");
-      
+
       if (urlParam) {
         try {
           urlParam = decodeURIComponent(urlParam);
@@ -41,7 +42,7 @@ export default function FileManager() {
         }
         return urlParam;
       }
-      
+
       const stored = sessionStorage.getItem("solid-file-manager-url");
       if (stored) {
         return stored;
@@ -54,11 +55,11 @@ export default function FileManager() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    
+
     const fullUrl = window.location.href;
     const urlObj = new URL(fullUrl);
     let urlParam = urlObj.searchParams.get("url");
-    
+
     if (urlParam) {
       try {
         urlParam = decodeURIComponent(urlParam);
@@ -80,22 +81,22 @@ export default function FileManager() {
 
     const restoreFromUrl = () => {
       let urlParam: string | null = savedUrl;
-      
+
       if (!urlParam && typeof window !== "undefined") {
         const fullUrl = window.location.href;
         const urlObj = new URL(fullUrl);
         urlParam = urlObj.searchParams.get("url");
-        
+
         if (!urlParam && window.location.search) {
           const urlParams = new URLSearchParams(window.location.search);
           urlParam = urlParams.get("url");
         }
       }
-      
+
       if (!urlParam) {
         urlParam = searchParams.get("url");
       }
-      
+
       if (urlParam) {
         try {
           let decodedUrl = urlParam;
@@ -104,7 +105,7 @@ export default function FileManager() {
           } catch (e) {
             decodedUrl = urlParam;
           }
-          
+
           const matchingStorage = storages.find((s) => {
             const storageUrl = s.url.endsWith("/") ? s.url : s.url + "/";
             const normalizedDecoded = decodedUrl.endsWith("/") ? decodedUrl : decodedUrl + "/";
@@ -114,13 +115,13 @@ export default function FileManager() {
 
           if (matchingStorage) {
             setSelectedStorageId(matchingStorage.id);
-            
+
             if (decodedUrl === matchingStorage.url || decodedUrl === matchingStorage.url + "/") {
               setCurrentPath("/");
             } else {
               setCurrentPath(decodedUrl);
             }
-            
+
             if (typeof window !== "undefined") {
               const encodedUrl = encodeURIComponent(decodedUrl);
               const params = new URLSearchParams();
@@ -128,7 +129,7 @@ export default function FileManager() {
               const newUrl = `/?${params.toString()}`;
               router.replace(newUrl, { scroll: false });
             }
-            
+
             setIsInitialized(true);
             return;
           }
@@ -136,7 +137,7 @@ export default function FileManager() {
           // Ignore errors
         }
       }
-      
+
       setIsInitialized(true);
     };
 
@@ -165,11 +166,11 @@ export default function FileManager() {
     const params = new URLSearchParams();
     params.set("url", encodedUrl);
     const newUrl = `/?${params.toString()}`;
-    
+
     if (typeof window !== "undefined") {
       sessionStorage.setItem("solid-file-manager-url", urlToEncode);
     }
-    
+
     router.replace(newUrl, { scroll: false });
   };
 
@@ -178,7 +179,7 @@ export default function FileManager() {
       ? storages.find((s) => s.id === selectedStorageId)?.url || null
       : currentPath
     : null;
-  
+
   const [refreshKey, setRefreshKey] = useState(0);
   const { files: browsedFiles, isLoading: isLoadingFiles, error: browseError } = useBrowseStorage(containerUrlToBrowse, refreshKey);
   const [permissionsDialogOpen, setPermissionsDialogOpen] = useState(false);
@@ -190,6 +191,8 @@ export default function FileManager() {
   const [fileUploadTrigger, setFileUploadTrigger] = useState(0);
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [fileToRename, setFileToRename] = useState<FileItemData | null>(null);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [fileToPreview, setFileToPreview] = useState<FileItemData | null>(null);
 
   const handleFolderCreated = () => {
     setRefreshKey((prev) => prev + 1);
@@ -206,6 +209,11 @@ export default function FileManager() {
 
   const handleRenamed = () => {
     setRefreshKey((prev) => prev + 1);
+  };
+
+  const handlePreview = (file: FileItemData) => {
+    setFileToPreview(file);
+    setShowPreviewModal(true);
   };
 
   const storageFiles: FileItemData[] = filterProfileItems(storages).map((storage) => ({
@@ -229,7 +237,7 @@ export default function FileManager() {
   const handleFileDoubleClick = (file: FileItemData) => {
     if (file.type === "folder") {
       const isStorage = storages.some(s => s.id === file.id);
-      
+
       if (!selectedStorageId && isStorage) {
         setSelectedStorageId(file.id);
         setCurrentPath("/");
@@ -317,7 +325,7 @@ export default function FileManager() {
       </AuthWrapper>
     );
   }
-  
+
   const isBrowsing = selectedStorageId && isLoadingFiles;
 
   if (storagesError) {
@@ -390,6 +398,7 @@ export default function FileManager() {
                 onFileSelect={handleFileSelect}
                 onFileDoubleClick={handleFileDoubleClick}
                 onFileRename={handleRename}
+                onFilePreview={handlePreview}
                 selectedFileIds={selectedFileIds}
               />
             )}
@@ -423,6 +432,14 @@ export default function FileManager() {
           }}
           file={fileToRename}
           onRenamed={handleRenamed}
+        />
+        <PreviewModal
+          isOpen={showPreviewModal}
+          onClose={() => {
+            setShowPreviewModal(false);
+            setFileToPreview(null);
+          }}
+          file={fileToPreview}
         />
         <FileUploadHandler
           currentContainerUrl={containerUrlToBrowse}

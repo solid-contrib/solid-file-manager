@@ -22,6 +22,7 @@ interface FileItemProps {
   onSelect: (file: FileItemData) => void;
   onDoubleClick: (file: FileItemData) => void;
   onRename?: (file: FileItemData) => void;
+  onPreview?: (file: FileItemData) => void;
   isSelected?: boolean;
 }
 
@@ -31,6 +32,7 @@ export default function FileItem({
   onSelect,
   onDoubleClick,
   onRename,
+  onPreview,
   isSelected = false,
 }: FileItemProps) {
   const [isHovered, setIsHovered] = useState(false);
@@ -124,6 +126,7 @@ export default function FileItem({
             file={file}
             position="top-right"
             onRename={onRename}
+            onPreview={onPreview}
             onDownload={(f) => console.log("Download:", f.name)}
             onCopy={(f) => console.log("Copy:", f.name)}
             onMove={(f) => console.log("Move:", f.name)}
@@ -171,6 +174,7 @@ export default function FileItem({
           file={file}
           position="right"
           onRename={onRename}
+          onPreview={onPreview}
           onDownload={(f) => console.log("Download:", f.name)}
           onCopy={(f) => console.log("Copy:", f.name)}
           onMove={(f) => console.log("Move:", f.name)}

@@ -9,6 +9,7 @@ import {
   DocumentDuplicateIcon,
   ArrowRightCircleIcon,
   TrashIcon,
+  EyeIcon,
 } from "@heroicons/react/24/outline";
 import { useClickOutside } from "../lib/hooks";
 import { FileItemData } from "./FileItem";
@@ -20,6 +21,7 @@ interface FileItemMenuProps {
   onCopy?: (file: FileItemData) => void;
   onMove?: (file: FileItemData) => void;
   onDelete?: (file: FileItemData) => void;
+  onPreview?: (file: FileItemData) => void;
   position?: "top-right" | "right";
 }
 
@@ -30,6 +32,7 @@ export default function FileItemMenu({
   onCopy,
   onMove,
   onDelete,
+  onPreview,
   position = "right",
 }: FileItemMenuProps) {
   const [showMenu, setShowMenu] = useState(false);
@@ -68,6 +71,18 @@ export default function FileItemMenu({
   };
 
   const menuItems = [
+    // Only show Preview for files, not folders
+    ...(file.type === "file"
+      ? [
+          {
+            label: "Preview",
+            icon: EyeIcon,
+            action: onPreview,
+            className: "text-gray-700 hover:bg-gray-100 border-b border-gray-100",
+            iconClassName: "text-gray-500",
+          },
+        ]
+      : []),
     {
       label: "Rename",
       icon: PencilIcon,
