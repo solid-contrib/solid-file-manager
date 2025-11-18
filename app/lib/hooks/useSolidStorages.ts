@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { getDefaultSession } from "@inrupt/solid-client-authn-browser";
 import { Parser, Store, NamedNode, Literal } from "n3";
+import { fetchAndParseProfile } from "../helpers/profileUtils";
 
 // Storage predicates and types
 const PIM_STORAGE = "http://www.w3.org/ns/pim/space#storage";
@@ -257,96 +258,8 @@ export function useSolidStorages(): UseSolidStoragesResult {
 
         const webId = session.info.webId;
 
-        // Try different Accept headers to get the profile
-        const acceptHeaders = [
-          'text/turtle, application/turtle, text/n3, application/n3',
-          'text/turtle',
-          'application/ld+json',
-        ];
-
-        let content: string | null = null;
-        let contentType: string = '';
-
-        for (const acceptHeader of acceptHeaders) {
-          try {
-            // Always use the authenticated session's fetch function
-            const fetchFn = session.fetch || fetch;
-            const response = await fetchFn(webId, {
-              method: 'GET',
-              headers: {
-                'Accept': acceptHeader,
-              },
-            });
-
-            if (response.ok) {
-              contentType = response.headers.get('content-type') || '';
-              content = await response.text();
-              break;
-            }
-          } catch (err) {
-            continue;
-          }
-        }
-
-        if (!content) {
-          throw new Error("Failed to fetch profile document with any Accept header");
-        }
-
-        // Parse the RDF content
-        const store = new Store();
-        
-        // Extract base URL for resolving relative URIs like <#me>
-        const baseUrl = webId.split('#')[0];
-        
-        if (contentType.includes('text/turtle') || contentType.includes('application/turtle') || 
-            contentType.includes('text/n3') || contentType.includes('application/n3')) {
-          const parser = new Parser({ baseIRI: baseUrl });
-          const quads = parser.parse(content);
-          store.addQuads(quads);
-        } else if (contentType.includes('application/ld+json')) {
-          // For JSON-LD, we'd need a different parser, but for now let's try to extract from Turtle
-          // Most Solid servers return Turtle even if JSON-LD is requested
-          try {
-            const parser = new Parser({ baseIRI: baseUrl });
-            const quads = parser.parse(content);
-            store.addQuads(quads);
-          } catch (e) {
-            // TODO: Add JSON-LD parsing if needed
-          }
-        }
-
-        // Find the main subject - try different variants
-        const subjectVariants = [
-          new NamedNode(webId),
-          new NamedNode(baseUrl + '#me'),
-          new NamedNode('#me'),
-          new NamedNode(baseUrl + '#card'),
-        ];
-
-        // Find the main subject by looking for common profile properties
-        let mainSubject: NamedNode | null = null;
-        
-        for (const subject of subjectVariants) {
-          const nameQuads = store.getQuads(subject, new NamedNode(FOAF_NAME), null, null);
-          if (nameQuads.length > 0) {
-            mainSubject = subject;
-            break;
-          }
-        }
-
-        // If still not found, try to find Person type
-        if (!mainSubject) {
-          const personType = new NamedNode('http://xmlns.com/foaf/0.1/Person');
-          const personQuads = store.getQuads(null, new NamedNode('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'), personType, null);
-          if (personQuads.length > 0 && personQuads[0].subject.termType === 'NamedNode') {
-            mainSubject = personQuads[0].subject as NamedNode;
-          }
-        }
-
-        // Fallback to WebID itself
-        if (!mainSubject) {
-          mainSubject = new NamedNode(webId);
-        }
+        // Use shared profile fetching utility (with caching)
+        const { store, baseUrl, mainSubject } = await fetchAndParseProfile(webId);
 
         // Get profile name
         const getName = (subject: NamedNode): string | null => {
