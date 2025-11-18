@@ -25,6 +25,63 @@ interface UseSolidStoragesResult {
 }
 
 /**
+ * Resolves and normalizes a storage URL, handling relative URLs, undefined prefixes, etc.
+ * @param {string} storageUrl - The storage URL to resolve
+ * @param {string} baseUrl - The base URL to resolve relative URLs against
+ * @returns {string | null} - The resolved absolute URL, or null if invalid
+ */
+function resolveStorageUrl(storageUrl: string, baseUrl: string): string | null {
+  // Handle the case where n3 parser didn't resolve the prefix correctly
+  // "pre:" prefix resolves to "</.>" which should be the root "/"
+  if (storageUrl === 'undefined/' || storageUrl.includes('undefined')) {
+    const baseUrlObj = new URL(baseUrl);
+    return `${baseUrlObj.protocol}//${baseUrlObj.host}/`;
+  }
+
+  // Handle relative URLs that end with "/." or are just "/"
+  if (storageUrl.endsWith('/.') || storageUrl.endsWith('/./') || 
+      storageUrl === './' || storageUrl === '/' || 
+      (storageUrl.startsWith('/') && !storageUrl.startsWith('http'))) {
+    const baseUrlObj = new URL(baseUrl);
+    if (storageUrl.endsWith('/.') || storageUrl === './' || storageUrl === '/') {
+      return `${baseUrlObj.protocol}//${baseUrlObj.host}/`;
+    } else {
+      // Handle paths like "/path" -> "https://domain.com/path"
+      try {
+        return new URL(storageUrl, baseUrl).href;
+      } catch (e) {
+        // If URL construction fails, try manual resolution
+        if (storageUrl.startsWith('/')) {
+          return `${baseUrlObj.protocol}//${baseUrlObj.host}${storageUrl}`;
+        }
+      }
+    }
+  }
+
+  // Also check if it's a relative URL without protocol
+  if (!storageUrl.startsWith('http://') && !storageUrl.startsWith('https://')) {
+    try {
+      const baseUrlObj = new URL(baseUrl);
+      if (storageUrl.startsWith('/')) {
+        return `${baseUrlObj.protocol}//${baseUrlObj.host}${storageUrl}`;
+      } else {
+        return new URL(storageUrl, baseUrl).href;
+      }
+    } catch (e) {
+      // Silent error handling
+      return null;
+    }
+  }
+
+  // Final validation - ensure it's a valid absolute URL
+  if (storageUrl && storageUrl.startsWith('http')) {
+    return storageUrl;
+  }
+
+  return null;
+}
+
+/**
  * Discovers storage by traversing up the folder hierarchy from the WebID
  * Based on: https://github.com/SolidLabResearch/Bashlib/blob/80de25cbb4b3ed057f95e25bc057f1be9b00cef3/src/utils/util.ts#L73-L104
  * @param {string} webId - The WebID to start traversal from
@@ -238,16 +295,19 @@ export function useSolidStorages(): UseSolidStoragesResult {
         // Parse the RDF content
         const store = new Store();
         
+        // Extract base URL for resolving relative URIs like <#me>
+        const baseUrl = webId.split('#')[0];
+        
         if (contentType.includes('text/turtle') || contentType.includes('application/turtle') || 
             contentType.includes('text/n3') || contentType.includes('application/n3')) {
-          const parser = new Parser();
+          const parser = new Parser({ baseIRI: baseUrl });
           const quads = parser.parse(content);
           store.addQuads(quads);
         } else if (contentType.includes('application/ld+json')) {
           // For JSON-LD, we'd need a different parser, but for now let's try to extract from Turtle
           // Most Solid servers return Turtle even if JSON-LD is requested
           try {
-            const parser = new Parser();
+            const parser = new Parser({ baseIRI: baseUrl });
             const quads = parser.parse(content);
             store.addQuads(quads);
           } catch (e) {
@@ -256,7 +316,6 @@ export function useSolidStorages(): UseSolidStoragesResult {
         }
 
         // Find the main subject - try different variants
-        const baseUrl = webId.split('#')[0];
         const subjectVariants = [
           new NamedNode(webId),
           new NamedNode(baseUrl + '#me'),
@@ -313,26 +372,9 @@ export function useSolidStorages(): UseSolidStoragesResult {
         const pimStorageQuads = store.getQuads(mainSubject, new NamedNode(PIM_STORAGE), null, null);
         pimStorageQuads.forEach(quad => {
           if (quad.object instanceof NamedNode) {
-            let storageUrl = quad.object.value;
-            const originalValue = storageUrl;
-            
-            // Handle the case where n3 parser didn't resolve the prefix correctly
-            // "pre:" prefix resolves to "</.>" which should be the root "/"
-            if (storageUrl === 'undefined/' || storageUrl.includes('undefined')) {
-              const baseUrlObj = new URL(baseUrl);
-              storageUrl = `${baseUrlObj.protocol}//${baseUrlObj.host}/`;
-            } else if (!storageUrl.startsWith('http://') && !storageUrl.startsWith('https://')) {
-              // Resolve relative URLs
-              const baseUrlObj = new URL(baseUrl);
-              if (storageUrl === './' || storageUrl === '/' || storageUrl.endsWith('/.')) {
-                storageUrl = `${baseUrlObj.protocol}//${baseUrlObj.host}/`;
-              } else {
-                storageUrl = new URL(storageUrl, baseUrl).href;
-              }
-            }
-            
-            if (storageUrl && storageUrl.startsWith('http') && !storageUrls.includes(storageUrl)) {
-              storageUrls.push(storageUrl);
+            const resolvedUrl = resolveStorageUrl(quad.object.value, baseUrl);
+            if (resolvedUrl && !storageUrls.includes(resolvedUrl)) {
+              storageUrls.push(resolvedUrl);
             }
           }
         });
@@ -352,68 +394,15 @@ export function useSolidStorages(): UseSolidStoragesResult {
         const allPimStorageQuads = store.getQuads(null, new NamedNode(PIM_STORAGE), null, null);
         allPimStorageQuads.forEach(quad => {
           if (quad.object instanceof NamedNode) {
-            let storageUrl = quad.object.value;
-            const originalValue = storageUrl;
-            
-            // Handle the case where n3 parser didn't resolve the prefix correctly
-            // "pre:" prefix resolves to "</.>" which should be the root "/"
-            // If we see "undefined/" it means the prefix wasn't resolved
-            if (storageUrl === 'undefined/' || storageUrl.includes('undefined')) {
-              // The prefix "pre:" resolves to "</.>" which is the root
-              const baseUrlObj = new URL(baseUrl);
-              storageUrl = `${baseUrlObj.protocol}//${baseUrlObj.host}/`;
-            }
-            // Handle relative URLs that end with "/." or are just "/"
-            else if (storageUrl.endsWith('/.') || storageUrl.endsWith('/./') || 
-                     storageUrl === './' || storageUrl === '/' || 
-                     (storageUrl.startsWith('/') && !storageUrl.startsWith('http'))) {
-              // Resolve relative URL to absolute
-              const baseUrlObj = new URL(baseUrl);
-              if (storageUrl.endsWith('/.') || storageUrl === './' || storageUrl === '/') {
-                storageUrl = `${baseUrlObj.protocol}//${baseUrlObj.host}/`;
-              } else {
-                // Handle paths like "/path" -> "https://domain.com/path"
-                try {
-                  storageUrl = new URL(storageUrl, baseUrl).href;
-                } catch (e) {
-                  // If URL construction fails, try manual resolution
-                  if (storageUrl.startsWith('/')) {
-                    storageUrl = `${baseUrlObj.protocol}//${baseUrlObj.host}${storageUrl}`;
-                  }
-                }
-              }
-            }
-            // Also check if it's a relative URL without protocol
-            else if (!storageUrl.startsWith('http://') && !storageUrl.startsWith('https://')) {
-              try {
-                const baseUrlObj = new URL(baseUrl);
-                if (storageUrl.startsWith('/')) {
-                  storageUrl = `${baseUrlObj.protocol}//${baseUrlObj.host}${storageUrl}`;
-                } else {
-                  storageUrl = new URL(storageUrl, baseUrl).href;
-                }
-              } catch (e) {
-                // Silent error handling
-              }
-            }
-            
-            // Final validation - ensure it's a valid absolute URL
-            if (storageUrl && storageUrl.startsWith('http')) {
-              if (!storageUrls.includes(storageUrl)) {
-                storageUrls.push(storageUrl);
-              }
+            const resolvedUrl = resolveStorageUrl(quad.object.value, baseUrl);
+            if (resolvedUrl && !storageUrls.includes(resolvedUrl)) {
+              storageUrls.push(resolvedUrl);
             }
           } else if (quad.object instanceof Literal) {
             // Sometimes storage might be a literal, try to resolve it
-            const storageValue = quad.object.value;
-            if (storageValue === './' || storageValue === '/' || storageValue.startsWith('/')) {
-              const baseUrlObj = new URL(baseUrl);
-              const resolvedUrl = storageValue === './' || storageValue === '/' 
-                ? `${baseUrlObj.protocol}//${baseUrlObj.host}/`
-                : new URL(storageValue, baseUrl).href;
-              if (!storageUrls.includes(resolvedUrl)) {
-                storageUrls.push(resolvedUrl);
-              }
+            const resolvedUrl = resolveStorageUrl(quad.object.value, baseUrl);
+            if (resolvedUrl && !storageUrls.includes(resolvedUrl)) {
+              storageUrls.push(resolvedUrl);
             }
           }
         });

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Modal from "./shared/Modal";
 import Button from "./shared/Button";
+import Input from "./shared/Input";
 import { getDefaultSession } from "@inrupt/solid-client-authn-browser";
 import { createContainerAt, getSolidDataset, UrlString } from "@inrupt/solid-client";
 import toast from "react-hot-toast";
@@ -129,14 +130,13 @@ export default function NewFolderDialog({
       }
     >
       <div className="py-2">
-        <input
+        <Input
           ref={inputRef}
           type="text"
           value={folderName}
-          onChange={(e) => setFolderName(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFolderName(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Untitled folder"
-          className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#7B42F6] focus:border-[#7B42F6] transition-colors disabled:bg-gray-50 disabled:text-gray-500"
           disabled={isCreating}
         />
       </div>
