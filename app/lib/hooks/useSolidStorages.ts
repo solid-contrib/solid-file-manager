@@ -282,7 +282,11 @@ export function useSolidStorages(): UseSolidStoragesResult {
         const storageUrls: string[] = [];
         
         // Try pim:storage
+        const size = store.size;
+        console.log("Store size:", store.getQuads(null, null, null, null)[0]);
         const pimStorageQuads = store.getQuads(mainSubject, new NamedNode(PIM_STORAGE), null, null);
+      
+        console.log("PIM storage quads:", pimStorageQuads);
         pimStorageQuads.forEach(quad => {
           if (quad.object instanceof NamedNode) {
             const resolvedUrl = resolveStorageUrl(quad.object.value, baseUrl);
