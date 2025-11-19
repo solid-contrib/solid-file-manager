@@ -4,11 +4,10 @@ import { useState, useEffect, useRef } from "react";
 import Modal from "./shared/Modal";
 import Button from "./shared/Button";
 import Input from "./shared/Input";
-import { getDefaultSession } from "@inrupt/solid-client-authn-browser";
 import { UrlString } from "@inrupt/solid-client";
 import toast from "react-hot-toast";
 import { FileItemData } from "./FileItem";
-import { updateMetaFile } from "../lib/helpers/metaFileUtils";
+import { updateMetaFile, getAuthenticatedSession } from "../lib/helpers";
 
 interface RenameDialogProps {
   isOpen: boolean;
@@ -60,12 +59,7 @@ export default function RenameDialog({
     const resourceUrlString = resourceUrl as UrlString;
 
     try {
-      const session = getDefaultSession();
-      if (!session.info.isLoggedIn) {
-        throw new Error("Not authenticated");
-      }
-
-      const fetchFn = session.fetch || fetch;
+      const { fetch: fetchFn } = getAuthenticatedSession();
 
       // Update the .meta file for this resource
       // This is the standard Solid approach for storing metadata about resources

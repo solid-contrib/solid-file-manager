@@ -1,5 +1,5 @@
-import { getDefaultSession } from "@inrupt/solid-client-authn-browser";
 import { Parser, Store, NamedNode } from "n3";
+import { getSession } from "./sessionUtils";
 
 // Cache for parsed profile documents
 const profileCache = new Map<string, { store: Store; baseUrl: string; mainSubject: NamedNode }>();
@@ -17,7 +17,7 @@ export async function fetchAndParseProfile(
     return profileCache.get(webId)!;
   }
 
-  const session = getDefaultSession();
+  const session = getSession();
   const fetchFn = session.fetch || fetch;
 
   // Try different Accept headers to get the profile

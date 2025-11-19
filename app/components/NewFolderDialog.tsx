@@ -4,9 +4,9 @@ import { useState, useEffect, useRef } from "react";
 import Modal from "./shared/Modal";
 import Button from "./shared/Button";
 import Input from "./shared/Input";
-import { getDefaultSession } from "@inrupt/solid-client-authn-browser";
 import { createContainerAt, getSolidDataset, UrlString } from "@inrupt/solid-client";
 import toast from "react-hot-toast";
+import { getAuthenticatedSession } from "../lib/helpers";
 
 interface NewFolderDialogProps {
   isOpen: boolean;
@@ -53,12 +53,7 @@ export default function NewFolderDialog({
     setIsCreating(true);
 
     try {
-      const session = getDefaultSession();
-      if (!session.info.isLoggedIn) {
-        throw new Error("Not authenticated");
-      }
-
-      const fetchFn = session.fetch || fetch;
+      const { fetch: fetchFn } = getAuthenticatedSession();
 
       // Ensure the current container exists
       await getSolidDataset(currentContainerUrl, { fetch: fetchFn });

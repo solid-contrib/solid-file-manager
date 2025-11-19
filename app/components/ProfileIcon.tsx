@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { getDefaultSession, logout } from "@inrupt/solid-client-authn-browser";
+import { logout } from "@inrupt/solid-client-authn-browser";
+import { getSession } from "../lib/helpers";
 import { useUserProfile, useClickOutside } from "../lib/hooks";
 import { UserCircleIcon, ArrowRightStartOnRectangleIcon, PhoneIcon, BuildingOfficeIcon, BriefcaseIcon, GlobeAltIcon, ClipboardIcon } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
@@ -16,7 +17,7 @@ export default function ProfileIcon() {
   const buttonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    const session = getDefaultSession();
+    const session = getSession();
     if (session.info.webId) {
       setWebId(session.info.webId);
     }

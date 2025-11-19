@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { getDefaultSession } from "@inrupt/solid-client-authn-browser";
+import { useEffect, useState, useRef } from "react";
+import { getAuthenticatedSession } from "../helpers";
 import {
   getSolidDataset,
   getContainedResourceUrlAll,
@@ -23,6 +23,10 @@ interface UseBrowseStorageResult {
   error: Error | null;
 }
 
+// In-memory cache for container contents
+// Key: normalized URL (with trailing slash), Value: cached files
+const containerCache = new Map<string, FileItemData[]>();
+
 /**
  * Hook to browse/list the contents of a Solid storage container
  * Uses LDP to fetch and parse container contents
@@ -31,28 +35,50 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
   const [files, setFiles] = useState<FileItemData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const lastUrlRef = useRef<string | null>(null);
+  const lastRefreshKeyRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     if (!containerUrl) {
       setFiles([]);
       setIsLoading(false);
+      lastUrlRef.current = null;
       return;
     }
 
-    const urlToBrowse = containerUrl;
+    // Normalize URL (ensure trailing slash for consistency)
+    const normalizedUrl = containerUrl.endsWith("/") ? containerUrl : containerUrl + "/";
+    
+    // Check if we should use cached data
+    // Use cache if: no explicit refresh requested and cache exists for this URL
+    const shouldUseCache = 
+      refreshKey === undefined && 
+      containerCache.has(normalizedUrl);
+
+    if (shouldUseCache) {
+      // Use cached data immediately
+      const cachedFiles = containerCache.get(normalizedUrl)!;
+      setFiles(cachedFiles);
+      setIsLoading(false);
+      setError(null);
+      // Update refs to track current URL
+      lastUrlRef.current = normalizedUrl;
+      lastRefreshKeyRef.current = refreshKey;
+      return;
+    }
+
+    // Update refs
+    lastUrlRef.current = normalizedUrl;
+    lastRefreshKeyRef.current = refreshKey;
 
     async function browseContainer() {
       try {
         setIsLoading(true);
         setError(null);
 
-        const session = getDefaultSession();
-        if (!session.info.isLoggedIn) {
-          throw new Error("Not authenticated");
-        }
+        const { fetch: fetchFn } = getAuthenticatedSession();
 
-        const url = urlToBrowse.endsWith("/") ? urlToBrowse : urlToBrowse + "/";
-        const sessionFetch = session.fetch || fetch;
+        const url = normalizedUrl;
   
         // Create a fetch function that bypasses cache when refreshKey is provided
         const fetchWithCacheBust = refreshKey !== undefined
@@ -60,7 +86,7 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
               const urlWithCacheBust = typeof input === 'string' 
                 ? `${input}${input.includes('?') ? '&' : '?'}_t=${Date.now()}`
                 : input;
-              return sessionFetch(urlWithCacheBust, {
+              return fetchFn(urlWithCacheBust, {
                 ...init,
                 cache: 'no-store',
                 headers: {
@@ -69,7 +95,7 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
                 },
               });
             }
-          : sessionFetch;
+          : fetchFn;
 
         // Use @inrupt/solid-client to fetch the container dataset
         const containerDataset = await getSolidDataset(url, {
@@ -170,6 +196,8 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
           url: item.url
         })));
         
+        // Cache the results
+        containerCache.set(normalizedUrl, fileItems);
         setFiles(fileItems);
       } catch (err) {
         const errorMessage =
