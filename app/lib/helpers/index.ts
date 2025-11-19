@@ -5,4 +5,5 @@ export * from "./fileFilters";
 export * from "./urlUtils";
 export * from "./breadcrumbUtils";
 export * from "./fileTypeUtils";
+export * from "./profileUtils";
 

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { getDefaultSession } from "@inrupt/solid-client-authn-browser";
-import { Parser, Store, NamedNode, Literal } from "n3";
+import { NamedNode, Literal } from "n3";
+import { fetchAndParseProfile } from "../helpers/profileUtils";
 
 // vCard predicates
 const VCARD_FN = "http://www.w3.org/2006/vcard/ns#fn";
@@ -68,90 +69,8 @@ export function useUserProfile(): UseUserProfileResult {
 
         const webId = session.info.webId;
 
-        // Fetch the profile document
-        const acceptHeaders = [
-          'text/turtle, application/turtle, text/n3, application/n3',
-          'text/turtle',
-          'application/ld+json',
-        ];
-
-        let content: string | null = null;
-        let contentType: string = '';
-
-        for (const acceptHeader of acceptHeaders) {
-          try {
-            const fetchFn = session.fetch || fetch;
-            const response = await fetchFn(webId, {
-              method: 'GET',
-              headers: {
-                'Accept': acceptHeader,
-              },
-            });
-
-            if (response.ok) {
-              contentType = response.headers.get('content-type') || '';
-              content = await response.text();
-              break;
-            }
-          } catch (err) {
-            continue;
-          }
-        }
-
-        if (!content) {
-          throw new Error("Failed to fetch profile document");
-        }
-
-        // Parse the RDF content
-        const store = new Store();
-        if (contentType.includes('text/turtle') || contentType.includes('application/turtle') || 
-            contentType.includes('text/n3') || contentType.includes('application/n3')) {
-          const parser = new Parser({ baseIRI: webId });
-          const quads = parser.parse(content);
-          store.addQuads(quads);
-        } else {
-          // Try parsing as Turtle anyway
-          try {
-            const parser = new Parser({ baseIRI: webId });
-            const quads = parser.parse(content);
-            store.addQuads(quads);
-          } catch (e) {
-            // Silent error handling
-          }
-        }
-
-        // Find the main subject
-        const baseUrl = webId.split('#')[0];
-        const subjectVariants = [
-          new NamedNode(webId),
-          new NamedNode(baseUrl + '#me'),
-          new NamedNode('#me'),
-          new NamedNode(baseUrl + '#card'),
-        ];
-
-        let mainSubject: NamedNode | null = null;
-        
-        for (const subject of subjectVariants) {
-          const nameQuads = store.getQuads(subject, new NamedNode(FOAF_NAME), null, null);
-          if (nameQuads.length > 0) {
-            mainSubject = subject;
-            break;
-          }
-        }
-
-        // If still not found, try to find Person type
-        if (!mainSubject) {
-          const personType = new NamedNode('http://xmlns.com/foaf/0.1/Person');
-          const personQuads = store.getQuads(null, new NamedNode('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'), personType, null);
-          if (personQuads.length > 0 && personQuads[0].subject.termType === 'NamedNode') {
-            mainSubject = personQuads[0].subject as NamedNode;
-          }
-        }
-
-        // Fallback to WebID itself
-        if (!mainSubject) {
-          mainSubject = new NamedNode(webId);
-        }
+        // Use shared profile fetching utility (with caching)
+        const { store, baseUrl, mainSubject } = await fetchAndParseProfile(webId);
 
         // Extract profile information
         let name: string | null = null;

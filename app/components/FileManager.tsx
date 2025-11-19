@@ -216,15 +216,20 @@ export default function FileManager() {
     setShowPreviewModal(true);
   };
 
-  const storageFiles: FileItemData[] = filterProfileItems(storages).map((storage) => ({
+  console.log("storages:", storages);
+
+ 
+  // const storageFiles: FileItemData[] = filterProfileItems(storages).map((storage) => ({
+  const storageFiles: FileItemData[] = storages.map((storage) => ({
     id: storage.id,
     name: storage.name,
     type: "folder" as const,
     url: storage.url,
   }));
+  console.log("storageFiles:", storageFiles);
 
-  const filteredFiles = filterProfileItems(browsedFiles);
-  const displayFiles = selectedStorageId ? filteredFiles : storageFiles;
+  // const filteredFiles = filterProfileItems(browsedFiles);
+  const displayFiles = selectedStorageId ? browsedFiles : storageFiles;
 
   const selectedStorage = storages.find((s) => s.id === selectedStorageId);
   const breadcrumbItems = buildBreadcrumbItems(
