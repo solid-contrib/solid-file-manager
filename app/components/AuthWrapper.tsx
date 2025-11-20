@@ -1,10 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  getDefaultSession,
-  handleIncomingRedirect,
-} from "@inrupt/solid-client-authn-browser";
+import { handleIncomingRedirect } from "@inrupt/solid-client-authn-browser";
+import { getSession } from "../lib/helpers";
 import LoginPage from "./LoginPage";
 import LoadingSpinner from "./shared/LoadingSpinner";
 import ErrorDisplay from "./shared/ErrorDisplay";
@@ -29,7 +27,7 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
         });
 
         // Get the session instance after handling redirect
-        const session = getDefaultSession();
+        const session = getSession();
 
         let isLoggedIn = session.info.isLoggedIn && !!session.info.webId;
 
@@ -66,7 +64,7 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
           const redirectInfo = await handleIncomingRedirect({
             restorePreviousSession: true,
           });
-          const session = getDefaultSession();
+          const session = getSession();
           if (session.info.isLoggedIn) {
             setIsAuthenticated(true);
             setError(null);
@@ -87,7 +85,7 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
 
     handleIncomingRedirect({ restorePreviousSession: true })
       .then(() => {
-        const session = getDefaultSession();
+        const session = getSession();
         setIsAuthenticated(session.info.isLoggedIn);
       })
       .catch((err) => {

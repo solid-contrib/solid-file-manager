@@ -4,11 +4,10 @@ import { useState, useEffect, useRef } from "react";
 import Modal from "./shared/Modal";
 import Button from "./shared/Button";
 import Input from "./shared/Input";
-import { getDefaultSession } from "@inrupt/solid-client-authn-browser";
 import { UrlString } from "@inrupt/solid-client";
 import toast from "react-hot-toast";
 import { FileItemData } from "./FileItem";
-import { updateMetaFile } from "../lib/helpers/metaFileUtils";
+import { updateMetaFile, getAuthenticatedSession, getDisplayNameFromMeta } from "../lib/helpers";
 
 interface RenameDialogProps {
   isOpen: boolean;
@@ -25,19 +24,37 @@ export default function RenameDialog({
 }: RenameDialogProps) {
   const [newName, setNewName] = useState("");
   const [isRenaming, setIsRenaming] = useState(false);
+  const [isLoadingName, setIsLoadingName] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen && file) {
-      setNewName(file.name);
+      setIsLoadingName(true);
       setIsRenaming(false);
-      // Focus and select the input text when modal opens
-      setTimeout(() => {
-        if (inputRef.current) {
-          inputRef.current.focus();
-          inputRef.current.select();
+      
+      // Fetch the .meta file to get the current display name
+      const fetchDisplayName = async () => {
+        try {
+          const { fetch: fetchFn } = getAuthenticatedSession();
+          const metaName = await getDisplayNameFromMeta(file.url, fetchFn);
+          // Use .meta name if available, otherwise fall back to file.name
+          setNewName(metaName || file.name);
+        } catch (error) {
+          // If .meta file doesn't exist or can't be read, use file.name
+          setNewName(file.name);
+        } finally {
+          setIsLoadingName(false);
+          // Focus and select the input text after loading
+          setTimeout(() => {
+            if (inputRef.current) {
+              inputRef.current.focus();
+              inputRef.current.select();
+            }
+          }, 100);
         }
-      }, 100);
+      };
+
+      fetchDisplayName();
     }
   }, [isOpen, file]);
 
@@ -60,12 +77,7 @@ export default function RenameDialog({
     const resourceUrlString = resourceUrl as UrlString;
 
     try {
-      const session = getDefaultSession();
-      if (!session.info.isLoggedIn) {
-        throw new Error("Not authenticated");
-      }
-
-      const fetchFn = session.fetch || fetch;
+      const { fetch: fetchFn } = getAuthenticatedSession();
 
       // Update the .meta file for this resource
       // This is the standard Solid approach for storing metadata about resources
@@ -119,7 +131,7 @@ export default function RenameDialog({
             variant="primary"
             onClick={handleRename}
             isLoading={isRenaming}
-            disabled={isRenaming || !newName.trim() || newName.trim() === file.name}
+            disabled={isRenaming || isLoadingName || !newName.trim() || newName.trim() === file.name}
           >
             OK
           </Button>
@@ -133,8 +145,8 @@ export default function RenameDialog({
           value={newName}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewName(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Enter new name"
-          disabled={isRenaming}
+          placeholder={isLoadingName ? "Loading..." : "Enter new name"}
+          disabled={isRenaming || isLoadingName}
         />
       </div>
     </Modal>

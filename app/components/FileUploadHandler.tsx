@@ -1,9 +1,9 @@
 "use client";
 
 import { useRef, useEffect } from "react";
-import { getDefaultSession } from "@inrupt/solid-client-authn-browser";
 import { overwriteFile, UrlString } from "@inrupt/solid-client";
 import toast from "react-hot-toast";
+import { getAuthenticatedSession } from "../lib/helpers";
 
 interface FileUploadHandlerProps {
   currentContainerUrl: string | null;
@@ -34,14 +34,14 @@ export default function FileUploadHandler({
       return;
     }
 
-    const session = getDefaultSession();
-    if (!session.info.isLoggedIn) {
+    let fetchFn: typeof fetch;
+    try {
+      ({ fetch: fetchFn } = getAuthenticatedSession());
+    } catch (error) {
       toast.error("Not authenticated");
       e.target.value = "";
       return;
     }
-
-    const fetchFn = session.fetch || fetch;
     const uploadPromises: Promise<void>[] = [];
     const uploadedFiles: string[] = [];
     const failedFiles: string[] = [];

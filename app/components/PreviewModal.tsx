@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import Modal from "./shared/Modal";
 import Button from "./shared/Button";
-import { getDefaultSession } from "@inrupt/solid-client-authn-browser";
 import { getFile, UrlString } from "@inrupt/solid-client";
+import { getAuthenticatedSession } from "../lib/helpers";
 import { FileItemData } from "./FileItem";
 import LoadingSpinner from "./shared/LoadingSpinner";
 import { getFileType } from "../lib/helpers";
@@ -56,12 +56,7 @@ export default function PreviewModal({
       setError(null);
 
       try {
-        const session = getDefaultSession();
-        if (!session.info.isLoggedIn) {
-          throw new Error("Not authenticated");
-        }
-
-        const fetchFn = session.fetch || fetch;
+        const { fetch: fetchFn } = getAuthenticatedSession();
         const fileTypeDetected = getFileType(file.url, file.mimeType, file.name);
         setFileType(fileTypeDetected);
 

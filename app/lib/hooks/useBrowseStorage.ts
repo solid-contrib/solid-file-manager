@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { getDefaultSession } from "@inrupt/solid-client-authn-browser";
+import { useEffect, useState, useRef } from "react";
+import { getAuthenticatedSession } from "../helpers";
 import {
   getSolidDataset,
   getContainedResourceUrlAll,
@@ -23,6 +23,10 @@ interface UseBrowseStorageResult {
   error: Error | null;
 }
 
+// In-memory cache for container contents
+// Key: normalized URL (with trailing slash), Value: cached files
+const containerCache = new Map<string, FileItemData[]>();
+
 /**
  * Hook to browse/list the contents of a Solid storage container
  * Uses LDP to fetch and parse container contents
@@ -31,28 +35,55 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
   const [files, setFiles] = useState<FileItemData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const lastUrlRef = useRef<string | null>(null);
+  const lastRefreshKeyRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     if (!containerUrl) {
       setFiles([]);
       setIsLoading(false);
+      lastUrlRef.current = null;
       return;
     }
 
-    const urlToBrowse = containerUrl;
+    // Normalize URL (ensure trailing slash for consistency)
+    const normalizedUrl = containerUrl.endsWith("/") ? containerUrl : containerUrl + "/";
+    
+    // Clear cache if refreshKey changed (indicating an explicit refresh)
+    if (refreshKey !== undefined && refreshKey !== lastRefreshKeyRef.current) {
+      containerCache.delete(normalizedUrl);
+    }
+    
+    // Check if we should use cached data
+    // Use cache if: no explicit refresh requested and cache exists for this URL
+    const shouldUseCache = 
+      refreshKey === undefined && 
+      containerCache.has(normalizedUrl);
+
+    if (shouldUseCache) {
+      // Use cached data immediately
+      const cachedFiles = containerCache.get(normalizedUrl)!;
+      setFiles(cachedFiles);
+      setIsLoading(false);
+      setError(null);
+      // Update refs to track current URL
+      lastUrlRef.current = normalizedUrl;
+      lastRefreshKeyRef.current = refreshKey;
+      return;
+    }
+
+    // Update refs
+    lastUrlRef.current = normalizedUrl;
+    lastRefreshKeyRef.current = refreshKey;
 
     async function browseContainer() {
       try {
         setIsLoading(true);
         setError(null);
 
-        const session = getDefaultSession();
-        if (!session.info.isLoggedIn) {
-          throw new Error("Not authenticated");
-        }
+        const { fetch: fetchFn } = getAuthenticatedSession();
 
-        const url = urlToBrowse.endsWith("/") ? urlToBrowse : urlToBrowse + "/";
-        const sessionFetch = session.fetch || fetch;
+        const url = normalizedUrl;
   
         // Create a fetch function that bypasses cache when refreshKey is provided
         const fetchWithCacheBust = refreshKey !== undefined
@@ -60,7 +91,7 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
               const urlWithCacheBust = typeof input === 'string' 
                 ? `${input}${input.includes('?') ? '&' : '?'}_t=${Date.now()}`
                 : input;
-              return sessionFetch(urlWithCacheBust, {
+              return fetchFn(urlWithCacheBust, {
                 ...init,
                 cache: 'no-store',
                 headers: {
@@ -69,7 +100,7 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
                 },
               });
             }
-          : sessionFetch;
+          : fetchFn;
 
         // Use @inrupt/solid-client to fetch the container dataset
         const containerDataset = await getSolidDataset(url, {
@@ -87,21 +118,30 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
             const isContainerUrl = absoluteUrl.endsWith("/");
             
             // Try to get preferred name in this order:
-            // 1. .meta file (standard Solid metadata)
+            // 1. .meta file (if refreshKey is provided, meaning we're refreshing after rename/upload)
             // 2. RDF metadata from container (dcterms:title or rdfs:label)
             // 3. URL extraction (fallback)
             let name = extractNameFromUrl(absoluteUrl);
             let lastModified: Date | undefined;
             let size: number | undefined;
 
-            // Check .meta file first (standard Solid approach)
-            const metaName = await getDisplayNameFromMeta(absoluteUrl, fetchWithCacheBust);
-            if (metaName) {
-              name = metaName;
-            } else {
-              // Check RDF metadata from container dataset
-              const itemThing = getThing(containerDataset, absoluteUrl);
-              if (itemThing) {
+            // If refreshKey is provided, fetch .meta files to get updated names after rename/upload
+            if (refreshKey !== undefined) {
+              try {
+                const metaName = await getDisplayNameFromMeta(absoluteUrl, fetchWithCacheBust);
+                if (metaName) {
+                  name = metaName;
+                }
+              } catch (error) {
+                // .meta file doesn't exist or can't be read - continue with other methods
+              }
+            }
+
+            // Check RDF metadata from container dataset
+            const itemThing = getThing(containerDataset, absoluteUrl);
+            if (itemThing) {
+              // Only use RDF metadata if we didn't get a name from .meta file
+              if (name === extractNameFromUrl(absoluteUrl)) {
                 // Check for preferred name in metadata (dcterms:title or rdfs:label)
                 const title = getStringNoLocale(itemThing, DCTERMS.title);
                 if (title) {
@@ -112,23 +152,23 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
                     name = label;
                   }
                 }
+              }
 
-                const modifiedDate = getDatetime(itemThing, DCTERMS.modified);
-                if (modifiedDate) {
-                  lastModified = modifiedDate;
+              const modifiedDate = getDatetime(itemThing, DCTERMS.modified);
+              if (modifiedDate) {
+                lastModified = modifiedDate;
+              }
+              
+              if (!lastModified) {
+                const mtime = getDatetime(itemThing, POSIX.mtime);
+                if (mtime) {
+                  lastModified = mtime;
                 }
-                
-                if (!lastModified) {
-                  const mtime = getDatetime(itemThing, POSIX.mtime);
-                  if (mtime) {
-                    lastModified = mtime;
-                  }
-                }
+              }
 
-                const fileSize = getInteger(itemThing, POSIX.size);
-                if (fileSize !== null) {
-                  size = fileSize;
-                }
+              const fileSize = getInteger(itemThing, POSIX.size);
+              if (fileSize !== null) {
+                size = fileSize;
               }
             }
 
@@ -163,13 +203,9 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
           if (a.type !== "folder" && b.type === "folder") return 1;
           return a.name.localeCompare(b.name);
         });
-
-        console.log(`Resources:`, fileItems.map(item => ({
-          name: item.name,
-          type: item.type,
-          url: item.url
-        })));
         
+        // Cache the results
+        containerCache.set(normalizedUrl, fileItems);
         setFiles(fileItems);
       } catch (err) {
         const errorMessage =

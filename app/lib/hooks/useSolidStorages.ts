@@ -261,32 +261,13 @@ export function useSolidStorages(): UseSolidStoragesResult {
         // Use shared profile fetching utility (with caching)
         const { store, baseUrl, mainSubject } = await fetchAndParseProfile(webId);
 
-        // Get profile name
-        const getName = (subject: NamedNode): string | null => {
-          const nameQuads = store.getQuads(subject, new NamedNode(FOAF_NAME), null, null);
-          if (nameQuads.length > 0 && nameQuads[0].object instanceof Literal) {
-            return nameQuads[0].object.value;
-          }
-          const vcardQuads = store.getQuads(subject, new NamedNode(VCARD_FN), null, null);
-          if (vcardQuads.length > 0 && vcardQuads[0].object instanceof Literal) {
-            return vcardQuads[0].object.value;
-          }
-          return null;
-        };
-
-        const profileName = getName(mainSubject) || 
-                           webId.split("/").pop()?.split("#")[0] || 
-                           "My Storage";
 
         // Get storage roots using both pim:storage and solid:storage predicates
         const storageUrls: string[] = [];
         
         // Try pim:storage
-        const size = store.size;
-        console.log("Store size:", store.getQuads(null, null, null, null)[0]);
         const pimStorageQuads = store.getQuads(mainSubject, new NamedNode(PIM_STORAGE), null, null);
       
-        console.log("PIM storage quads:", pimStorageQuads);
         pimStorageQuads.forEach(quad => {
           if (quad.object instanceof NamedNode) {
             const resolvedUrl = resolveStorageUrl(quad.object.value, baseUrl);
@@ -372,10 +353,10 @@ export function useSolidStorages(): UseSolidStoragesResult {
         );
 
         // Convert to SolidStorage format
-        const discoveredStorages: SolidStorage[] = validStorageUrls.map((url, index) => {
+        const discoveredStorages: SolidStorage[] = validStorageUrls.map((url) => {
           return {
             id: url,
-            name: index === 0 ? profileName : `${profileName} (${index + 1})`,
+            name: url,
             url: url,
           };
         });
