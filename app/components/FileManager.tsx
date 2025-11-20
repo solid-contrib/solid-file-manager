@@ -2,14 +2,6 @@
 
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
-import {
-  getFile,
-  overwriteFile,
-  createContainerAt,
-  getSolidDataset,
-  getContainedResourceUrlAll,
-  UrlString,
-} from "@inrupt/solid-client";
 import { useSearchParams, useRouter } from "next/navigation";
 import AuthWrapper from "./AuthWrapper";
 import Header from "./Header";
@@ -20,6 +12,7 @@ import PermissionsDialog, { Permission } from "./PermissionsDialog";
 import NewFolderDialog from "./NewFolderDialog";
 import RenameDialog from "./RenameDialog";
 import PreviewModal from "./PreviewModal";
+import MoveDialog from "./MoveDialog";
 import FileUploadHandler from "./FileUploadHandler";
 import { FileItemData } from "./FileItem";
 import LoadingSpinner from "./shared/LoadingSpinner";
@@ -28,171 +21,9 @@ import { useSolidStorages, useBrowseStorage } from "../lib/hooks";
 import {
   buildBreadcrumbItems,
   getAuthenticatedSession,
-  getDisplayNameFromMeta,
-  updateMetaFile,
+  copyFileResource,
+  copyFolderResource,
 } from "../lib/helpers";
-
-const INVALID_NAME_CHARS = /[<>:"/\\|?*]/g;
-
-const sanitizeResourceName = (name: string): string => {
-  const sanitized = name.replace(INVALID_NAME_CHARS, "").trim();
-  return sanitized || "Untitled";
-};
-
-const decodeResourceNameFromUrl = (resourceUrl: string): string => {
-  try {
-    const urlObj = new URL(resourceUrl);
-    const segments = urlObj.pathname.split("/").filter(Boolean);
-    if (segments.length === 0) {
-      return urlObj.hostname;
-    }
-    const lastSegment = resourceUrl.endsWith("/") ? segments[segments.length - 1] : segments[segments.length - 1];
-    return decodeURIComponent(lastSegment);
-  } catch {
-    return resourceUrl;
-  }
-};
-
-const ensureTrailingSlash = (url: string): string => (url.endsWith("/") ? url : `${url}/`);
-
-const getParentContainerUrl = (resourceUrl: string): string => {
-  try {
-    const urlObj = new URL(resourceUrl);
-    const segments = urlObj.pathname.split("/").filter(Boolean);
-    if (segments.length === 0) {
-      return `${urlObj.origin}/`;
-    }
-    if (!resourceUrl.endsWith("/")) {
-      segments.pop();
-    } else if (segments.length > 0) {
-      segments.pop();
-    }
-    const parentPath = segments.length ? `/${segments.join("/")}/` : "/";
-    return `${urlObj.origin}${parentPath}`;
-  } catch {
-    return resourceUrl;
-  }
-};
-
-const shouldSkipResourceCopy = (resourceUrl: string): boolean => {
-  return resourceUrl.endsWith(".meta") || resourceUrl.endsWith(".acl");
-};
-
-const resourceExists = async (url: string, fetchFn: typeof fetch): Promise<boolean> => {
-  try {
-    const response = await fetchFn(url, { method: "HEAD" });
-    if (response.status === 404) {
-      return false;
-    }
-    if (response.status >= 200 && response.status < 300) {
-      return true;
-    }
-    // For other statuses (401, 403, 405, etc.) assume the resource exists to avoid collisions
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-const generateCopyTarget = async (
-  parentUrl: string,
-  desiredName: string,
-  isContainer: boolean,
-  fetchFn: typeof fetch
-): Promise<{ targetUrl: string; displayName: string }> => {
-  const parentWithSlash = ensureTrailingSlash(parentUrl);
-  let attempt = 0;
-
-  while (attempt < 100) {
-    const candidateDisplayName = attempt === 0 ? desiredName : `${desiredName} (${attempt})`;
-    const candidatePathName = sanitizeResourceName(candidateDisplayName);
-    const encodedName = encodeURIComponent(candidatePathName);
-    const candidateUrl = isContainer ? `${parentWithSlash}${encodedName}/` : `${parentWithSlash}${encodedName}`;
-    const exists = await resourceExists(candidateUrl, fetchFn);
-    if (!exists) {
-      return { targetUrl: candidateUrl, displayName: candidateDisplayName };
-    }
-    attempt += 1;
-  }
-
-  throw new Error("Unable to generate a unique name for the copy");
-};
-
-const copyFileFromSource = async (
-  sourceUrl: string,
-  targetUrl: string,
-  displayName: string,
-  fetchFn: typeof fetch,
-  mimeTypeHint?: string
-): Promise<void> => {
-  const fileBlob = await getFile(sourceUrl as UrlString, { fetch: fetchFn });
-  const contentType = fileBlob.type || mimeTypeHint || "application/octet-stream";
-  await overwriteFile(targetUrl as UrlString, fileBlob, {
-    fetch: fetchFn,
-    contentType,
-  });
-  await updateMetaFile(targetUrl as UrlString, displayName, fetchFn);
-};
-
-const copyFolderContents = async (
-  sourceFolderUrl: string,
-  destinationFolderUrl: string,
-  fetchFn: typeof fetch
-): Promise<void> => {
-  const dataset = await getSolidDataset(sourceFolderUrl, { fetch: fetchFn });
-  const containedResources = getContainedResourceUrlAll(dataset);
-
-  for (const resourceUrl of containedResources) {
-    if (shouldSkipResourceCopy(resourceUrl)) {
-      continue;
-    }
-
-    if (resourceUrl.endsWith("/")) {
-      const childName = decodeResourceNameFromUrl(resourceUrl);
-      const encodedChildName = encodeURIComponent(childName);
-      const childDestination = `${ensureTrailingSlash(destinationFolderUrl)}${encodedChildName}/`;
-
-      await createContainerAt(childDestination as UrlString, { fetch: fetchFn });
-      const childDisplayName =
-        (await getDisplayNameFromMeta(resourceUrl, fetchFn)) ?? childName;
-      await updateMetaFile(childDestination as UrlString, childDisplayName, fetchFn);
-
-      await copyFolderContents(resourceUrl, childDestination, fetchFn);
-    } else {
-      const childName = decodeResourceNameFromUrl(resourceUrl);
-      const encodedChildName = encodeURIComponent(childName);
-      const childDestination = `${ensureTrailingSlash(destinationFolderUrl)}${encodedChildName}`;
-      const childDisplayName =
-        (await getDisplayNameFromMeta(resourceUrl, fetchFn)) ?? childName;
-      await copyFileFromSource(resourceUrl, childDestination, childDisplayName, fetchFn);
-    }
-  }
-};
-
-const copyFileResource = async (file: FileItemData, fetchFn: typeof fetch): Promise<void> => {
-  const originalLabel =
-    (await getDisplayNameFromMeta(file.url, fetchFn)) ??
-    file.name ??
-    decodeResourceNameFromUrl(file.url);
-  const parentUrl = getParentContainerUrl(file.url);
-  const desiredName = `Copy of ${originalLabel}`;
-  const { targetUrl, displayName } = await generateCopyTarget(parentUrl, desiredName, false, fetchFn);
-  await copyFileFromSource(file.url, targetUrl, displayName, fetchFn, file.mimeType);
-};
-
-const copyFolderResource = async (folder: FileItemData, fetchFn: typeof fetch): Promise<void> => {
-  const originalLabel =
-    (await getDisplayNameFromMeta(folder.url, fetchFn)) ??
-    folder.name ??
-    decodeResourceNameFromUrl(folder.url);
-  const parentUrl = getParentContainerUrl(folder.url);
-  const desiredName = `Copy of ${originalLabel}`;
-  const { targetUrl, displayName } = await generateCopyTarget(parentUrl, desiredName, true, fetchFn);
-
-  await createContainerAt(targetUrl as UrlString, { fetch: fetchFn });
-  await updateMetaFile(targetUrl as UrlString, displayName, fetchFn);
-  await copyFolderContents(folder.url, targetUrl, fetchFn);
-};
 
 
 export default function FileManager() {
@@ -216,6 +47,8 @@ export default function FileManager() {
   const [fileToRename, setFileToRename] = useState<FileItemData | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [fileToPreview, setFileToPreview] = useState<FileItemData | null>(null);
+  const [showMoveDialog, setShowMoveDialog] = useState(false);
+  const [fileToMove, setFileToMove] = useState<FileItemData | null>(null);
 
   const [savedUrl, setSavedUrl] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
@@ -420,6 +253,15 @@ export default function FileManager() {
     setShowPreviewModal(true);
   };
 
+  const handleMove = (file: FileItemData) => {
+    setFileToMove(file);
+    setShowMoveDialog(true);
+  };
+
+  const handleMoved = () => {
+    setRefreshKey((prev) => prev + 1);
+  };
+
   const storageFiles: FileItemData[] = storages.map((storage) => ({
     id: storage.id,
     name: storage.name,
@@ -428,6 +270,24 @@ export default function FileManager() {
   }));
 
   const displayFiles = selectedStorageId ? browsedFiles : storageFiles;
+
+  // Get all available folders for move dialog (storages + browsed folders)
+  const availableFolders: FileItemData[] = [
+    ...storageFiles,
+    ...(selectedStorageId ? browsedFiles.filter((f) => f.type === "folder") : []),
+  ];
+
+  // Get current location URL for move dialog
+  const getCurrentLocationUrl = (): string => {
+    if (!selectedStorageId) {
+      return "";
+    }
+    if (currentPath === "/") {
+      const storage = storages.find((s) => s.id === selectedStorageId);
+      return storage?.url || "";
+    }
+    return currentPath;
+  };
 
   const selectedStorage = storages.find((s) => s.id === selectedStorageId);
   const breadcrumbItems = buildBreadcrumbItems(
@@ -606,6 +466,7 @@ export default function FileManager() {
                   onFileRename={handleRename}
                   onFilePreview={handlePreview}
                   onFileCopy={handleCopy}
+                  onFileMove={handleMove}
                   selectedFileIds={selectedFileIds}
                 />
               </div>
@@ -648,6 +509,17 @@ export default function FileManager() {
             setFileToPreview(null);
           }}
           file={fileToPreview}
+        />
+        <MoveDialog
+          isOpen={showMoveDialog}
+          onClose={() => {
+            setShowMoveDialog(false);
+            setFileToMove(null);
+          }}
+          file={fileToMove}
+          availableFolders={availableFolders}
+          currentLocationUrl={getCurrentLocationUrl()}
+          onMoved={handleMoved}
         />
         <FileUploadHandler
           currentContainerUrl={containerUrlToBrowse}
