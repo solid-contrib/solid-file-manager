@@ -49,6 +49,11 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
     // Normalize URL (ensure trailing slash for consistency)
     const normalizedUrl = containerUrl.endsWith("/") ? containerUrl : containerUrl + "/";
     
+    // Clear cache if refreshKey changed (indicating an explicit refresh)
+    if (refreshKey !== undefined && refreshKey !== lastRefreshKeyRef.current) {
+      containerCache.delete(normalizedUrl);
+    }
+    
     // Check if we should use cached data
     // Use cache if: no explicit refresh requested and cache exists for this URL
     const shouldUseCache = 
@@ -113,21 +118,30 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
             const isContainerUrl = absoluteUrl.endsWith("/");
             
             // Try to get preferred name in this order:
-            // 1. .meta file (standard Solid metadata)
+            // 1. .meta file (if refreshKey is provided, meaning we're refreshing after rename/upload)
             // 2. RDF metadata from container (dcterms:title or rdfs:label)
             // 3. URL extraction (fallback)
             let name = extractNameFromUrl(absoluteUrl);
             let lastModified: Date | undefined;
             let size: number | undefined;
 
-            // Check .meta file first (standard Solid approach)
-            const metaName = await getDisplayNameFromMeta(absoluteUrl, fetchWithCacheBust);
-            if (metaName) {
-              name = metaName;
-            } else {
-              // Check RDF metadata from container dataset
-              const itemThing = getThing(containerDataset, absoluteUrl);
-              if (itemThing) {
+            // If refreshKey is provided, fetch .meta files to get updated names after rename/upload
+            if (refreshKey !== undefined) {
+              try {
+                const metaName = await getDisplayNameFromMeta(absoluteUrl, fetchWithCacheBust);
+                if (metaName) {
+                  name = metaName;
+                }
+              } catch (error) {
+                // .meta file doesn't exist or can't be read - continue with other methods
+              }
+            }
+
+            // Check RDF metadata from container dataset
+            const itemThing = getThing(containerDataset, absoluteUrl);
+            if (itemThing) {
+              // Only use RDF metadata if we didn't get a name from .meta file
+              if (name === extractNameFromUrl(absoluteUrl)) {
                 // Check for preferred name in metadata (dcterms:title or rdfs:label)
                 const title = getStringNoLocale(itemThing, DCTERMS.title);
                 if (title) {
@@ -138,23 +152,23 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
                     name = label;
                   }
                 }
+              }
 
-                const modifiedDate = getDatetime(itemThing, DCTERMS.modified);
-                if (modifiedDate) {
-                  lastModified = modifiedDate;
+              const modifiedDate = getDatetime(itemThing, DCTERMS.modified);
+              if (modifiedDate) {
+                lastModified = modifiedDate;
+              }
+              
+              if (!lastModified) {
+                const mtime = getDatetime(itemThing, POSIX.mtime);
+                if (mtime) {
+                  lastModified = mtime;
                 }
-                
-                if (!lastModified) {
-                  const mtime = getDatetime(itemThing, POSIX.mtime);
-                  if (mtime) {
-                    lastModified = mtime;
-                  }
-                }
+              }
 
-                const fileSize = getInteger(itemThing, POSIX.size);
-                if (fileSize !== null) {
-                  size = fileSize;
-                }
+              const fileSize = getInteger(itemThing, POSIX.size);
+              if (fileSize !== null) {
+                size = fileSize;
               }
             }
 
@@ -189,12 +203,6 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
           if (a.type !== "folder" && b.type === "folder") return 1;
           return a.name.localeCompare(b.name);
         });
-
-        console.log(`Resources:`, fileItems.map(item => ({
-          name: item.name,
-          type: item.type,
-          url: item.url
-        })));
         
         // Cache the results
         containerCache.set(normalizedUrl, fileItems);

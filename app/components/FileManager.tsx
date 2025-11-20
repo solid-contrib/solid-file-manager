@@ -1,6 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import toast from "react-hot-toast";
+import {
+  getFile,
+  overwriteFile,
+  createContainerAt,
+  getSolidDataset,
+  getContainedResourceUrlAll,
+  UrlString,
+} from "@inrupt/solid-client";
 import { useSearchParams, useRouter } from "next/navigation";
 import AuthWrapper from "./AuthWrapper";
 import Header from "./Header";
@@ -13,10 +22,178 @@ import RenameDialog from "./RenameDialog";
 import PreviewModal from "./PreviewModal";
 import FileUploadHandler from "./FileUploadHandler";
 import { FileItemData } from "./FileItem";
-import { useSolidStorages, useBrowseStorage } from "../lib/hooks";
-import { filterProfileItems, buildBreadcrumbItems } from "../lib/helpers";
 import LoadingSpinner from "./shared/LoadingSpinner";
 import ErrorDisplay from "./shared/ErrorDisplay";
+import { useSolidStorages, useBrowseStorage } from "../lib/hooks";
+import {
+  buildBreadcrumbItems,
+  getAuthenticatedSession,
+  getDisplayNameFromMeta,
+  updateMetaFile,
+} from "../lib/helpers";
+
+const INVALID_NAME_CHARS = /[<>:"/\\|?*]/g;
+
+const sanitizeResourceName = (name: string): string => {
+  const sanitized = name.replace(INVALID_NAME_CHARS, "").trim();
+  return sanitized || "Untitled";
+};
+
+const decodeResourceNameFromUrl = (resourceUrl: string): string => {
+  try {
+    const urlObj = new URL(resourceUrl);
+    const segments = urlObj.pathname.split("/").filter(Boolean);
+    if (segments.length === 0) {
+      return urlObj.hostname;
+    }
+    const lastSegment = resourceUrl.endsWith("/") ? segments[segments.length - 1] : segments[segments.length - 1];
+    return decodeURIComponent(lastSegment);
+  } catch {
+    return resourceUrl;
+  }
+};
+
+const ensureTrailingSlash = (url: string): string => (url.endsWith("/") ? url : `${url}/`);
+
+const getParentContainerUrl = (resourceUrl: string): string => {
+  try {
+    const urlObj = new URL(resourceUrl);
+    const segments = urlObj.pathname.split("/").filter(Boolean);
+    if (segments.length === 0) {
+      return `${urlObj.origin}/`;
+    }
+    if (!resourceUrl.endsWith("/")) {
+      segments.pop();
+    } else if (segments.length > 0) {
+      segments.pop();
+    }
+    const parentPath = segments.length ? `/${segments.join("/")}/` : "/";
+    return `${urlObj.origin}${parentPath}`;
+  } catch {
+    return resourceUrl;
+  }
+};
+
+const shouldSkipResourceCopy = (resourceUrl: string): boolean => {
+  return resourceUrl.endsWith(".meta") || resourceUrl.endsWith(".acl");
+};
+
+const resourceExists = async (url: string, fetchFn: typeof fetch): Promise<boolean> => {
+  try {
+    const response = await fetchFn(url, { method: "HEAD" });
+    if (response.status === 404) {
+      return false;
+    }
+    if (response.status >= 200 && response.status < 300) {
+      return true;
+    }
+    // For other statuses (401, 403, 405, etc.) assume the resource exists to avoid collisions
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const generateCopyTarget = async (
+  parentUrl: string,
+  desiredName: string,
+  isContainer: boolean,
+  fetchFn: typeof fetch
+): Promise<{ targetUrl: string; displayName: string }> => {
+  const parentWithSlash = ensureTrailingSlash(parentUrl);
+  let attempt = 0;
+
+  while (attempt < 100) {
+    const candidateDisplayName = attempt === 0 ? desiredName : `${desiredName} (${attempt})`;
+    const candidatePathName = sanitizeResourceName(candidateDisplayName);
+    const encodedName = encodeURIComponent(candidatePathName);
+    const candidateUrl = isContainer ? `${parentWithSlash}${encodedName}/` : `${parentWithSlash}${encodedName}`;
+    const exists = await resourceExists(candidateUrl, fetchFn);
+    if (!exists) {
+      return { targetUrl: candidateUrl, displayName: candidateDisplayName };
+    }
+    attempt += 1;
+  }
+
+  throw new Error("Unable to generate a unique name for the copy");
+};
+
+const copyFileFromSource = async (
+  sourceUrl: string,
+  targetUrl: string,
+  displayName: string,
+  fetchFn: typeof fetch,
+  mimeTypeHint?: string
+): Promise<void> => {
+  const fileBlob = await getFile(sourceUrl as UrlString, { fetch: fetchFn });
+  const contentType = fileBlob.type || mimeTypeHint || "application/octet-stream";
+  await overwriteFile(targetUrl as UrlString, fileBlob, {
+    fetch: fetchFn,
+    contentType,
+  });
+  await updateMetaFile(targetUrl as UrlString, displayName, fetchFn);
+};
+
+const copyFolderContents = async (
+  sourceFolderUrl: string,
+  destinationFolderUrl: string,
+  fetchFn: typeof fetch
+): Promise<void> => {
+  const dataset = await getSolidDataset(sourceFolderUrl, { fetch: fetchFn });
+  const containedResources = getContainedResourceUrlAll(dataset);
+
+  for (const resourceUrl of containedResources) {
+    if (shouldSkipResourceCopy(resourceUrl)) {
+      continue;
+    }
+
+    if (resourceUrl.endsWith("/")) {
+      const childName = decodeResourceNameFromUrl(resourceUrl);
+      const encodedChildName = encodeURIComponent(childName);
+      const childDestination = `${ensureTrailingSlash(destinationFolderUrl)}${encodedChildName}/`;
+
+      await createContainerAt(childDestination as UrlString, { fetch: fetchFn });
+      const childDisplayName =
+        (await getDisplayNameFromMeta(resourceUrl, fetchFn)) ?? childName;
+      await updateMetaFile(childDestination as UrlString, childDisplayName, fetchFn);
+
+      await copyFolderContents(resourceUrl, childDestination, fetchFn);
+    } else {
+      const childName = decodeResourceNameFromUrl(resourceUrl);
+      const encodedChildName = encodeURIComponent(childName);
+      const childDestination = `${ensureTrailingSlash(destinationFolderUrl)}${encodedChildName}`;
+      const childDisplayName =
+        (await getDisplayNameFromMeta(resourceUrl, fetchFn)) ?? childName;
+      await copyFileFromSource(resourceUrl, childDestination, childDisplayName, fetchFn);
+    }
+  }
+};
+
+const copyFileResource = async (file: FileItemData, fetchFn: typeof fetch): Promise<void> => {
+  const originalLabel =
+    (await getDisplayNameFromMeta(file.url, fetchFn)) ??
+    file.name ??
+    decodeResourceNameFromUrl(file.url);
+  const parentUrl = getParentContainerUrl(file.url);
+  const desiredName = `Copy of ${originalLabel}`;
+  const { targetUrl, displayName } = await generateCopyTarget(parentUrl, desiredName, false, fetchFn);
+  await copyFileFromSource(file.url, targetUrl, displayName, fetchFn, file.mimeType);
+};
+
+const copyFolderResource = async (folder: FileItemData, fetchFn: typeof fetch): Promise<void> => {
+  const originalLabel =
+    (await getDisplayNameFromMeta(folder.url, fetchFn)) ??
+    folder.name ??
+    decodeResourceNameFromUrl(folder.url);
+  const parentUrl = getParentContainerUrl(folder.url);
+  const desiredName = `Copy of ${originalLabel}`;
+  const { targetUrl, displayName } = await generateCopyTarget(parentUrl, desiredName, true, fetchFn);
+
+  await createContainerAt(targetUrl as UrlString, { fetch: fetchFn });
+  await updateMetaFile(targetUrl as UrlString, displayName, fetchFn);
+  await copyFolderContents(folder.url, targetUrl, fetchFn);
+};
+
 
 export default function FileManager() {
   const searchParams = useSearchParams();
@@ -26,6 +203,20 @@ export default function FileManager() {
   const [currentPath, setCurrentPath] = useState<string>("/");
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const [permissionsDialogOpen, setPermissionsDialogOpen] = useState(false);
+  const [selectedFileForPermissions, setSelectedFileForPermissions] =
+    useState<FileItemData | null>(null);
+  const [permissions, setPermissions] = useState<Permission[]>([]);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
+  const [fileUploadTrigger, setFileUploadTrigger] = useState(0);
+  const [showRenameDialog, setShowRenameDialog] = useState(false);
+  const [fileToRename, setFileToRename] = useState<FileItemData | null>(null);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [fileToPreview, setFileToPreview] = useState<FileItemData | null>(null);
+
   const [savedUrl, setSavedUrl] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
 
@@ -180,19 +371,8 @@ export default function FileManager() {
       : currentPath
     : null;
 
-  const [refreshKey, setRefreshKey] = useState(0);
   const { files: browsedFiles, isLoading: isLoadingFiles, error: browseError } = useBrowseStorage(containerUrlToBrowse, refreshKey);
-  const [permissionsDialogOpen, setPermissionsDialogOpen] = useState(false);
-  const [selectedFileForPermissions, setSelectedFileForPermissions] =
-    useState<FileItemData | null>(null);
-  const [permissions, setPermissions] = useState<Permission[]>([]);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
-  const [fileUploadTrigger, setFileUploadTrigger] = useState(0);
-  const [showRenameDialog, setShowRenameDialog] = useState(false);
-  const [fileToRename, setFileToRename] = useState<FileItemData | null>(null);
-  const [showPreviewModal, setShowPreviewModal] = useState(false);
-  const [fileToPreview, setFileToPreview] = useState<FileItemData | null>(null);
+
 
   const handleFolderCreated = () => {
     setRefreshKey((prev) => prev + 1);
@@ -211,24 +391,42 @@ export default function FileManager() {
     setRefreshKey((prev) => prev + 1);
   };
 
+  const handleCopy = async (file: FileItemData) => {
+    if (!file) {
+      return;
+    }
+
+    const toastId = toast.loading(`Copying "${file.name}"...`);
+    try {
+      const { fetch: fetchFn } = getAuthenticatedSession();
+      if (file.type === "folder") {
+        await copyFolderResource(file, fetchFn);
+      } else {
+        await copyFileResource(file, fetchFn);
+      }
+      toast.success(`Copied "${file.name}"`, { id: toastId });
+      setRefreshKey((prev) => prev + 1);
+    } catch (error) {
+      console.error("Failed to copy resource:", error);
+      toast.error(
+        error instanceof Error ? `Failed to copy: ${error.message}` : "Failed to copy resource",
+        { id: toastId }
+      );
+    }
+  };
+
   const handlePreview = (file: FileItemData) => {
     setFileToPreview(file);
     setShowPreviewModal(true);
   };
 
-  console.log("storages:", storages);
-
- 
-  // const storageFiles: FileItemData[] = filterProfileItems(storages).map((storage) => ({
   const storageFiles: FileItemData[] = storages.map((storage) => ({
     id: storage.id,
     name: storage.name,
     type: "folder" as const,
     url: storage.url,
   }));
-  console.log("storageFiles:", storageFiles);
 
-  // const filteredFiles = filterProfileItems(browsedFiles);
   const displayFiles = selectedStorageId ? browsedFiles : storageFiles;
 
   const selectedStorage = storages.find((s) => s.id === selectedStorageId);
@@ -391,21 +589,26 @@ export default function FileManager() {
             onFileUploadClick={() => setFileUploadTrigger((prev) => prev + 1)}
           />
           <main className="flex flex-1 flex-col overflow-hidden">
-            <Breadcrumb items={breadcrumbItems} onNavigate={handleBreadcrumbNavigate} />
+            <div className="flex-shrink-0">
+              <Breadcrumb items={breadcrumbItems} onNavigate={handleBreadcrumbNavigate} />
+            </div>
             {isBrowsing ? (
               <div className="flex flex-1 items-center justify-center">
                 <LoadingSpinner size="md" text="Loading folder contents..." />
               </div>
             ) : (
-              <FileList
-                files={displayFiles}
-                currentPath={currentPath}
-                onFileSelect={handleFileSelect}
-                onFileDoubleClick={handleFileDoubleClick}
-                onFileRename={handleRename}
-                onFilePreview={handlePreview}
-                selectedFileIds={selectedFileIds}
-              />
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <FileList
+                  files={displayFiles}
+                  currentPath={currentPath}
+                  onFileSelect={handleFileSelect}
+                  onFileDoubleClick={handleFileDoubleClick}
+                  onFileRename={handleRename}
+                  onFilePreview={handlePreview}
+                  onFileCopy={handleCopy}
+                  selectedFileIds={selectedFileIds}
+                />
+              </div>
             )}
           </main>
         </div>
@@ -455,4 +658,3 @@ export default function FileManager() {
     </AuthWrapper>
   );
 }
-
