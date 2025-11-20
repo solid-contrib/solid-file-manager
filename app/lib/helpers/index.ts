@@ -10,4 +10,5 @@ export * from "./sessionUtils";
 export * from "./metaFileUtils";
 export * from "./copyUtils";
 export * from "./downloadUtils";
+export * from "./deleteUtils";
 
