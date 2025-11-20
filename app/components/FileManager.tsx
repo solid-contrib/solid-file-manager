@@ -23,6 +23,8 @@ import {
   getAuthenticatedSession,
   copyFileResource,
   copyFolderResource,
+  downloadFile,
+  downloadFolderAsZip,
 } from "../lib/helpers";
 
 
@@ -262,6 +264,36 @@ export default function FileManager() {
     setRefreshKey((prev) => prev + 1);
   };
 
+  const handleDownload = async (file: FileItemData) => {
+    if (!file) {
+      return;
+    }
+
+    const toastId = toast.loading(
+      file.type === "folder" ? `Preparing "${file.name}" for download...` : `Downloading "${file.name}"...`
+    );
+
+    try {
+      const { fetch: fetchFn } = getAuthenticatedSession();
+      
+      if (file.type === "folder") {
+        await downloadFolderAsZip(file.url, file.name, fetchFn);
+        toast.success(`Downloaded "${file.name}.zip"`, { id: toastId });
+      } else {
+        await downloadFile(file.url, file.name, fetchFn);
+        toast.success(`Downloaded "${file.name}"`, { id: toastId });
+      }
+    } catch (error) {
+      console.error("Failed to download resource:", error);
+      toast.error(
+        error instanceof Error
+          ? `Failed to download: ${error.message}`
+          : "Failed to download resource",
+        { id: toastId }
+      );
+    }
+  };
+
   const storageFiles: FileItemData[] = storages.map((storage) => ({
     id: storage.id,
     name: storage.name,
@@ -467,6 +499,7 @@ export default function FileManager() {
                   onFilePreview={handlePreview}
                   onFileCopy={handleCopy}
                   onFileMove={handleMove}
+                  onFileDownload={handleDownload}
                   selectedFileIds={selectedFileIds}
                 />
               </div>

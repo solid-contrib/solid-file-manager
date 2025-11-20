@@ -14,6 +14,7 @@ interface FileListProps {
   onFilePreview?: (file: FileItemData) => void;
   onFileCopy?: (file: FileItemData) => void;
   onFileMove?: (file: FileItemData) => void;
+  onFileDownload?: (file: FileItemData) => void;
   selectedFileIds: string[];
 }
 
@@ -28,6 +29,7 @@ export default function FileList({
   onFilePreview,
   onFileCopy,
   onFileMove,
+  onFileDownload,
   selectedFileIds,
 }: FileListProps) {
   const [view, setView] = useState<"grid" | "list">(() => {
@@ -65,6 +67,7 @@ export default function FileList({
                 onPreview={onFilePreview}
                 onCopy={onFileCopy}
                 onMove={onFileMove}
+                onDownload={onFileDownload}
                 isSelected={selectedFileIds.includes(file.id)}
               />
             ))}
@@ -82,6 +85,7 @@ export default function FileList({
                 onPreview={onFilePreview}
                 onCopy={onFileCopy}
                 onMove={onFileMove}
+                onDownload={onFileDownload}
                 isSelected={selectedFileIds.includes(file.id)}
               />
             ))}
