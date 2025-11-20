@@ -24,6 +24,7 @@ interface FileItemProps {
   onRename?: (file: FileItemData) => void;
   onPreview?: (file: FileItemData) => void;
   onCopy?: (file: FileItemData) => void;
+  onMove?: (file: FileItemData) => void;
   isSelected?: boolean;
 }
 
@@ -35,6 +36,7 @@ export default function FileItem({
   onRename,
   onPreview,
   onCopy,
+  onMove,
   isSelected = false,
 }: FileItemProps) {
   const [isHovered, setIsHovered] = useState(false);
@@ -131,7 +133,7 @@ export default function FileItem({
             onPreview={onPreview}
             onDownload={(f) => console.log("Download:", f.name)}
             onCopy={onCopy}
-            onMove={(f) => console.log("Move:", f.name)}
+            onMove={onMove}
             onDelete={(f) => console.log("Delete:", f.name)}
           />
         )}
@@ -179,7 +181,7 @@ export default function FileItem({
           onPreview={onPreview}
           onDownload={(f) => console.log("Download:", f.name)}
           onCopy={onCopy}
-          onMove={(f) => console.log("Move:", f.name)}
+          onMove={onMove}
           onDelete={(f) => console.log("Delete:", f.name)}
         />
       )}

@@ -104,13 +104,18 @@ export default function FileItemMenu({
       className: "text-gray-700 hover:bg-gray-100 border-b border-gray-100",
       iconClassName: "text-gray-500",
     },
-    {
-      label: "Move",
-      icon: ArrowRightCircleIcon,
-      action: onMove,
-      className: "text-gray-700 hover:bg-gray-100 border-b border-gray-100",
-      iconClassName: "text-gray-500",
-    },
+    // Only show Move for files, not folders
+    ...(file.type === "file"
+      ? [
+          {
+            label: "Move",
+            icon: ArrowRightCircleIcon,
+            action: onMove,
+            className: "text-gray-700 hover:bg-gray-100 border-b border-gray-100",
+            iconClassName: "text-gray-500",
+          },
+        ]
+      : []),
     {
       label: "Delete",
       icon: TrashIcon,

@@ -12,6 +12,7 @@ import PermissionsDialog, { Permission } from "./PermissionsDialog";
 import NewFolderDialog from "./NewFolderDialog";
 import RenameDialog from "./RenameDialog";
 import PreviewModal from "./PreviewModal";
+import MoveDialog from "./MoveDialog";
 import FileUploadHandler from "./FileUploadHandler";
 import { FileItemData } from "./FileItem";
 import LoadingSpinner from "./shared/LoadingSpinner";
@@ -46,6 +47,8 @@ export default function FileManager() {
   const [fileToRename, setFileToRename] = useState<FileItemData | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [fileToPreview, setFileToPreview] = useState<FileItemData | null>(null);
+  const [showMoveDialog, setShowMoveDialog] = useState(false);
+  const [fileToMove, setFileToMove] = useState<FileItemData | null>(null);
 
   const [savedUrl, setSavedUrl] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
@@ -250,6 +253,15 @@ export default function FileManager() {
     setShowPreviewModal(true);
   };
 
+  const handleMove = (file: FileItemData) => {
+    setFileToMove(file);
+    setShowMoveDialog(true);
+  };
+
+  const handleMoved = () => {
+    setRefreshKey((prev) => prev + 1);
+  };
+
   const storageFiles: FileItemData[] = storages.map((storage) => ({
     id: storage.id,
     name: storage.name,
@@ -258,6 +270,24 @@ export default function FileManager() {
   }));
 
   const displayFiles = selectedStorageId ? browsedFiles : storageFiles;
+
+  // Get all available folders for move dialog (storages + browsed folders)
+  const availableFolders: FileItemData[] = [
+    ...storageFiles,
+    ...(selectedStorageId ? browsedFiles.filter((f) => f.type === "folder") : []),
+  ];
+
+  // Get current location URL for move dialog
+  const getCurrentLocationUrl = (): string => {
+    if (!selectedStorageId) {
+      return "";
+    }
+    if (currentPath === "/") {
+      const storage = storages.find((s) => s.id === selectedStorageId);
+      return storage?.url || "";
+    }
+    return currentPath;
+  };
 
   const selectedStorage = storages.find((s) => s.id === selectedStorageId);
   const breadcrumbItems = buildBreadcrumbItems(
@@ -436,6 +466,7 @@ export default function FileManager() {
                   onFileRename={handleRename}
                   onFilePreview={handlePreview}
                   onFileCopy={handleCopy}
+                  onFileMove={handleMove}
                   selectedFileIds={selectedFileIds}
                 />
               </div>
@@ -478,6 +509,17 @@ export default function FileManager() {
             setFileToPreview(null);
           }}
           file={fileToPreview}
+        />
+        <MoveDialog
+          isOpen={showMoveDialog}
+          onClose={() => {
+            setShowMoveDialog(false);
+            setFileToMove(null);
+          }}
+          file={fileToMove}
+          availableFolders={availableFolders}
+          currentLocationUrl={getCurrentLocationUrl()}
+          onMoved={handleMoved}
         />
         <FileUploadHandler
           currentContainerUrl={containerUrlToBrowse}
