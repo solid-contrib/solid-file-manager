@@ -1,6 +1,6 @@
 # Solid File Manager
 
-A Google Drive-like file manager for Solid Pods, built with Next.js, React, and TypeScript.
+A file manager application for managing Solid Pods, built on Solid, with Next.js, React, and TypeScript.
 
 ## Overview
 
@@ -14,27 +14,53 @@ This application provides a user-friendly interface for managing files and folde
 
 ## Features
 
-### Current UI Features (Phase 1)
+### Core Functionality
 
-- ✅ Google Drive-like interface layout
-- ✅ Left sidebar with drives list
-- ✅ Main content area with file list
-- ✅ Grid and list view toggle
-- ✅ Breadcrumb navigation
-- ✅ File item display with icons and metadata
-- ✅ Permissions/sharing dialog (UI only)
-- ✅ Minimal black, white, and light purple color scheme
-- ✅ Semantic HTML for accessibility
+- **Solid Authentication (OIDC)**: Full OIDC authentication with session management and persistence
+- **Storage Root Discovery**: Automatically discovers and displays all storage roots from WebID profile using `pim:storage` and `solid:storage` predicates
+- **File & Folder Navigation**: Browse through folders with double-click navigation and breadcrumb support
+- **Grid and List Views**: Toggle between grid and list views for file browsing
+- **Breadcrumb Navigation**: Navigate through folder hierarchy with clickable breadcrumbs
+- **Caching**: In-memory caching for WebID profiles and container contents to improve UX and reduce redundant requests
 
-### Planned Features (Phase 2 - Integration)
+### File Operations
 
-- [ ] Solid authentication (OIDC)
-- [ ] File operations (create, read, update, delete)
-- [ ] Folder navigation
-- [ ] ACP permission management integration
-- [ ] Storage root discovery from WebID
-- [ ] File upload/download
-- [ ] Real-time file updates
+- **Create Folders**: Create new folders with custom names
+- **Rename Files/Folders**: Rename resources using `.meta` files to preserve resource URIs and shared links
+- **Copy Files/Folders**: Copy files and folders with automatic name collision handling (e.g., "Copy of file", "Copy of file (1)")
+- **Move Files**: Move files between folders within the same storage
+- **Delete Files/Folders**: Delete resources from your Pod
+- **File Upload**: Upload files to your Pod via file picker
+- **File Preview**: Preview various file types:
+  - Images (displayed in modal)
+  - PDFs (opened in new tab)
+  - Word documents (.doc, .docx - opened in new tab)
+  - Text files (displayed in modal)
+  - Common text files without extensions (e.g., README)
+
+### User Interface
+
+- **Google Drive-like Interface**: Clean, modern interface with familiar UX patterns
+- **Left Sidebar**: Displays all available file manager menus
+- **File Item Display**: Shows files and folders with appropriate icons, metadata, and context menus
+- **Context Menus**: Hover on folder/file and click the menu button to access the file operations menu dropdown (Rename, Copy, Move, Delete, Preview, Download)
+- **Modals & Dialogs**: 
+  - Rename dialog for renaming resources
+  - Move dialog for selecting destination folder
+  - Preview modal for viewing files
+  - Permissions dialog (UI ready)
+- **Loading States**: Loading spinners and error displays throughout
+- **Toast Notifications**: User feedback for all operations
+- **Minimal Design**: Black, white, and light purple color scheme
+- **Semantic HTML**: Accessible markup with ARIA labels
+
+### Technical Features
+
+- **Metadata Management**: Uses `.meta` files for storing display names and preserving resource URIs
+- **Session Management**: Centralized session utilities for authentication
+- **Profile Caching**: Cached WebID profile fetching to prevent redundant requests
+- **Error Handling**: Comprehensive error handling with user-friendly messages
+- **Type Safety**: Full TypeScript support throughout
 
 ## Tech Stack
 
@@ -42,7 +68,9 @@ This application provides a user-friendly interface for managing files and folde
 - **UI Library**: React 19
 - **Styling**: Tailwind CSS 4
 - **Language**: TypeScript
-- **Solid SDK**: [@inrupt/solid-client-js](https://github.com/inrupt/solid-client-js) (to be integrated)
+- **Solid SDK**: [@inrupt/solid-client-js](https://github.com/inrupt/solid-client-js)
+- **Icons**: [@heroicons/react](https://heroicons.com/)
+- **Notifications**: [react-hot-toast](https://react-hot-toast.com/)
 
 ## Getting Started
 
@@ -101,26 +129,60 @@ NEXT_PUBLIC_OIDC_ISSUER="https://login.inrupt.com"
 solid-file-manager/
 ├── app/
 │   ├── components/          # React components
+│   │   ├── AuthWrapper.tsx  # Authentication wrapper
+│   │   ├── FileManager.tsx  # Main file manager component
 │   │   ├── Header.tsx       # Top header with search and actions
 │   │   ├── Sidebar.tsx      # Left sidebar with drives list
 │   │   ├── Breadcrumb.tsx   # Navigation breadcrumb
 │   │   ├── FileList.tsx     # Main file list component
 │   │   ├── FileItem.tsx     # Individual file/folder item
-│   │   └── PermissionsDialog.tsx  # Sharing/permissions dialog
+│   │   ├── FileItemMenu.tsx # Context menu for file operations
+│   │   ├── NewFolderDialog.tsx # Dialog for creating folders
+│   │   ├── RenameDialog.tsx  # Dialog for renaming resources
+│   │   ├── MoveDialog.tsx   # Dialog for moving files
+│   │   ├── PreviewModal.tsx # Modal for previewing files
+│   │   ├── PermissionsDialog.tsx # Sharing/permissions dialog
+│   │   ├── FileUploadHandler.tsx # File upload component
+│   │   ├── ProfileIcon.tsx  # User profile icon and logout
+│   │   ├── LoginPage.tsx   # Login page
+│   │   └── shared/         # Shared/reusable components
+│   │       ├── Button.tsx
+│   │       ├── Input.tsx
+│   │       ├── Modal.tsx
+│   │       ├── LoadingSpinner.tsx
+│   │       └── ...
+│   ├── lib/
+│   │   ├── hooks/           # Custom React hooks
+│   │   │   ├── useSolidStorages.ts # Hook for discovering storages
+│   │   │   ├── useBrowseStorage.ts # Hook for browsing containers
+│   │   │   └── useUserProfile.ts   # Hook for user profile
+│   │   └── helpers/         # Utility functions
+│   │       ├── sessionUtils.ts    # Session management
+│   │       ├── profileUtils.ts    # WebID profile utilities
+│   │       ├── metaFileUtils.ts   # .meta file operations
+│   │       ├── copyUtils.ts       # Copy and move operations
+│   │       ├── fileTypeUtils.ts   # File type detection
+│   │       └── ...
 │   ├── page.tsx             # Main page component
 │   ├── layout.tsx           # Root layout
-│   └── globals.css          # Global styles
+│   └── globals.css           # Global styles
 ├── public/                   # Static assets
 └── README.md
 ```
 
 ## Solid Protocol Integration
 
-This application will integrate with Solid using:
+This application integrates with Solid using:
 
 - **Solid Protocol**: [https://solidproject.org/TR/protocol#resources](https://solidproject.org/TR/protocol#resources)
-- **ACP (Access Control Policies)**: [https://solid.github.io/authorization-panel/acp-specification/](https://solid.github.io/authorization-panel/acp-specification/)
-- **Storage Root Discovery**: Using `pim:storage` predicate from WebID
+- **ACP (Access Control Policies)**: [https://solid.github.io/authorization-panel/acp-specification/](https://solid.github.io/authorization-panel/acp-specification/) (UI ready, full integration pending)
+- **Storage Root Discovery**: 
+  - Uses `pim:storage` predicate from WebID profile
+  - Uses `solid:storage` predicate as fallback
+  - Supports hierarchical traversal for storage discovery
+- **Metadata Management**: 
+  - Uses `.meta` files for storing display names (following Solid conventions)
+  - Preserves resource URIs when renaming (maintains shared links)
 - **SDK**: [@inrupt/solid-client-js](https://github.com/inrupt/solid-client-js)
 
 ## Design Principles
@@ -130,14 +192,6 @@ This application will integrate with Solid using:
 - **Code Splitting**: Components are split into reusable, focused modules
 - **Type Safety**: Full TypeScript support for type safety
 
-## Contributing
-
-This project is currently in active development. The UI phase is complete, and Solid integration is the next step.
-
-## License
-
-[Add your license here]
-
 ## References
 
 - [Solid Project](https://solidproject.org/)
@@ -145,10 +199,3 @@ This project is currently in active development. The UI phase is complete, and S
 - [ACP Specification](https://solid.github.io/authorization-panel/acp-specification/)
 - [Inrupt Solid Client JS](https://github.com/inrupt/solid-client-js)
 - [Community Solid Server](https://github.com/CommunitySolidServer/CommunitySolidServer)
-
-## Related Projects
-
-- [nextfm](https://github.com/inrupt/nextfm)
-- [Penny](https://penny.vincenttunru.com/)
-- [PodPro](https://podpro.dev/)
-- [solid-filemanager](https://otto-aa.github.io/solid-filemanager/)
