@@ -9,4 +9,5 @@ export * from "./profileUtils";
 export * from "./sessionUtils";
 export * from "./metaFileUtils";
 export * from "./copyUtils";
+export * from "./downloadUtils";
 
