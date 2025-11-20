@@ -13,6 +13,7 @@ import NewFolderDialog from "./NewFolderDialog";
 import RenameDialog from "./RenameDialog";
 import PreviewModal from "./PreviewModal";
 import MoveDialog from "./MoveDialog";
+import DeleteConfirmDialog from "./DeleteConfirmDialog";
 import FileUploadHandler from "./FileUploadHandler";
 import { FileItemData } from "./FileItem";
 import LoadingSpinner from "./shared/LoadingSpinner";
@@ -25,6 +26,8 @@ import {
   copyFolderResource,
   downloadFile,
   downloadFolderAsZip,
+  deleteFileResource,
+  deleteFolderResource,
 } from "../lib/helpers";
 
 
@@ -51,6 +54,9 @@ export default function FileManager() {
   const [fileToPreview, setFileToPreview] = useState<FileItemData | null>(null);
   const [showMoveDialog, setShowMoveDialog] = useState(false);
   const [fileToMove, setFileToMove] = useState<FileItemData | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [fileToDelete, setFileToDelete] = useState<FileItemData | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [savedUrl, setSavedUrl] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
@@ -262,6 +268,47 @@ export default function FileManager() {
 
   const handleMoved = () => {
     setRefreshKey((prev) => prev + 1);
+  };
+
+  const handleDelete = (file: FileItemData) => {
+    setFileToDelete(file);
+    setShowDeleteDialog(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!fileToDelete) {
+      return;
+    }
+
+    setIsDeleting(true);
+    const toastId = toast.loading(
+      `Deleting "${fileToDelete.name}"...`
+    );
+
+    try {
+      const { fetch: fetchFn } = getAuthenticatedSession();
+      
+      if (fileToDelete.type === "folder") {
+        await deleteFolderResource(fileToDelete.url, fetchFn);
+      } else {
+        await deleteFileResource(fileToDelete.url, fetchFn);
+      }
+      
+      toast.success(`Deleted "${fileToDelete.name}"`, { id: toastId });
+      setShowDeleteDialog(false);
+      setFileToDelete(null);
+      setRefreshKey((prev) => prev + 1);
+    } catch (error) {
+      console.error("Failed to delete resource:", error);
+      toast.error(
+        error instanceof Error
+          ? `Failed to delete: ${error.message}`
+          : "Failed to delete resource",
+        { id: toastId }
+      );
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleDownload = async (file: FileItemData) => {
@@ -500,6 +547,7 @@ export default function FileManager() {
                   onFileCopy={handleCopy}
                   onFileMove={handleMove}
                   onFileDownload={handleDownload}
+                  onFileDelete={handleDelete}
                   selectedFileIds={selectedFileIds}
                 />
               </div>
@@ -553,6 +601,16 @@ export default function FileManager() {
           availableFolders={availableFolders}
           currentLocationUrl={getCurrentLocationUrl()}
           onMoved={handleMoved}
+        />
+        <DeleteConfirmDialog
+          isOpen={showDeleteDialog}
+          onClose={() => {
+            setShowDeleteDialog(false);
+            setFileToDelete(null);
+          }}
+          file={fileToDelete}
+          onConfirm={handleDeleteConfirm}
+          isDeleting={isDeleting}
         />
         <FileUploadHandler
           currentContainerUrl={containerUrlToBrowse}

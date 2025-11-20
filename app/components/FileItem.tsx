@@ -26,6 +26,7 @@ interface FileItemProps {
   onCopy?: (file: FileItemData) => void;
   onMove?: (file: FileItemData) => void;
   onDownload?: (file: FileItemData) => void;
+  onDelete?: (file: FileItemData) => void;
   isSelected?: boolean;
 }
 
@@ -39,6 +40,7 @@ export default function FileItem({
   onCopy,
   onMove,
   onDownload,
+  onDelete,
   isSelected = false,
 }: FileItemProps) {
   const [isHovered, setIsHovered] = useState(false);
@@ -136,7 +138,7 @@ export default function FileItem({
             onDownload={onDownload}
             onCopy={onCopy}
             onMove={onMove}
-            onDelete={(f) => console.log("Delete:", f.name)}
+            onDelete={onDelete}
           />
         )}
         <div className="mb-1 flex h-12 w-12 items-center justify-center sm:mb-2 sm:h-16 sm:w-16">
@@ -184,7 +186,7 @@ export default function FileItem({
           onDownload={onDownload}
           onCopy={onCopy}
           onMove={onMove}
-          onDelete={(f) => console.log("Delete:", f.name)}
+          onDelete={onDelete}
         />
       )}
     </section>
