@@ -104,7 +104,7 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
 
         // Use @inrupt/solid-client to fetch the container dataset
         const containerDataset = await getSolidDataset(url, {
-          fetch: fetchWithCacheBust,
+          fetch: fetchFn,
         });
 
         // Get all contained resource URLs using @inrupt/solid-client
@@ -128,7 +128,7 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
             // If refreshKey is provided, fetch .meta files to get updated names after rename/upload
             if (refreshKey !== undefined) {
               try {
-                const metaName = await getDisplayNameFromMeta(absoluteUrl, fetchWithCacheBust);
+                const metaName = await getDisplayNameFromMeta(absoluteUrl, fetchFn);
                 if (metaName) {
                   name = metaName;
                 }
@@ -177,7 +177,7 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
             if (!isContainerUrl && !isLikelyFile(absoluteUrl)) {
               try {
                 const itemDataset = await getSolidDataset(absoluteUrl, {
-                  fetch: fetchWithCacheBust,
+                  fetch: fetchFn,
                 });
                 finalIsContainer = isContainer(itemDataset);
               } catch (e) {
