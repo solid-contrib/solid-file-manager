@@ -7,7 +7,6 @@ import { getFile, UrlString } from "@inrupt/solid-client";
 import { getAuthenticatedSession } from "../lib/helpers";
 import { FileItemData } from "./FileItem";
 import LoadingSpinner from "./shared/LoadingSpinner";
-import { getFileType } from "../lib/helpers";
 
 interface PreviewModalProps {
   isOpen: boolean;
@@ -57,40 +56,33 @@ export default function PreviewModal({
 
       try {
         const { fetch: fetchFn } = getAuthenticatedSession();
-        const fileTypeDetected = getFileType(file.url, file.mimeType, file.name);
-        setFileType(fileTypeDetected);
-
-        // PDFs open directly in a new tab
-        if (fileTypeDetected === "pdf") {
-          if (blobUrlRef.current) {
-            URL.revokeObjectURL(blobUrlRef.current);
-          }
-          // For PDFs, fetch as blob and open in new tab
-          const fileBlob = await getFile(file.url as UrlString, { fetch: fetchFn });
-          const blobUrl = URL.createObjectURL(fileBlob);
-          blobUrlRef.current = blobUrl;
+        
+        // Fetch the file using getFile from solid-client
+        const fileBlob = await getFile(file.url as UrlString, { fetch: fetchFn });
+        
+        // Get the content-type from the blob's type property (set from HTTP response header)
+        // Remove any charset or other parameters (e.g., "text/plain; charset=utf-8" -> "text/plain")
+        const actualMimeType = fileBlob.type ? fileBlob.type.split(";")[0].trim() : "";
+        
+        if (blobUrlRef.current) {
+          URL.revokeObjectURL(blobUrlRef.current);
+        }
+        
+        const blobUrl = URL.createObjectURL(fileBlob);
+        blobUrlRef.current = blobUrl;
+        
+        // PDFs: open in new tab
+        if (actualMimeType === "application/pdf") {
           window.open(blobUrl, "_blank");
-       
           onClose();
           setIsLoading(false);
           return;
         }
-
-        // Word documents - browsers can't natively view them, so we'll fetch and open as blob
-        // This will trigger a download, but ensures authenticated access works
-        if (fileTypeDetected === "doc") {
-          // Clean up previous blob URL if it exists
-          if (blobUrlRef.current) {
-            URL.revokeObjectURL(blobUrlRef.current);
-          }
-          // For Word docs, fetch as blob and create a download link
-          // Note: Browsers can't natively view Word documents, so this will download
-          // External viewers (Google Docs, Office Online) require public URLs and won't work with authenticated resources
-          const fileBlob = await getFile(file.url as UrlString, { fetch: fetchFn });
-          const blobUrl = URL.createObjectURL(fileBlob);
-          blobUrlRef.current = blobUrl;
-          
-          // Create a temporary anchor element to trigger download with proper filename
+        
+        // Word documents: browsers can't natively view them, trigger download
+        if (actualMimeType.startsWith("application/msword") || 
+            actualMimeType.includes("wordprocessingml") ||
+            actualMimeType.includes("ms-word")) {
           const link = document.createElement("a");
           link.href = blobUrl;
           link.download = file.name;
@@ -98,56 +90,34 @@ export default function PreviewModal({
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
-          
-          // Close the modal
           onClose();
           setIsLoading(false);
           return;
         }
-
-        if (fileTypeDetected === "image") {
-          // Clean up previous blob URL if it exists
-          if (blobUrlRef.current) {
-            URL.revokeObjectURL(blobUrlRef.current);
-          }
-          // For images, fetch as blob and create blob URL for authenticated access
-          const fileBlob = await getFile(file.url as UrlString, { fetch: fetchFn });
-          const blobUrl = URL.createObjectURL(fileBlob);
-          blobUrlRef.current = blobUrl;
+        
+        // Images: display in modal
+        if (actualMimeType.startsWith("image/")) {
           setPreviewUrl(blobUrl);
+          setFileType("image");
           setIsLoading(false);
-        } else if (fileTypeDetected === "text") {
-          // For text files, fetch and display content
-          const fileBlob = await getFile(file.url as UrlString, { fetch: fetchFn });
-          const text = await fileBlob.text();
-          setPreviewContent(text);
-          setIsLoading(false);
-        } else {
-          // For other file types, try to read as text as a fallback
-          try {
-            const fileBlob = await getFile(file.url as UrlString, { fetch: fetchFn });
-            // Check if the blob type suggests it's text
-            if (fileBlob.type && (fileBlob.type.startsWith("text/") || fileBlob.type === "application/json" || fileBlob.type === "application/xml")) {
-              const text = await fileBlob.text();
-              setPreviewContent(text);
-              setFileType("text");
-              setIsLoading(false);
-            } else {
-              const text = await fileBlob.text();
-              // If we can read it as text and it's not too large, treat it as text
-              if (text.length > 0 && text.length < 10 * 1024 * 1024) { // Less than 10MB
-                setPreviewContent(text);
-                setFileType("text");
-                setIsLoading(false);
-              } else {
-                setIsLoading(false);
-              }
-            }
-          } catch (err) {
-            // If reading as text fails, it's not a text file
-            setIsLoading(false);
-          }
+          return;
         }
+        
+        // For all other file types, try to read as text
+        try {
+          const text = await fileBlob.text();
+          if (text.length > 0 && text.length < 10 * 1024 * 1024) { // Less than 10MB
+            setPreviewContent(text);
+            setFileType("text");
+            setIsLoading(false);
+            return;
+          }
+        } catch (err) {
+          console.error("Failed to load preview:", err);
+        }
+   
+        setFileType("other");
+        setIsLoading(false);
       } catch (err) {
         console.error("Failed to load preview:", err);
         setError(err instanceof Error ? err.message : "Failed to load preview");

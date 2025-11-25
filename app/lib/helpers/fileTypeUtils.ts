@@ -10,15 +10,40 @@ export function getFileType(
   mimeType?: string,
   fileName?: string
 ): "image" | "pdf" | "doc" | "text" | "other" {
+  // Prioritize MIME type (content type) over file extension
   if (mimeType) {
+    // Images
     if (mimeType.startsWith("image/")) return "image";
+    
+    // PDFs
     if (mimeType === "application/pdf") return "pdf";
+    
+    // Word documents
     if (
       mimeType === "application/msword" ||
-      mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      mimeType === "application/vnd.ms-word.document.macroEnabled.12"
     )
       return "doc";
+    
+    // Text files - check various text MIME types
     if (mimeType.startsWith("text/")) return "text";
+    
+    // JSON, XML, and other text-based formats
+    if (
+      mimeType === "application/json" ||
+      mimeType === "application/xml" ||
+      mimeType === "text/xml" ||
+      mimeType === "application/javascript" ||
+      mimeType === "application/x-javascript" ||
+      mimeType === "text/javascript" ||
+      mimeType === "application/x-sh" ||
+      mimeType === "application/x-yaml" ||
+      mimeType === "text/yaml" ||
+      mimeType === "application/x-csv" ||
+      mimeType === "text/csv"
+    )
+      return "text";
   }
 
   // Check for common text file names without extensions
