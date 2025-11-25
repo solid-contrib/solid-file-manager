@@ -1,6 +1,7 @@
 "use client";
 
 import { ButtonHTMLAttributes, ReactNode, forwardRef } from "react";
+import LoadingSpinner from "./LoadingSpinner";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "ghost" | "icon";
@@ -46,10 +47,10 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button({
       {...props}
     >
       {isLoading ? (
-        <>
-          <span className="sr-only">Loading</span>
-          <span aria-hidden="true">{children}</span>
-        </>
+        <span className="flex items-center justify-center gap-2">
+          <LoadingSpinner size="sm" className="m-0" />
+          <span>{children}</span>
+        </span>
       ) : (
         children
       )}

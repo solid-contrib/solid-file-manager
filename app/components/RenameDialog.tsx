@@ -4,16 +4,16 @@ import { useState, useEffect, useRef } from "react";
 import Modal from "./shared/Modal";
 import Button from "./shared/Button";
 import Input from "./shared/Input";
-import { UrlString } from "@inrupt/solid-client";
+import { UrlString, getFile, overwriteFile, deleteFile, createContainerAt } from "@inrupt/solid-client";
 import toast from "react-hot-toast";
 import { FileItemData } from "./FileItem";
-import { updateMetaFile, getAuthenticatedSession, getDisplayNameFromMeta } from "../lib/helpers";
+import { getAuthenticatedSession, sanitizeResourceName, getParentContainerUrl, ensureTrailingSlash, copyFolderContents, deleteFolderResource } from "../lib/helpers";
 
 interface RenameDialogProps {
   isOpen: boolean;
   onClose: () => void;
   file: FileItemData | null;
-  onRenamed?: () => void;
+  onRenamed?: (newUrl: string) => void;
 }
 
 export default function RenameDialog({
@@ -29,32 +29,16 @@ export default function RenameDialog({
 
   useEffect(() => {
     if (isOpen && file) {
-      setIsLoadingName(true);
+      setIsLoadingName(false);
       setIsRenaming(false);
-      
-      // Fetch the .meta file to get the current display name
-      const fetchDisplayName = async () => {
-        try {
-          const { fetch: fetchFn } = getAuthenticatedSession();
-          const metaName = await getDisplayNameFromMeta(file.url, fetchFn);
-          // Use .meta name if available, otherwise fall back to file.name
-          setNewName(metaName || file.name);
-        } catch (error) {
-          // If .meta file doesn't exist or can't be read, use file.name
-          setNewName(file.name);
-        } finally {
-          setIsLoadingName(false);
-          // Focus and select the input text after loading
-          setTimeout(() => {
-            if (inputRef.current) {
-              inputRef.current.focus();
-              inputRef.current.select();
-            }
-          }, 100);
+      setNewName(file.name);
+      // Focus and select the input text
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+          inputRef.current.select();
         }
-      };
-
-      fetchDisplayName();
+      }, 100);
     }
   }, [isOpen, file]);
 
@@ -71,25 +55,56 @@ export default function RenameDialog({
 
     setIsRenaming(true);
 
-    // Define variables outside try block so they're accessible in catch
-    const sanitizedName = newName.trim();
-    const resourceUrl = file.url.endsWith("/") ? file.url : file.url;
-    const resourceUrlString = resourceUrl as UrlString;
-
     try {
       const { fetch: fetchFn } = getAuthenticatedSession();
+      const sanitizedName = sanitizeResourceName(newName.trim());
+      const parentUrl = getParentContainerUrl(file.url);
+      const parentWithSlash = ensureTrailingSlash(parentUrl);
+      const encodedName = encodeURIComponent(sanitizedName);
+      const isContainer = file.url.endsWith("/");
+      const newUrl = isContainer ? `${parentWithSlash}${encodedName}/` : `${parentWithSlash}${encodedName}`;
 
-      // Update the .meta file for this resource
-      // This is the standard Solid approach for storing metadata about resources
-      await updateMetaFile(resourceUrlString, sanitizedName, fetchFn);
+      // Check if target already exists
+      try {
+        const response = await fetchFn(newUrl, { method: "HEAD" });
+        if (response.status !== 404) {
+          toast.error(`A resource with the name "${sanitizedName}" already exists`);
+          setIsRenaming(false);
+          return;
+        }
+      } catch {
+        // Continue if check fails
+      }
+
+      if (isContainer) {
+        // For folders: create new container, copy contents recursively, delete old
+        await createContainerAt(newUrl as UrlString, { fetch: fetchFn });
+        
+        await copyFolderContents(file.url, newUrl, fetchFn);
+        
+        await deleteFolderResource(file.url, fetchFn);
+      } else {
+        // For files: fetch, create at new URL, delete old
+        const fileBlob = await getFile(file.url as UrlString, { fetch: fetchFn });
+        const contentType = fileBlob.type || "application/octet-stream";
+        
+        await overwriteFile(newUrl as UrlString, fileBlob, {
+          fetch: fetchFn,
+          contentType,
+        });
+        
+        await deleteFile(file.url as UrlString, { fetch: fetchFn });
+      }
       
       toast.success(`Renamed to "${sanitizedName}"`);
-      onClose();
       
       // Notify parent to refresh
       if (onRenamed) {
-        onRenamed();
+        onRenamed(newUrl);
       }
+      
+      // Close modal
+      onClose();
     } catch (error) {
       console.error("Failed to rename:", error);
       toast.error(

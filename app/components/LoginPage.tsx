@@ -19,10 +19,11 @@ export default function LoginPage() {
   const handleLogin = async () => {
     setIsLoading(true);
     try {
+      const baseUrl = window.location.origin + window.location.pathname;
       await login({
         oidcIssuer: selectedIssuer,
         clientName: "Solid File Manager",
-        redirectUrl: window.location.href,
+        redirectUrl: baseUrl,
       });
     } catch (error) {
       console.error("Login failed:", error);

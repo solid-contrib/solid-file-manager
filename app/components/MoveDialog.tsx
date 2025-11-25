@@ -9,7 +9,6 @@ import { FileItemData } from "./FileItem";
 import { 
   moveFileResource, 
   getAuthenticatedSession, 
-  getDisplayNameFromMeta,
   decodeResourceNameFromUrl,
   ensureTrailingSlash,
 } from "../lib/helpers";
@@ -58,11 +57,10 @@ export default function MoveDialog({
           if (resourceUrl.endsWith("/")) {
             // It's a folder
             const folderName = decodeResourceNameFromUrl(resourceUrl);
-            const displayName = (await getDisplayNameFromMeta(resourceUrl, fetchFn)) ?? folderName;
             
             folders.push({
               id: resourceUrl,
-              name: displayName,
+              name: folderName,
               type: "folder",
               url: resourceUrl,
             });

@@ -21,6 +21,9 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
       try {
         setError(null);
 
+        // First, handle any incoming OAuth redirect (processes code and state parameters)
+        await handleIncomingRedirect({ restorePreviousSession: true });
+
         // Get the session instance after handling redirect
         const session = getSession();
 

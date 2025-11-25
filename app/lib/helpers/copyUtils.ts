@@ -7,7 +7,6 @@ import {
   deleteFile,
   UrlString,
 } from "@inrupt/solid-client";
-import { getDisplayNameFromMeta, updateMetaFile } from "./metaFileUtils";
 
 const INVALID_NAME_CHARS = /[<>:"/\\|?*]/g;
 
@@ -52,8 +51,9 @@ export const getParentContainerUrl = (resourceUrl: string): string => {
 };
 
 const shouldSkipResourceCopy = (resourceUrl: string): boolean => {
-  return resourceUrl.endsWith(".meta") || resourceUrl.endsWith(".acl");
+  return resourceUrl.endsWith(".acl");
 };
+
 
 const resourceExists = async (url: string, fetchFn: typeof fetch): Promise<boolean> => {
   try {
@@ -64,7 +64,7 @@ const resourceExists = async (url: string, fetchFn: typeof fetch): Promise<boole
     if (response.status >= 200 && response.status < 300) {
       return true;
     }
-    // For other statuses (401, 403, 405, etc.) assume the resource exists to avoid collisions
+
     return true;
   } catch {
     return false;
@@ -108,10 +108,9 @@ const copyFileFromSource = async (
     fetch: fetchFn,
     contentType,
   });
-  await updateMetaFile(targetUrl as UrlString, displayName, fetchFn);
 };
 
-const copyFolderContents = async (
+export const copyFolderContents = async (
   sourceFolderUrl: string,
   destinationFolderUrl: string,
   fetchFn: typeof fetch
@@ -130,18 +129,13 @@ const copyFolderContents = async (
       const childDestination = `${ensureTrailingSlash(destinationFolderUrl)}${encodedChildName}/`;
 
       await createContainerAt(childDestination as UrlString, { fetch: fetchFn });
-      const childDisplayName =
-        (await getDisplayNameFromMeta(resourceUrl, fetchFn)) ?? childName;
-      await updateMetaFile(childDestination as UrlString, childDisplayName, fetchFn);
-
       await copyFolderContents(resourceUrl, childDestination, fetchFn);
+   
     } else {
       const childName = decodeResourceNameFromUrl(resourceUrl);
       const encodedChildName = encodeURIComponent(childName);
       const childDestination = `${ensureTrailingSlash(destinationFolderUrl)}${encodedChildName}`;
-      const childDisplayName =
-        (await getDisplayNameFromMeta(resourceUrl, fetchFn)) ?? childName;
-      await copyFileFromSource(resourceUrl, childDestination, childDisplayName, fetchFn);
+      await copyFileFromSource(resourceUrl, childDestination, childName, fetchFn);
     }
   }
 };
@@ -150,31 +144,25 @@ export const copyFileResource = async (
   file: { url: string; name?: string; mimeType?: string },
   fetchFn: typeof fetch
 ): Promise<void> => {
-  const originalLabel =
-    (await getDisplayNameFromMeta(file.url, fetchFn)) ??
-    file.name ??
-    decodeResourceNameFromUrl(file.url);
+  const originalLabel = file.name ?? decodeResourceNameFromUrl(file.url);
   const parentUrl = getParentContainerUrl(file.url);
   const desiredName = `Copy of ${originalLabel}`;
-  const { targetUrl, displayName } = await generateCopyTarget(parentUrl, desiredName, false, fetchFn);
-  await copyFileFromSource(file.url, targetUrl, displayName, fetchFn, file.mimeType);
+  const { targetUrl } = await generateCopyTarget(parentUrl, desiredName, false, fetchFn);
+  await copyFileFromSource(file.url, targetUrl, desiredName, fetchFn, file.mimeType);
 };
 
 export const copyFolderResource = async (
   folder: { url: string; name?: string },
   fetchFn: typeof fetch
 ): Promise<void> => {
-  const originalLabel =
-    (await getDisplayNameFromMeta(folder.url, fetchFn)) ??
-    folder.name ??
-    decodeResourceNameFromUrl(folder.url);
+  const originalLabel = folder.name ?? decodeResourceNameFromUrl(folder.url);
   const parentUrl = getParentContainerUrl(folder.url);
   const desiredName = `Copy of ${originalLabel}`;
-  const { targetUrl, displayName } = await generateCopyTarget(parentUrl, desiredName, true, fetchFn);
+  const { targetUrl } = await generateCopyTarget(parentUrl, desiredName, true, fetchFn);
 
   await createContainerAt(targetUrl as UrlString, { fetch: fetchFn });
-  await updateMetaFile(targetUrl as UrlString, displayName, fetchFn);
   await copyFolderContents(folder.url, targetUrl, fetchFn);
+
 };
 
 /**
@@ -187,10 +175,7 @@ export const moveFileResource = async (
   fetchFn: typeof fetch
 ): Promise<void> => {
   // Get the original display name
-  const originalLabel =
-    (await getDisplayNameFromMeta(file.url, fetchFn)) ??
-    file.name ??
-    decodeResourceNameFromUrl(file.url);
+  const originalLabel = file.name ?? decodeResourceNameFromUrl(file.url);
   
   // Generate target URL in the destination folder
   const destinationWithSlash = ensureTrailingSlash(destinationFolderUrl);
@@ -214,18 +199,7 @@ export const moveFileResource = async (
     contentType,
   });
   
-  // Step 3: Update .meta file with display name
-  await updateMetaFile(targetUrl as UrlString, originalLabel, fetchFn);
-  
-  // Step 4: Delete the old file
+  // Step 3: Delete the old file
   await deleteFile(file.url as UrlString, { fetch: fetchFn });
-  
-  // Also delete the old .meta file if it exists
-  try {
-    const oldMetaUrl = `${file.url}.meta` as UrlString;
-    await deleteFile(oldMetaUrl, { fetch: fetchFn });
-  } catch (error) {
-    // Ignore if .meta file doesn't exist
-  }
 };
 
