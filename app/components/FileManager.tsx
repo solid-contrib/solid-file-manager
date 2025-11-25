@@ -48,6 +48,7 @@ export default function FileManager() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
   const [fileUploadTrigger, setFileUploadTrigger] = useState(0);
+  const [folderUploadTrigger, setFolderUploadTrigger] = useState(0);
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [fileToRename, setFileToRename] = useState<FileItemData | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
@@ -532,6 +533,7 @@ export default function FileManager() {
             currentContainerUrl={containerUrlToBrowse}
             onNewFolderClick={() => setShowNewFolderDialog(true)}
             onFileUploadClick={() => setFileUploadTrigger((prev) => prev + 1)}
+            onFolderUploadClick={() => setFolderUploadTrigger((prev) => prev + 1)}
           />
           <main className="flex flex-1 flex-col overflow-hidden">
             <div className="flex-shrink-0">
@@ -622,6 +624,7 @@ export default function FileManager() {
           currentContainerUrl={containerUrlToBrowse}
           onUploadComplete={handleFileUploaded}
           triggerUpload={fileUploadTrigger}
+          triggerFolderUpload={folderUploadTrigger}
         />
       </div>
     </AuthWrapper>
