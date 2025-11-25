@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { getAuthenticatedSession } from "../helpers";
 import {
   getSolidDataset,
@@ -15,17 +15,12 @@ import {
 import { DCTERMS, POSIX, RDFS } from "@inrupt/vocab-common-rdf";
 import { FileItemData } from "../../components/FileItem";
 import { extractNameFromUrl, resolveUrl, isLikelyFile } from "../helpers/urlUtils";
-import { getDisplayNameFromMeta } from "../helpers/metaFileUtils";
 
 interface UseBrowseStorageResult {
   files: FileItemData[];
   isLoading: boolean;
   error: Error | null;
 }
-
-// In-memory cache for container contents
-// Key: normalized URL (with trailing slash), Value: cached files
-const containerCache = new Map<string, FileItemData[]>();
 
 /**
  * Hook to browse/list the contents of a Solid storage container
@@ -35,46 +30,15 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
   const [files, setFiles] = useState<FileItemData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const lastUrlRef = useRef<string | null>(null);
-  const lastRefreshKeyRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     if (!containerUrl) {
       setFiles([]);
       setIsLoading(false);
-      lastUrlRef.current = null;
       return;
     }
 
-    // Normalize URL (ensure trailing slash for consistency)
-    const normalizedUrl = containerUrl.endsWith("/") ? containerUrl : containerUrl + "/";
-    
-    // Clear cache if refreshKey changed (indicating an explicit refresh)
-    if (refreshKey !== undefined && refreshKey !== lastRefreshKeyRef.current) {
-      containerCache.delete(normalizedUrl);
-    }
-    
-    // Check if we should use cached data
-    // Use cache if: no explicit refresh requested and cache exists for this URL
-    const shouldUseCache = 
-      refreshKey === undefined && 
-      containerCache.has(normalizedUrl);
-
-    if (shouldUseCache) {
-      // Use cached data immediately
-      const cachedFiles = containerCache.get(normalizedUrl)!;
-      setFiles(cachedFiles);
-      setIsLoading(false);
-      setError(null);
-      // Update refs to track current URL
-      lastUrlRef.current = normalizedUrl;
-      lastRefreshKeyRef.current = refreshKey;
-      return;
-    }
-
-    // Update refs
-    lastUrlRef.current = normalizedUrl;
-    lastRefreshKeyRef.current = refreshKey;
+    const url = containerUrl;
 
     async function browseContainer() {
       try {
@@ -82,25 +46,6 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
         setError(null);
 
         const { fetch: fetchFn } = getAuthenticatedSession();
-
-        const url = normalizedUrl;
-  
-        // Create a fetch function that bypasses cache when refreshKey is provided
-        const fetchWithCacheBust = refreshKey !== undefined
-          ? async (input: RequestInfo | URL, init?: RequestInit) => {
-              const urlWithCacheBust = typeof input === 'string' 
-                ? `${input}${input.includes('?') ? '&' : '?'}_t=${Date.now()}`
-                : input;
-              return fetchFn(urlWithCacheBust, {
-                ...init,
-                cache: 'no-store',
-                headers: {
-                  ...init?.headers,
-                  'Cache-Control': 'no-cache',
-                },
-              });
-            }
-          : fetchFn;
 
         // Use @inrupt/solid-client to fetch the container dataset
         const containerDataset = await getSolidDataset(url, {
@@ -118,39 +63,23 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
             const isContainerUrl = absoluteUrl.endsWith("/");
             
             // Try to get preferred name in this order:
-            // 1. .meta file (if refreshKey is provided, meaning we're refreshing after rename/upload)
-            // 2. RDF metadata from container (dcterms:title or rdfs:label)
-            // 3. URL extraction (fallback)
+            // 1. RDF metadata from container (dcterms:title or rdfs:label)
+            // 2. URL extraction (fallback)
             let name = extractNameFromUrl(absoluteUrl);
             let lastModified: Date | undefined;
             let size: number | undefined;
 
-            // If refreshKey is provided, fetch .meta files to get updated names after rename/upload
-            if (refreshKey !== undefined) {
-              try {
-                const metaName = await getDisplayNameFromMeta(absoluteUrl, fetchFn);
-                if (metaName) {
-                  name = metaName;
-                }
-              } catch (error) {
-                // .meta file doesn't exist or can't be read - continue with other methods
-              }
-            }
-
-            // Check RDF metadata from container dataset
+            // Check RDF metadata from container dataset- using getThing because it reads a resource (thing) from the RDF dataset to access properties like dcterms:title, rdfs:label, dcterms:modified, posix:size
             const itemThing = getThing(containerDataset, absoluteUrl);
             if (itemThing) {
-              // Only use RDF metadata if we didn't get a name from .meta file
-              if (name === extractNameFromUrl(absoluteUrl)) {
-                // Check for preferred name in metadata (dcterms:title or rdfs:label)
-                const title = getStringNoLocale(itemThing, DCTERMS.title);
-                if (title) {
-                  name = title;
-                } else {
-                  const label = getStringNoLocale(itemThing, RDFS.label);
-                  if (label) {
-                    name = label;
-                  }
+              // Check for preferred name in metadata (dcterms:title or rdfs:label)
+              const title = getStringNoLocale(itemThing, DCTERMS.title);
+              if (title) {
+                name = title;
+              } else {
+                const label = getStringNoLocale(itemThing, RDFS.label);
+                if (label) {
+                  name = label;
                 }
               }
 
@@ -180,8 +109,21 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
                   fetch: fetchFn,
                 });
                 finalIsContainer = isContainer(itemDataset);
-              } catch (e) {
-                // Continue on error
+              } catch (e: any) {
+                const statusCode = e?.response?.status;
+                const errorMessage = e instanceof Error ? e.message : String(e);
+                
+                // Check if it's a 501 error (binary file that can't be converted to RDF)
+                if (statusCode === 501 || 
+                    errorMessage.includes("501") || 
+                    errorMessage.includes("Not Implemented") ||
+                    errorMessage.includes("No conversion path")) {
+                  // Binary file that can't be converted to RDF - treat as file
+                  finalIsContainer = false;
+                } else {
+                  // Other errors (404, 403, etc.) - assume it's a file
+                  finalIsContainer = false;
+                }
               }
             }
 
@@ -194,7 +136,7 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
               size,
             });
           } catch (err) {
-            // Continue on error
+            console.error(`Failed to process item ${itemUrl}:`, err);
           }
         }
 
@@ -204,8 +146,6 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
           return a.name.localeCompare(b.name);
         });
         
-        // Cache the results
-        containerCache.set(normalizedUrl, fileItems);
         setFiles(fileItems);
       } catch (err) {
         const errorMessage =

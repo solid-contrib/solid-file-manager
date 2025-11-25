@@ -33,7 +33,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input({
   const paddingRight = rightIcon ? "pr-9" : "pr-3";
 
   return (
-    <div className="w-full">
+    <section className="w-full">
       {label && (
         <label
           htmlFor={inputId}
@@ -80,7 +80,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input({
           {helperText}
         </p>
       )}
-    </div>
+    </section>
   );
 });
 

@@ -21,10 +21,8 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
       try {
         setError(null);
 
-        // The library uses this to restore session state from localStorage
-        const redirectInfo = await handleIncomingRedirect({
-          restorePreviousSession: true,
-        });
+        // First, handle any incoming OAuth redirect (processes code and state parameters)
+        await handleIncomingRedirect({ restorePreviousSession: true });
 
         // Get the session instance after handling redirect
         const session = getSession();
@@ -39,8 +37,6 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
             isLoggedIn = false;
           }
         }
-
-
 
         setIsAuthenticated(isLoggedIn);
       } catch (err) {
@@ -61,9 +57,6 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
     if (!isAuthenticated && !error) {
       const interval = setInterval(async () => {
         try {
-          const redirectInfo = await handleIncomingRedirect({
-            restorePreviousSession: true,
-          });
           const session = getSession();
           if (session.info.isLoggedIn) {
             setIsAuthenticated(true);

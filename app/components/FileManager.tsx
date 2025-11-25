@@ -228,7 +228,13 @@ export default function FileManager() {
     setShowRenameDialog(true);
   };
 
-  const handleRenamed = () => {
+  const handleRenamed = (newUrl: string) => {
+    
+    if (fileToRename && currentPath === fileToRename.url) {
+      setCurrentPath(newUrl);
+      updateUrl(newUrl);
+    }
+    // Trigger refresh to update file list immediately
     setRefreshKey((prev) => prev + 1);
   };
 
