@@ -14,7 +14,7 @@ import {
 } from "@inrupt/solid-client";
 import { DCTERMS, POSIX, RDFS } from "@inrupt/vocab-common-rdf";
 import { FileItemData } from "../../components/FileItem";
-import { extractNameFromUrl, resolveUrl, isLikelyFile } from "../helpers/urlUtils";
+import { extractNameFromUrl, resolveUrl, isLikelyFile, isBinaryFile } from "../helpers/urlUtils";
 
 interface UseBrowseStorageResult {
   files: FileItemData[];
@@ -115,7 +115,8 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
 
             let finalIsContainer = isContainerUrl;
 
-            if (!isContainerUrl && !isLikelyFile(absoluteUrl)) {
+            // Skip RDF fetch for known binary files or files with extensions
+            if (!isContainerUrl && !isLikelyFile(absoluteUrl) && !isBinaryFile(absoluteUrl)) {
               try {
                 const itemDataset = await getSolidDataset(absoluteUrl, {
                   fetch: fetchFn,
@@ -137,6 +138,9 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
                   finalIsContainer = false;
                 }
               }
+            } else if (isBinaryFile(absoluteUrl)) {
+              // Known binary file - treat as file without attempting RDF fetch
+              finalIsContainer = false;
             }
 
             fileItems.push({
