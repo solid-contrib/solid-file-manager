@@ -47,9 +47,21 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
 
         const { fetch: fetchFn } = getAuthenticatedSession();
 
+        // This is a cache-busting fetch wrapper for when refreshKey is provided
+        // This ensures we get fresh data after uploads/deletes
+        const cacheBustingFetch = refreshKey !== undefined && refreshKey > 0
+          ? (input: RequestInfo | URL, init?: RequestInit) => {
+              const headers = new Headers(init?.headers);
+              // Adding cache-control headers to bypass browser/server cache
+              headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+              headers.set('Pragma', 'no-cache');
+              return fetchFn(input, { ...init, headers, cache: 'no-store' });
+            }
+          : fetchFn;
+
         // Use @inrupt/solid-client to fetch the container dataset
         const containerDataset = await getSolidDataset(url, {
-          fetch: fetchFn,
+          fetch: cacheBustingFetch,
         });
 
         // Get all contained resource URLs using @inrupt/solid-client
@@ -158,7 +170,7 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
     }
 
     browseContainer();
-  }, [containerUrl, refreshKey]);
+  }, [containerUrl, refreshKey]); // refreshKey triggers re-fetch when it changes
 
   return { files, isLoading, error };
 }

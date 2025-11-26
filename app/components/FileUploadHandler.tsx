@@ -1,9 +1,13 @@
 "use client";
 
 import { useRef, useEffect } from "react";
-import { overwriteFile, createContainerAt, UrlString } from "@inrupt/solid-client";
 import toast from "react-hot-toast";
-import { getAuthenticatedSession, sanitizeResourceName, ensureTrailingSlash } from "../lib/helpers";
+import {
+  getAuthenticatedSession,
+  uploadFilesToContainer,
+  uploadFolderFilesToContainer,
+  FolderUploadFile,
+} from "../lib/helpers";
 
 interface FileUploadHandlerProps {
   currentContainerUrl: string | null;
@@ -51,38 +55,12 @@ export default function FileUploadHandler({
       e.target.value = "";
       return;
     }
-    const uploadPromises: Promise<void>[] = [];
-    const uploadedFiles: string[] = [];
-    const failedFiles: string[] = [];
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const sanitizedName = file.name.replace(/[<>:"/\\|?*]/g, "");
-      const fileUrl = currentContainerUrl.endsWith("/")
-        ? `${currentContainerUrl}${sanitizedName}`
-        : `${currentContainerUrl}/${sanitizedName}`;
-
-      const uploadPromise = overwriteFile(
-        fileUrl as UrlString,
-        file,
-        {
-          contentType: file.type || "application/octet-stream",
-          fetch: fetchFn,
-        }
-      )
-        .then(() => {
-          uploadedFiles.push(sanitizedName);
-        })
-        .catch((error) => {
-          console.error(`Failed to upload ${file.name}:`, error);
-          failedFiles.push(sanitizedName);
-        });
-
-      uploadPromises.push(uploadPromise);
-    }
-
     try {
-      await Promise.all(uploadPromises);
+      const { uploadedFiles, failedFiles } = await uploadFilesToContainer(
+        Array.from(files),
+        currentContainerUrl,
+        fetchFn
+      );
 
       if (uploadedFiles.length > 0) {
         const message =
@@ -131,84 +109,19 @@ export default function FileUploadHandler({
       return;
     }
 
-    const uploadPromises: Promise<void>[] = [];
-    const uploadedFiles: string[] = [];
-    const failedFiles: string[] = [];
-    const createdFolders = new Set<string>();
-
-    // Process files maintaining folder structure
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      
-      const relativePath = (file as any).webkitRelativePath || file.name;
-      const pathParts = relativePath.split("/").filter(Boolean);
-      
-      if (pathParts.length === 0) continue;
-
-      // The first part is the folder name, rest is the path inside
-      const folderName = sanitizeResourceName(pathParts[0]);
-      const filePath = pathParts.slice(1); // Path inside the folder
-
-      // Create the base folder container if it doesn't exist
-      const baseFolderUrl = ensureTrailingSlash(
-        currentContainerUrl.endsWith("/")
-          ? `${currentContainerUrl}${encodeURIComponent(folderName)}`
-          : `${currentContainerUrl}/${encodeURIComponent(folderName)}`
-      );
-
-      if (!createdFolders.has(baseFolderUrl)) {
-        try {
-          await createContainerAt(baseFolderUrl as UrlString, { fetch: fetchFn });
-          createdFolders.add(baseFolderUrl);
-        } catch (error) {
-          console.error(`Failed to create folder ${folderName}:`, error);
-        }
-      }
-
-      // Build the full path for this file
-      let currentPath = baseFolderUrl;
-      
-      // Create intermediate folders if needed
-      for (let j = 0; j < filePath.length - 1; j++) {
-        const folderPart = sanitizeResourceName(filePath[j]);
-        const encodedFolderPart = encodeURIComponent(folderPart);
-        currentPath = ensureTrailingSlash(`${currentPath}${encodedFolderPart}`);
-        
-        if (!createdFolders.has(currentPath)) {
-          try {
-            await createContainerAt(currentPath as UrlString, { fetch: fetchFn });
-            createdFolders.add(currentPath);
-          } catch (error) {
-            console.error(`Failed to create subfolder ${folderPart}:`, error);
-          }
-        }
-      }
-
-      // Upload the file
-      const fileName = sanitizeResourceName(filePath[filePath.length - 1]);
-      const fileUrl = `${currentPath}${encodeURIComponent(fileName)}`;
-
-      const uploadPromise = overwriteFile(
-        fileUrl as UrlString,
+    const folderFiles: FolderUploadFile[] = Array.from(files)
+      .map((file) => ({
         file,
-        {
-          contentType: file.type || "application/octet-stream",
-          fetch: fetchFn,
-        }
-      )
-        .then(() => {
-          uploadedFiles.push(relativePath);
-        })
-        .catch((error) => {
-          console.error(`Failed to upload ${relativePath}:`, error);
-          failedFiles.push(relativePath);
-        });
-
-      uploadPromises.push(uploadPromise);
-    }
+        relativePath: (file as any).webkitRelativePath || file.name,
+      }))
+      .filter((item) => item.relativePath && item.relativePath.length > 0);
 
     try {
-      await Promise.all(uploadPromises);
+      const { uploadedFiles, failedFiles } = await uploadFolderFilesToContainer(
+        folderFiles,
+        currentContainerUrl,
+        fetchFn
+      );
 
       if (uploadedFiles.length > 0) {
         const message =
