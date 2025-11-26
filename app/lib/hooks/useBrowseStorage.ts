@@ -5,14 +5,15 @@ import { getAuthenticatedSession } from "../helpers";
 import {
   getSolidDataset,
   getContainedResourceUrlAll,
-  isContainer,
   getThing,
   getInteger,
   getDatetime,
   getStringNoLocale,
+  getIriAll,
   UrlString,
 } from "@inrupt/solid-client";
 import { DCTERMS, POSIX, RDFS } from "@inrupt/vocab-common-rdf";
+import { LDP } from "@inrupt/vocab-common-rdf";
 import { FileItemData } from "../../components/FileItem";
 import { extractNameFromUrl, resolveUrl, isLikelyFile, isBinaryFile } from "../helpers/urlUtils";
 
@@ -51,12 +52,12 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
         // This ensures we get fresh data after uploads/deletes
         const cacheBustingFetch = refreshKey !== undefined && refreshKey > 0
           ? (input: RequestInfo | URL, init?: RequestInit) => {
-              const headers = new Headers(init?.headers);
-              // Adding cache-control headers to bypass browser/server cache
-              headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-              headers.set('Pragma', 'no-cache');
-              return fetchFn(input, { ...init, headers, cache: 'no-store' });
-            }
+            const headers = new Headers(init?.headers);
+            // Adding cache-control headers to bypass browser/server cache
+            headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+            headers.set('Pragma', 'no-cache');
+            return fetchFn(input, { ...init, headers, cache: 'no-store' });
+          }
           : fetchFn;
 
         // Use @inrupt/solid-client to fetch the container dataset
@@ -73,7 +74,7 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
           try {
             const absoluteUrl = resolveUrl(itemUrl, url) as UrlString;
             const isContainerUrl = absoluteUrl.endsWith("/");
-            
+
             // Try to get preferred name in this order:
             // 1. RDF metadata from container (dcterms:title or rdfs:label)
             // 2. URL extraction (fallback)
@@ -83,6 +84,8 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
 
             // Check RDF metadata from container dataset- using getThing because it reads a resource (thing) from the RDF dataset to access properties like dcterms:title, rdfs:label, dcterms:modified, posix:size
             const itemThing = getThing(containerDataset, absoluteUrl);
+            let finalIsContainer = isContainerUrl;
+
             if (itemThing) {
               // Check for preferred name in metadata (dcterms:title or rdfs:label)
               const title = getStringNoLocale(itemThing, DCTERMS.title);
@@ -99,7 +102,7 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
               if (modifiedDate) {
                 lastModified = modifiedDate;
               }
-              
+
               if (!lastModified) {
                 const mtime = getDatetime(itemThing, POSIX.mtime);
                 if (mtime) {
@@ -111,36 +114,33 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
               if (fileSize !== null) {
                 size = fileSize;
               }
-            }
 
-            let finalIsContainer = isContainerUrl;
+              // Check RDF types to determine if it's a container (from container listing metadata)
+              // This avoids making individual HTTP requests for each resource
+              const types = getIriAll(itemThing, "http://www.w3.org/1999/02/22-rdf-syntax-ns#type");
+              const isContainerType = types.some(type =>
+                type === LDP.Container ||
+                type === LDP.BasicContainer ||
+                type === "http://www.w3.org/ns/ldp#Container" ||
+                type === "http://www.w3.org/ns/ldp#BasicContainer"
+              );
 
-            // Skip RDF fetch for known binary files or files with extensions
-            if (!isContainerUrl && !isLikelyFile(absoluteUrl) && !isBinaryFile(absoluteUrl)) {
-              try {
-                const itemDataset = await getSolidDataset(absoluteUrl, {
-                  fetch: fetchFn,
-                });
-                finalIsContainer = isContainer(itemDataset);
-              } catch (e: any) {
-                const statusCode = e?.response?.status;
-                const errorMessage = e instanceof Error ? e.message : String(e);
-                
-                // Check if it's a 501 error (binary file that can't be converted to RDF)
-                if (statusCode === 501 || 
-                    errorMessage.includes("501") || 
-                    errorMessage.includes("Not Implemented") ||
-                    errorMessage.includes("No conversion path")) {
-                  // Binary file that can't be converted to RDF - treat as file
-                  finalIsContainer = false;
-                } else {
-                  // Other errors (404, 403, etc.) - assume it's a file
-                  finalIsContainer = false;
-                }
+              if (isContainerType) {
+                finalIsContainer = true;
+              } else {
+                // If RDF metadata says it's not a container type, trust it
+                // otherwise only treat as container if URL explicitly ends with "/"
+                finalIsContainer = isContainerUrl;
               }
-            } else if (isBinaryFile(absoluteUrl)) {
-              // Known binary file - treat as file without attempting RDF fetch
-              finalIsContainer = false;
+            } else {
+              // If no RDF metadata available
+              if (isContainerUrl) {
+                finalIsContainer = true;
+              } else if (isBinaryFile(absoluteUrl) || isLikelyFile(absoluteUrl)) {
+                finalIsContainer = false;
+              } else {
+                finalIsContainer = false;
+              }
             }
 
             fileItems.push({
@@ -155,13 +155,13 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
             console.error(`Failed to process item ${itemUrl}:`, err);
           }
         }
-
+        // sort by folder first then in alphabetical order using the name
         fileItems.sort((a, b) => {
           if (a.type === "folder" && b.type !== "folder") return -1;
           if (a.type !== "folder" && b.type === "folder") return 1;
           return a.name.localeCompare(b.name);
         });
-        
+
         setFiles(fileItems);
       } catch (err) {
         const errorMessage =
