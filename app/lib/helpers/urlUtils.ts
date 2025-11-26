@@ -47,6 +47,27 @@ export function resolveUrl(url: string, baseUrl: string): string {
 }
 
 /**
+ * Checks if a URL represents a known binary/system file that shouldn't be fetched as RDF
+ */
+export function isBinaryFile(url: string): boolean {
+  const urlLower = url.toLowerCase();
+  // Common binary/system files that can't be converted to RDF
+  const binaryPatterns = [
+    '.ds_store',           // macOS system file
+    'thumbs.db',           // Windows thumbnail cache
+    'desktop.ini',         // Windows folder settings
+    '.git/',               // Git directories
+    '.svn/',               // SVN directories
+    '.hg/',                // Mercurial directories
+  ];
+  
+  // Check if URL ends with or contains these patterns
+  return binaryPatterns.some(pattern => 
+    urlLower.includes(pattern) || urlLower.endsWith(pattern)
+  );
+}
+
+/**
  * Checks if a URL has a file extension that indicates it's likely a file
  * @param url - The URL to check
  * @returns true if the URL has a known file extension

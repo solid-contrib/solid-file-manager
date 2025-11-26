@@ -9,12 +9,14 @@ interface NewMenuButtonProps {
   currentContainerUrl: string | null;
   onNewFolderClick?: () => void;
   onFileUploadClick?: () => void;
+  onFolderUploadClick?: () => void;
 }
 
 export default function NewMenuButton({
   currentContainerUrl,
   onNewFolderClick,
   onFileUploadClick,
+  onFolderUploadClick,
 }: NewMenuButtonProps) {
   const [showNewMenu, setShowNewMenu] = useState(false);
   const newMenuRef = useRef<HTMLDivElement>(null);
@@ -37,6 +39,13 @@ export default function NewMenuButton({
     setShowNewMenu(false);
     if (onFileUploadClick) {
       onFileUploadClick();
+    }
+  };
+
+  const handleFolderUpload = () => {
+    setShowNewMenu(false);
+    if (onFolderUploadClick) {
+      onFolderUploadClick();
     }
   };
 
@@ -77,11 +86,20 @@ export default function NewMenuButton({
           <button
             type="button"
             onClick={handleFileUpload}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 transition-colors border-b border-gray-100 cursor-pointer"
             role="menuitem"
           >
             <ArrowUpTrayIcon className="h-5 w-5 text-gray-500" />
             <span>File Upload</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleFolderUpload}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+            role="menuitem"
+          >
+            <FolderPlusIcon className="h-5 w-5 text-gray-500" />
+            <span>Folder Upload</span>
           </button>
         </div>
       )}

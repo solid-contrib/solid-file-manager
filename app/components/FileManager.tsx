@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import toast from "react-hot-toast";
 import { useSearchParams, useRouter } from "next/navigation";
 import AuthWrapper from "./AuthWrapper";
@@ -28,8 +28,20 @@ import {
   downloadFolderAsZip,
   deleteFileResource,
   deleteFolderResource,
+  uploadFilesToContainer,
+  uploadFolderFilesToContainer,
+  FolderUploadFile,
+  processDragDropItems,
+  hasFiles as hasFilesInDrag,
+  isUnsupportedFolderDrag,
 } from "../lib/helpers";
-
+import {
+  getUrlFromSearchParams,
+  getUrlFromStorage,
+  saveUrlToStorage,
+  removeUrlFromStorage,
+  safeEncodeUrl,
+} from "../lib/helpers/urlStateUtils";
 
 export default function FileManager() {
   const searchParams = useSearchParams();
@@ -40,7 +52,6 @@ export default function FileManager() {
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-
   const [permissionsDialogOpen, setPermissionsDialogOpen] = useState(false);
   const [selectedFileForPermissions, setSelectedFileForPermissions] =
     useState<FileItemData | null>(null);
@@ -48,6 +59,10 @@ export default function FileManager() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
   const [fileUploadTrigger, setFileUploadTrigger] = useState(0);
+  const [isDragActive, setIsDragActive] = useState(false);
+  const dragCounterRef = useRef(0);
+  const [folderUploadTrigger, setFolderUploadTrigger] = useState(0);
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [fileToRename, setFileToRename] = useState<FileItemData | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
@@ -58,152 +73,66 @@ export default function FileManager() {
   const [fileToDelete, setFileToDelete] = useState<FileItemData | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const [savedUrl, setSavedUrl] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
+  useEffect(() => {
+    if (isLoadingStorages || storages.length === 0 || isInitialized) {
+      return;
+    }
+
+    // Get URL from search params first, then fallback to sessionStorage
+    const urlParam = getUrlFromSearchParams() || getUrlFromStorage();
+
+    if (!urlParam) {
+      setIsInitialized(true);
+      return;
+    }
+
+    saveUrlToStorage(urlParam);
 
     try {
-      const fullUrl = window.location.href;
-      const urlObj = new URL(fullUrl);
-      let urlParam = urlObj.searchParams.get("url");
+      // Find which storage this URL belongs to
+      const matchingStorage = storages.find((s) => urlParam === s.url || urlParam.startsWith(s.url));
 
-      if (urlParam) {
-        try {
-          urlParam = decodeURIComponent(urlParam);
-        } catch (e) {
-          // Keep encoded if decode fails
+      if (matchingStorage) {
+        setSelectedStorageId(matchingStorage.id);
+        setCurrentPath(urlParam === matchingStorage.url ? "/" : urlParam);
+
+        if (typeof window !== "undefined") {
+          const params = new URLSearchParams();
+          params.set("url", safeEncodeUrl(urlParam));
+          router.replace(`/?${params.toString()}`, { scroll: false });
         }
-        return urlParam;
-      }
 
-      const stored = sessionStorage.getItem("solid-file-manager-url");
-      if (stored) {
-        return stored;
+        setIsInitialized(true);
+        return;
       }
     } catch (e) {
-      // Ignore
+      console.error("Failed to set initial URL:", e);
     }
-    return null;
-  });
+
+    setIsInitialized(true);
+  }, [searchParams, storages, isLoadingStorages, isInitialized, router]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const fullUrl = window.location.href;
-    const urlObj = new URL(fullUrl);
-    let urlParam = urlObj.searchParams.get("url");
-
-    if (urlParam) {
-      try {
-        urlParam = decodeURIComponent(urlParam);
-      } catch (e) {
-        // Ignore
+    return () => {
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
       }
-      setSavedUrl(urlParam);
-      sessionStorage.setItem("solid-file-manager-url", urlParam);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (isLoadingStorages || storages.length === 0) {
-      return;
-    }
-    if (isInitialized) {
-      return;
-    }
-
-    const restoreFromUrl = () => {
-      let urlParam: string | null = savedUrl;
-
-      if (!urlParam && typeof window !== "undefined") {
-        const fullUrl = window.location.href;
-        const urlObj = new URL(fullUrl);
-        urlParam = urlObj.searchParams.get("url");
-
-        if (!urlParam && window.location.search) {
-          const urlParams = new URLSearchParams(window.location.search);
-          urlParam = urlParams.get("url");
-        }
-      }
-
-      if (!urlParam) {
-        urlParam = searchParams.get("url");
-      }
-
-      if (urlParam) {
-        try {
-          let decodedUrl = urlParam;
-          try {
-            decodedUrl = decodeURIComponent(urlParam);
-          } catch (e) {
-            decodedUrl = urlParam;
-          }
-
-          const matchingStorage = storages.find((s) => {
-            const storageUrl = s.url.endsWith("/") ? s.url : s.url + "/";
-            const normalizedDecoded = decodedUrl.endsWith("/") ? decodedUrl : decodedUrl + "/";
-            const normalizedStorage = storageUrl.endsWith("/") ? storageUrl : storageUrl + "/";
-            return decodedUrl === s.url || decodedUrl === s.url + "/" || normalizedDecoded.startsWith(normalizedStorage);
-          });
-
-          if (matchingStorage) {
-            setSelectedStorageId(matchingStorage.id);
-
-            if (decodedUrl === matchingStorage.url || decodedUrl === matchingStorage.url + "/") {
-              setCurrentPath("/");
-            } else {
-              setCurrentPath(decodedUrl);
-            }
-
-            if (typeof window !== "undefined") {
-              const encodedUrl = encodeURIComponent(decodedUrl);
-              const params = new URLSearchParams();
-              params.set("url", encodedUrl);
-              const newUrl = `/?${params.toString()}`;
-              router.replace(newUrl, { scroll: false });
-            }
-
-            setIsInitialized(true);
-            return;
-          }
-        } catch (e) {
-          // Ignore errors
-        }
-      }
-
-      setIsInitialized(true);
     };
-
-    restoreFromUrl();
-  }, [searchParams, storages, isLoadingStorages, isInitialized, savedUrl, router]);
+  }, []);
 
   const updateUrl = (url: string | null) => {
     if (!url || url === "/") {
-      if (typeof window !== "undefined") {
-        sessionStorage.removeItem("solid-file-manager-url");
-        if (window.location.search) {
-          router.replace("/", { scroll: false });
-        }
+      removeUrlFromStorage();
+      if (typeof window !== "undefined" && window.location.search) {
+        router.replace("/", { scroll: false });
       }
       return;
     }
 
-    let urlToEncode = url;
-    try {
-      urlToEncode = decodeURIComponent(url);
-    } catch (e) {
-      urlToEncode = url;
-    }
-
-    const encodedUrl = encodeURIComponent(urlToEncode);
     const params = new URLSearchParams();
-    params.set("url", encodedUrl);
-    const newUrl = `/?${params.toString()}`;
-
-    if (typeof window !== "undefined") {
-      sessionStorage.setItem("solid-file-manager-url", urlToEncode);
-    }
-
-    router.replace(newUrl, { scroll: false });
+    params.set("url", safeEncodeUrl(url));
+    saveUrlToStorage(url);
+    router.replace(`/?${params.toString()}`, { scroll: false });
   };
 
   const containerUrlToBrowse = selectedStorageId
@@ -214,13 +143,35 @@ export default function FileManager() {
 
   const { files: browsedFiles, isLoading: isLoadingFiles, error: browseError } = useBrowseStorage(containerUrlToBrowse, refreshKey);
 
+  const triggerContainerRefresh = useCallback(() => {
+    const currentContainerUrl = selectedStorageId
+      ? currentPath === "/"
+        ? storages.find((s) => s.id === selectedStorageId)?.url || null
+        : currentPath
+      : null;
+
+    if (!currentContainerUrl) {
+      return;
+    }
+
+    // Clear any existing timeout
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current);
+    }
+
+    // Single refresh after a delay to give server time to process
+    refreshTimeoutRef.current = setTimeout(() => {
+      setRefreshKey((prev) => prev + 1);
+      refreshTimeoutRef.current = null;
+    }, 1000);
+  }, [selectedStorageId, currentPath, storages]);
 
   const handleFolderCreated = () => {
-    setRefreshKey((prev) => prev + 1);
+    triggerContainerRefresh();
   };
 
   const handleFileUploaded = () => {
-    setRefreshKey((prev) => prev + 1);
+    triggerContainerRefresh();
   };
 
   const handleRename = (file: FileItemData) => {
@@ -229,7 +180,7 @@ export default function FileManager() {
   };
 
   const handleRenamed = (newUrl: string) => {
-    
+
     if (fileToRename && currentPath === fileToRename.url) {
       setCurrentPath(newUrl);
       updateUrl(newUrl);
@@ -293,17 +244,25 @@ export default function FileManager() {
 
     try {
       const { fetch: fetchFn } = getAuthenticatedSession();
-      
+
       if (fileToDelete.type === "folder") {
         await deleteFolderResource(fileToDelete.url, fetchFn);
       } else {
         await deleteFileResource(fileToDelete.url, fetchFn);
       }
-      
+
       toast.success(`Deleted "${fileToDelete.name}"`, { id: toastId });
+      
+      // Clear selected files if the deleted file was selected
+      setSelectedFileIds((prev) => prev.filter((id) => id !== fileToDelete.id));
+      
       setShowDeleteDialog(false);
       setFileToDelete(null);
-      setRefreshKey((prev) => prev + 1);
+      
+      // Wait a bit for server to process deletion, then trigger single refresh
+      setTimeout(() => {
+        setRefreshKey((prev) => prev + 1);
+      }, 1000);
     } catch (error) {
       console.error("Failed to delete resource:", error);
       toast.error(
@@ -328,7 +287,7 @@ export default function FileManager() {
 
     try {
       const { fetch: fetchFn } = getAuthenticatedSession();
-      
+
       if (file.type === "folder") {
         await downloadFolderAsZip(file.url, file.name, fetchFn);
         toast.success(`Downloaded "${file.name}.zip"`, { id: toastId });
@@ -344,6 +303,128 @@ export default function FileManager() {
           : "Failed to download resource",
         { id: toastId }
       );
+    }
+  };
+
+  const handleDragEnter = (event: React.DragEvent<HTMLElement>) => {
+    if (!hasFilesInDrag(event)) return;
+    event.preventDefault();
+    dragCounterRef.current += 1;
+    setIsDragActive(true);
+  };
+
+  const handleDragLeave = (event: React.DragEvent<HTMLElement>) => {
+    if (!hasFilesInDrag(event)) return;
+    event.preventDefault();
+    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
+    if (dragCounterRef.current === 0) {
+      setIsDragActive(false);
+    }
+  };
+
+  const handleDragOver = (event: React.DragEvent<HTMLElement>) => {
+    if (!hasFilesInDrag(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  };
+
+  const handleDrop = async (event: React.DragEvent<HTMLElement>) => {
+    if (!hasFilesInDrag(event)) return;
+    event.preventDefault();
+    dragCounterRef.current = 0;
+    setIsDragActive(false);
+
+    if (!containerUrlToBrowse) {
+      toast.error("Please select a storage first");
+      return;
+    }
+
+    let fetchFn: typeof fetch;
+    try {
+      ({ fetch: fetchFn } = getAuthenticatedSession());
+    } catch (error) {
+      toast.error("Not authenticated");
+      return;
+    }
+
+    // Process drag-and-drop items (handles both files and folders)
+    const { singleFiles, folderFiles } = await processDragDropItems(event);
+
+    // Check for unsupported folder drag (only if no files were processed and File System Access API wasn't used)
+    if (singleFiles.length === 0 && folderFiles.length === 0 && isUnsupportedFolderDrag(event)) {
+      toast.error(
+        "Folder drag-and-drop is not supported in this browser. Please use the 'Folder Upload' button in the menu."
+      );
+      return;
+    }
+
+    let uploadedSomething = false;
+
+    if (singleFiles.length > 0) {
+      try {
+        const { uploadedFiles, failedFiles } = await uploadFilesToContainer(
+          singleFiles,
+          containerUrlToBrowse,
+          fetchFn
+        );
+
+        if (uploadedFiles.length > 0) {
+          uploadedSomething = true;
+          const message =
+            uploadedFiles.length === 1
+              ? `File uploaded successfully`
+              : `${uploadedFiles.length} files uploaded successfully`;
+          toast.success(message);
+        }
+
+        if (failedFiles.length > 0) {
+          const message =
+            failedFiles.length === 1
+              ? `Failed to upload "${failedFiles[0]}"`
+              : `Failed to upload ${failedFiles.length} files`;
+          toast.error(message);
+        }
+      } catch (error) {
+        console.error("Upload error:", error);
+        toast.error("Failed to upload files");
+      }
+    }
+
+    if (folderFiles.length > 0) {
+      try {
+        const { uploadedFiles, failedFiles } = await uploadFolderFilesToContainer(
+          folderFiles,
+          containerUrlToBrowse,
+          fetchFn
+        );
+
+        if (uploadedFiles.length > 0) {
+          uploadedSomething = true;
+          const message =
+            uploadedFiles.length === 1
+              ? `File uploaded successfully`
+              : `${uploadedFiles.length} files uploaded successfully`;
+          toast.success(message);
+        }
+
+        if (failedFiles.length > 0) {
+          const message =
+            failedFiles.length === 1
+              ? `Failed to upload "${failedFiles[0]}"`
+              : `Failed to upload ${failedFiles.length} files`;
+          toast.error(message);
+        }
+      } catch (error) {
+        console.error("Upload error:", error);
+        toast.error("Failed to upload folder");
+      }
+    }
+
+    if (uploadedSomething) {
+      // Wait a bit for the server to process the upload
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      // Trigger refresh with retry mechanism
+      triggerContainerRefresh();
     }
   };
 
@@ -519,7 +600,13 @@ export default function FileManager() {
 
   return (
     <AuthWrapper>
-      <div className="flex h-screen flex-col overflow-hidden bg-white">
+      <div
+        className="flex h-screen flex-col overflow-hidden bg-white"
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         <Header
           onMenuClick={() => setSidebarOpen(true)}
           sidebarOpen={sidebarOpen}
@@ -532,6 +619,7 @@ export default function FileManager() {
             currentContainerUrl={containerUrlToBrowse}
             onNewFolderClick={() => setShowNewFolderDialog(true)}
             onFileUploadClick={() => setFileUploadTrigger((prev) => prev + 1)}
+            onFolderUploadClick={() => setFolderUploadTrigger((prev) => prev + 1)}
           />
           <main className="flex flex-1 flex-col overflow-hidden">
             <div className="flex-shrink-0">
@@ -618,10 +706,21 @@ export default function FileManager() {
           onConfirm={handleDeleteConfirm}
           isDeleting={isDeleting}
         />
+        {isDragActive && (
+          <div className="pointer-events-none fixed inset-0 z-40 flex flex-col items-center justify-center bg-purple-500/10">
+            <div className="rounded-2xl border border-purple-400 bg-white/90 px-8 py-6 text-center shadow-lg">
+              <p className="text-lg font-semibold text-purple-700">Drop files or folders to upload</p>
+              <p className="text-sm text-purple-600 mt-2">
+                They will be uploaded to the current folder
+              </p>
+            </div>
+          </div>
+        )}
         <FileUploadHandler
           currentContainerUrl={containerUrlToBrowse}
           onUploadComplete={handleFileUploaded}
           triggerUpload={fileUploadTrigger}
+          triggerFolderUpload={folderUploadTrigger}
         />
       </div>
     </AuthWrapper>

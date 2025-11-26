@@ -13,6 +13,7 @@ interface SidebarProps {
   currentContainerUrl?: string | null;
   onNewFolderClick?: () => void;
   onFileUploadClick?: () => void;
+  onFolderUploadClick?: () => void;
 }
 
 export default function Sidebar({
@@ -22,6 +23,7 @@ export default function Sidebar({
   currentContainerUrl,
   onNewFolderClick,
   onFileUploadClick,
+  onFolderUploadClick,
 }: SidebarProps) {
   const isMobileOpen = isOpen;
   const sidebarRef = useRef<HTMLElement>(null);
@@ -79,6 +81,7 @@ export default function Sidebar({
             currentContainerUrl={currentContainerUrl || null}
             onNewFolderClick={onNewFolderClick}
             onFileUploadClick={onFileUploadClick}
+            onFolderUploadClick={onFolderUploadClick}
           />
           
           {/* Navigation Tabs */}

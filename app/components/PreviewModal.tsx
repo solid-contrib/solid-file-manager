@@ -7,7 +7,6 @@ import { getFile, UrlString } from "@inrupt/solid-client";
 import { getAuthenticatedSession } from "../lib/helpers";
 import { FileItemData } from "./FileItem";
 import LoadingSpinner from "./shared/LoadingSpinner";
-import { getFileType } from "../lib/helpers";
 
 interface PreviewModalProps {
   isOpen: boolean;
@@ -25,6 +24,7 @@ export default function PreviewModal({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fileType, setFileType] = useState<"image" | "pdf" | "doc" | "text" | "other">("other");
+  const [previewUnavailableReason, setPreviewUnavailableReason] = useState<string | null>(null);
   const blobUrlRef = useRef<string | null>(null);
 
   // Clean up blob URLs when component unmounts
@@ -47,6 +47,7 @@ export default function PreviewModal({
       setPreviewContent(null);
       setPreviewUrl(null);
       setError(null);
+      setPreviewUnavailableReason(null);
       setIsLoading(false);
       return;
     }
@@ -57,40 +58,78 @@ export default function PreviewModal({
 
       try {
         const { fetch: fetchFn } = getAuthenticatedSession();
-        const fileTypeDetected = getFileType(file.url, file.mimeType, file.name);
-        setFileType(fileTypeDetected);
+        
 
-        // PDFs open directly in a new tab
-        if (fileTypeDetected === "pdf") {
-          if (blobUrlRef.current) {
-            URL.revokeObjectURL(blobUrlRef.current);
+        let fileBlob: Blob;
+        let actualMimeType: string = "";
+        
+        try {
+          fileBlob = await getFile(file.url as UrlString, { fetch: fetchFn });
+          // Get the content-type from the blob's type property (set from HTTP response header)
+          actualMimeType = fileBlob.type ? fileBlob.type.split(";")[0].trim() : "";
+        } catch (getFileError: any) {
+   
+          const statusCode = getFileError?.response?.status;
+          const errorMessage = getFileError instanceof Error ? getFileError.message : String(getFileError);
+          
+          if (statusCode === 501 || 
+              errorMessage.includes("501") || 
+              errorMessage.includes("Not Implemented") ||
+              errorMessage.includes("No conversion path")) {
+
+            const response = await fetchFn(file.url);
+
+            if (response.status === 501) {
+           
+              const contentType = response.headers.get("content-type") || "";
+              
+              if (contentType.includes("text/turtle") || contentType.includes("application/json")) {
+                // Can't preview - server returned error instead of file
+                setFileType("other");
+                setPreviewUnavailableReason("This binary file cannot be converted to a previewable format by the server. Please download the file to view it.");
+                setIsLoading(false);
+                return;
+              }
+              
+              try {
+                fileBlob = await response.blob();
+                actualMimeType = contentType.split(";")[0].trim();
+              } catch (blobError) {
+                setFileType("other");
+                setIsLoading(false);
+                return;
+              }
+            } else if (!response.ok) {
+              throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
+            } else {
+              fileBlob = await response.blob();
+              const contentType = response.headers.get("content-type") || "";
+              actualMimeType = contentType.split(";")[0].trim();
+            }
+          } else {
+            throw getFileError;
           }
-          // For PDFs, fetch as blob and open in new tab
-          const fileBlob = await getFile(file.url as UrlString, { fetch: fetchFn });
-          const blobUrl = URL.createObjectURL(fileBlob);
-          blobUrlRef.current = blobUrl;
+        }
+        
+        if (blobUrlRef.current) {
+          URL.revokeObjectURL(blobUrlRef.current);
+        }
+        
+        const blobUrl = URL.createObjectURL(fileBlob);
+        blobUrlRef.current = blobUrl;
+        
+        // PDFs: open in new tab
+        if (actualMimeType === "application/pdf") {
           window.open(blobUrl, "_blank");
-       
           onClose();
           setIsLoading(false);
           return;
         }
-
-        // Word documents - browsers can't natively view them, so we'll fetch and open as blob
-        // This will trigger a download, but ensures authenticated access works
-        if (fileTypeDetected === "doc") {
-          // Clean up previous blob URL if it exists
-          if (blobUrlRef.current) {
-            URL.revokeObjectURL(blobUrlRef.current);
-          }
-          // For Word docs, fetch as blob and create a download link
-          // Note: Browsers can't natively view Word documents, so this will download
-          // External viewers (Google Docs, Office Online) require public URLs and won't work with authenticated resources
-          const fileBlob = await getFile(file.url as UrlString, { fetch: fetchFn });
-          const blobUrl = URL.createObjectURL(fileBlob);
-          blobUrlRef.current = blobUrl;
-          
-          // Create a temporary anchor element to trigger download with proper filename
+        
+        // Word documents: browsers can't natively view them, trigger download
+        if (actualMimeType.startsWith("application/msword") || 
+            actualMimeType.includes("wordprocessingml") ||
+            actualMimeType.includes("ms-word")) {
           const link = document.createElement("a");
           link.href = blobUrl;
           link.download = file.name;
@@ -98,56 +137,70 @@ export default function PreviewModal({
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
-          
-          // Close the modal
           onClose();
           setIsLoading(false);
           return;
         }
-
-        if (fileTypeDetected === "image") {
-          // Clean up previous blob URL if it exists
-          if (blobUrlRef.current) {
-            URL.revokeObjectURL(blobUrlRef.current);
-          }
-          // For images, fetch as blob and create blob URL for authenticated access
-          const fileBlob = await getFile(file.url as UrlString, { fetch: fetchFn });
-          const blobUrl = URL.createObjectURL(fileBlob);
-          blobUrlRef.current = blobUrl;
+        
+        // Images: display in modal
+        if (actualMimeType.startsWith("image/")) {
           setPreviewUrl(blobUrl);
+          setFileType("image");
           setIsLoading(false);
-        } else if (fileTypeDetected === "text") {
-          // For text files, fetch and display content
-          const fileBlob = await getFile(file.url as UrlString, { fetch: fetchFn });
-          const text = await fileBlob.text();
-          setPreviewContent(text);
-          setIsLoading(false);
-        } else {
-          // For other file types, try to read as text as a fallback
-          try {
-            const fileBlob = await getFile(file.url as UrlString, { fetch: fetchFn });
-            // Check if the blob type suggests it's text
-            if (fileBlob.type && (fileBlob.type.startsWith("text/") || fileBlob.type === "application/json" || fileBlob.type === "application/xml")) {
-              const text = await fileBlob.text();
-              setPreviewContent(text);
-              setFileType("text");
-              setIsLoading(false);
-            } else {
-              const text = await fileBlob.text();
-              // If we can read it as text and it's not too large, treat it as text
-              if (text.length > 0 && text.length < 10 * 1024 * 1024) { // Less than 10MB
-                setPreviewContent(text);
-                setFileType("text");
-                setIsLoading(false);
-              } else {
-                setIsLoading(false);
-              }
-            }
-          } catch (err) {
-            // If reading as text fails, it's not a text file
-            setIsLoading(false);
-          }
+          return;
         }
+        
+        // Check if this is a binary file that shouldn't be read as text
+        let isBinaryFile = false;
+        let reason = "";
+        
+        if (file.name.endsWith(".DS_Store") || file.name.endsWith(".ds_store")) {
+          isBinaryFile = true;
+          reason = "This is a macOS system file (binary format) that cannot be displayed as text.";
+        } else if (!actualMimeType || actualMimeType === "application/octet-stream") {
+          isBinaryFile = true;
+          reason = "This file is in a binary format that cannot be previewed in the browser.";
+        } else if (actualMimeType.includes("binary")) {
+          isBinaryFile = true;
+          reason = "This is a binary file that cannot be displayed as text.";
+        } else if (actualMimeType && 
+                   !actualMimeType.startsWith("text/") && 
+                   !actualMimeType.includes("json") && 
+                   !actualMimeType.includes("xml") && 
+                   !actualMimeType.includes("javascript") &&
+                   !actualMimeType.includes("yaml") &&
+                   !actualMimeType.includes("csv") &&
+                   actualMimeType !== "application/pdf" &&
+                   !actualMimeType.startsWith("image/") &&
+                   !actualMimeType.startsWith("application/msword") &&
+                   !actualMimeType.includes("wordprocessingml") &&
+                   !actualMimeType.includes("ms-word")) {
+          isBinaryFile = true;
+          reason = `This file type (${actualMimeType}) is not supported for preview. Please download the file to view it.`;
+        }
+        
+        if (isBinaryFile) {
+    
+          setFileType("other");
+          setPreviewUnavailableReason(reason);
+          setIsLoading(false);
+          return;
+        }
+        
+        try {
+          const text = await fileBlob.text();
+          if (text.length > 0 && text.length < 10 * 1024 * 1024) { // Less than 10MB
+            setPreviewContent(text);
+            setFileType("text");
+            setIsLoading(false);
+            return;
+          }
+        } catch (err) {
+          console.error("Failed to load preview:", err);
+        }
+   
+        setFileType("other");
+        setIsLoading(false);
       } catch (err) {
         console.error("Failed to load preview:", err);
         setError(err instanceof Error ? err.message : "Failed to load preview");
@@ -212,10 +265,15 @@ export default function PreviewModal({
 
     // For other file types
     return (
-      <div className="flex h-96 flex-col items-center justify-center text-center">
-        <p className="text-gray-600 mb-4">
+      <div className="flex h-96 flex-col items-center justify-center text-center px-4">
+        <p className="text-gray-600 mb-2 font-medium">
           Preview is not available for this file type.
         </p>
+        {previewUnavailableReason && (
+          <p className="text-sm text-gray-500 mb-4 max-w-md">
+            {previewUnavailableReason}
+          </p>
+        )}
         <p className="text-sm text-gray-500 mb-6">
           Please download the file to view it.
         </p>
