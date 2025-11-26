@@ -21,22 +21,26 @@ This application provides a user-friendly interface for managing files and folde
 - **File & Folder Navigation**: Browse through folders with double-click navigation and breadcrumb support
 - **Grid and List Views**: Toggle between grid and list views for file browsing
 - **Breadcrumb Navigation**: Navigate through folder hierarchy with clickable breadcrumbs
-- **Caching**: In-memory caching for WebID profiles and container contents to improve UX and reduce redundant requests
+- **URL State Management**: Browser URL and sessionStorage synchronization for persistent navigation
+- **Optimized Browsing**: Uses RDF metadata from container listings to avoid unnecessary HTTP requests
 
 ### File Operations
 
 - **Create Folders**: Create new folders with custom names
-- **Rename Files/Folders**: Rename resources using `.meta` files to preserve resource URIs and shared links
+- **Rename Files/Folders**: Rename resources using URL-based renaming (recreate with new name, delete old) to preserve resource URIs
 - **Copy Files/Folders**: Copy files and folders with automatic name collision handling (e.g., "Copy of file", "Copy of file (1)")
-- **Move Files**: Move files between folders within the same storage
-- **Delete Files/Folders**: Delete resources from your Pod
-- **File Upload**: Upload files to your Pod via file picker
-- **File Preview**: Preview various file types:
+- **Move Files**: Move files between folders within the same storage (fetch → put in new location → delete old)
+- **Delete Files/Folders**: Delete resources from your Pod with confirmation dialog
+- **Download Files/Folders**: Download individual files or folders as ZIP archives
+- **File Upload**: Upload files to your Pod via file picker or drag-and-drop
+- **Folder Upload**: Upload entire folders with preserved structure via folder picker or drag-and-drop (using File System Access API)
+- **Drag-and-Drop Upload**: Drag and drop files or folders directly into the file manager (folder support in Chrome/Edge)
+- **File Preview**: Preview various file types using content-type headers:
   - Images (displayed in modal)
   - PDFs (opened in new tab)
   - Word documents (.doc, .docx - opened in new tab)
   - Text files (displayed in modal)
-  - Common text files without extensions (e.g., README)
+  - Binary files detected and handled appropriately
 
 ### User Interface
 
@@ -56,11 +60,13 @@ This application provides a user-friendly interface for managing files and folde
 
 ### Technical Features
 
-- **Metadata Management**: Uses `.meta` files for storing display names and preserving resource URIs
 - **Session Management**: Centralized session utilities for authentication
-- **Profile Caching**: Cached WebID profile fetching to prevent redundant requests
+- **Profile Utilities**: WebID profile fetching and parsing utilities
+- **URL Utilities**: URL state management, encoding/decoding, and path resolution
+- **Binary File Detection**: Automatic detection of binary/system files (e.g., `.DS_Store`) to prevent unnecessary RDF conversion attempts
 - **Error Handling**: Comprehensive error handling with user-friendly messages
 - **Type Safety**: Full TypeScript support throughout
+- **Cache-Busting**: Automatic cache-busting for container listings after uploads/deletes to ensure fresh data
 
 ## Tech Stack
 
@@ -97,7 +103,7 @@ npm install
 npm run dev
 ```
 
-4. Open [http://localhost:3000](http://localhost:3000) in your browser.
+4. Open [http://localhost:3001](http://localhost:3001) in your browser.
 
 ## Development Setup
 
@@ -159,8 +165,13 @@ solid-file-manager/
 │   │   └── helpers/         # Utility functions
 │   │       ├── sessionUtils.ts    # Session management
 │   │       ├── profileUtils.ts    # WebID profile utilities
-│   │       ├── metaFileUtils.ts   # .meta file operations
 │   │       ├── copyUtils.ts       # Copy and move operations
+│   │       ├── deleteUtils.ts     # Delete operations
+│   │       ├── downloadUtils.ts   # Download operations (files and ZIP)
+│   │       ├── uploadUtils.ts     # File and folder upload operations
+│   │       ├── dragDropUtils.ts   # Drag-and-drop file/folder handling
+│   │       ├── urlStateUtils.ts   # URL state management
+│   │       ├── urlUtils.ts        # URL utilities and binary file detection
 │   │       ├── fileTypeUtils.ts   # File type detection
 │   │       └── ...
 │   ├── page.tsx             # Main page component
@@ -180,9 +191,14 @@ This application integrates with Solid using:
   - Uses `pim:storage` predicate from WebID profile
   - Uses `solid:storage` predicate as fallback
   - Supports hierarchical traversal for storage discovery
-- **Metadata Management**: 
-  - Uses `.meta` files for storing display names (following Solid conventions)
-  - Preserves resource URIs when renaming (maintains shared links)
+- **Container Browsing**: 
+  - Uses RDF metadata from container listings to determine file/folder types
+  - Optimized to avoid individual HTTP requests per resource
+  - Reads `ldp:Container` and `ldp:BasicContainer` types from container metadata
+- **Resource Operations**: 
+  - URL-based renaming (recreate with new name, delete old) to preserve resource URIs
+  - Recursive folder operations for copy, move, and delete
+  - Automatic handling of binary files and system files
 - **SDK**: [@inrupt/solid-client-js](https://github.com/inrupt/solid-client-js)
 
 ## Design Principles
