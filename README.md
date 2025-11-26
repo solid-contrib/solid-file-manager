@@ -199,3 +199,9 @@ This application integrates with Solid using:
 - [ACP Specification](https://solid.github.io/authorization-panel/acp-specification/)
 - [Inrupt Solid Client JS](https://github.com/inrupt/solid-client-js)
 - [Community Solid Server](https://github.com/CommunitySolidServer/CommunitySolidServer)
+
+## License
+
+This work is dual-licensed under MIT and Apache 2.0. You can choose between one of them if you use this work.
+
+SPDX-License-Identifier: MIT OR Apache-2.0
