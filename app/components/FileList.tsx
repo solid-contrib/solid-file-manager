@@ -17,6 +17,7 @@ interface FileListProps {
   onFileDownload?: (file: FileItemData) => void;
   onFileDelete?: (file: FileItemData) => void;
   selectedFileIds: string[];
+  onFileContextMenu?: (file: FileItemData, event: React.MouseEvent) => void;
 }
 
 const VIEW_STORAGE_KEY = "solid-file-manager-view";
@@ -33,6 +34,7 @@ export default function FileList({
   onFileDownload,
   onFileDelete,
   selectedFileIds,
+  onFileContextMenu,
 }: FileListProps) {
   const [view, setView] = useState<"grid" | "list">(() => {
     if (typeof window === "undefined") return "list";
@@ -72,6 +74,7 @@ export default function FileList({
                 onDownload={onFileDownload}
                 onDelete={onFileDelete}
                 isSelected={selectedFileIds.includes(file.id)}
+                onContextMenu={onFileContextMenu}
               />
             ))}
           </div>
@@ -91,6 +94,7 @@ export default function FileList({
                 onDownload={onFileDownload}
                 onDelete={onFileDelete}
                 isSelected={selectedFileIds.includes(file.id)}
+                onContextMenu={onFileContextMenu}
               />
             ))}
           </div>
