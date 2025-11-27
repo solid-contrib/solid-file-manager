@@ -12,6 +12,7 @@ import {
   ArrowRightCircleIcon,
   TrashIcon,
   EyeIcon,
+  ShareIcon,
 } from "@heroicons/react/24/outline";
 import AuthWrapper from "./AuthWrapper";
 import Header from "./Header";
@@ -24,6 +25,7 @@ import RenameDialog from "./RenameDialog";
 import PreviewModal from "./PreviewModal";
 import MoveDialog from "./MoveDialog";
 import DeleteConfirmDialog from "./DeleteConfirmDialog";
+import ShareDialog, { AccessLevel } from "./ShareDialog";
 import FileUploadHandler from "./FileUploadHandler";
 import ContextMenu, { ContextMenuAction } from "./ContextMenu";
 import { FileItemData } from "./FileItem";
@@ -94,6 +96,8 @@ export default function FileManager() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [fileToDelete, setFileToDelete] = useState<FileItemData | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [fileToShare, setFileToShare] = useState<FileItemData | null>(null);
   const [contextMenuState, setContextMenuState] = useState<ContextMenuState | null>(null);
 
   const closeContextMenu = () => setContextMenuState(null);
@@ -392,6 +396,17 @@ export default function FileManager() {
     }
   };
 
+  const handleShare = (file: FileItemData) => {
+    setFileToShare(file);
+    setShowShareDialog(true);
+  };
+
+  const handleShareConfirm = async (webId: string, accessLevel: AccessLevel) => {
+    // TODO: Implement actual sharing logic
+    console.log(`Sharing ${fileToShare?.name} with ${webId} as ${accessLevel}`);
+    toast.success(`Shared with ${webId} as ${accessLevel}`);
+  };
+
   const handleDragEnter = (event: React.DragEvent<HTMLElement>) => {
     if (!hasFilesInDrag(event)) return;
     event.preventDefault();
@@ -633,6 +648,14 @@ export default function FileManager() {
           closeContextMenu();
           handleCopy(file);
         },
+      },
+      {
+        label: "Share",
+        icon: ShareIcon,
+        onClick: () => {
+          closeContextMenu();
+          handleShare(file);
+        },
       }
     );
 
@@ -823,6 +846,7 @@ export default function FileManager() {
                   onFileMove={handleMove}
                   onFileDownload={handleDownload}
                   onFileDelete={handleDelete}
+                  onFileShare={handleShare}
                   selectedFileIds={selectedFileIds}
                   onFileContextMenu={handleFileContextMenu}
                 />
@@ -887,6 +911,15 @@ export default function FileManager() {
           file={fileToDelete}
           onConfirm={handleDeleteConfirm}
           isDeleting={isDeleting}
+        />
+        <ShareDialog
+          isOpen={showShareDialog}
+          onClose={() => {
+            setShowShareDialog(false);
+            setFileToShare(null);
+          }}
+          file={fileToShare}
+          onShare={handleShareConfirm}
         />
         {isDragActive && (
           <div className="pointer-events-none fixed inset-0 z-40 flex flex-col items-center justify-center bg-purple-500/10">

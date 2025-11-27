@@ -13,4 +13,5 @@ export * from "./deleteUtils";
 export * from "./uploadUtils";
 export * from "./urlStateUtils";
 export * from "./dragDropUtils";
+export * from "./contactUtils";
 

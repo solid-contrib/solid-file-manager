@@ -114,6 +114,51 @@ export async function fetchAndParseProfile(
 }
 
 /**
+ * Extracts name and email from a parsed profile store
+ * @param store - The RDF store containing the profile
+ * @param mainSubject - The main subject node to extract data from
+ * @returns Object with name and email (both can be null)
+ */
+export function extractNameAndEmail(store: Store, mainSubject: NamedNode): {
+  name: string | null;
+  email: string | null;
+} {
+  const VCARD_FN = "http://www.w3.org/2006/vcard/ns#fn";
+  const FOAF_NAME = "http://xmlns.com/foaf/0.1/name";
+  const VCARD_EMAIL = "http://www.w3.org/2006/vcard/ns#email";
+
+  // Try to get name (prefer vcard:fn, then foaf:name)
+  let name: string | null = null;
+  const vcardFnQuads = store.getQuads(mainSubject, new NamedNode(VCARD_FN), null, null);
+  if (vcardFnQuads.length > 0 && vcardFnQuads[0].object.termType === "Literal") {
+    name = vcardFnQuads[0].object.value;
+  } else {
+    const foafNameQuads = store.getQuads(mainSubject, new NamedNode(FOAF_NAME), null, null);
+    if (foafNameQuads.length > 0 && foafNameQuads[0].object.termType === "Literal") {
+      name = foafNameQuads[0].object.value;
+    }
+  }
+
+  // Try to get email
+  let email: string | null = null;
+  const emailQuads = store.getQuads(mainSubject, new NamedNode(VCARD_EMAIL), null, null);
+  if (emailQuads.length > 0 && emailQuads[0].object.termType === "Literal") {
+    email = emailQuads[0].object.value;
+  }
+
+  return { name, email };
+}
+
+/**
+ * Gets the cached profile for a WebID if it exists
+ * @param webId - The WebID to get from cache
+ * @returns The cached profile or null if not cached
+ */
+export function getCachedProfile(webId: string): { store: Store; baseUrl: string; mainSubject: NamedNode } | null {
+  return profileCache.get(webId) || null;
+}
+
+/**
  * Clears the profile cache (useful for testing or when profile might have changed)
  */
 export function clearProfileCache(webId?: string): void {
@@ -123,4 +168,3 @@ export function clearProfileCache(webId?: string): void {
     profileCache.clear();
   }
 }
-
