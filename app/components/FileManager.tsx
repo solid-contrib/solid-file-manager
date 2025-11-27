@@ -3,6 +3,16 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import toast from "react-hot-toast";
 import { useSearchParams, useRouter } from "next/navigation";
+import {
+  FolderPlusIcon,
+  ArrowUpTrayIcon,
+  PencilIcon,
+  ArrowDownTrayIcon,
+  DocumentDuplicateIcon,
+  ArrowRightCircleIcon,
+  TrashIcon,
+  EyeIcon,
+} from "@heroicons/react/24/outline";
 import AuthWrapper from "./AuthWrapper";
 import Header from "./Header";
 import Sidebar from "./Sidebar";
@@ -15,6 +25,7 @@ import PreviewModal from "./PreviewModal";
 import MoveDialog from "./MoveDialog";
 import DeleteConfirmDialog from "./DeleteConfirmDialog";
 import FileUploadHandler from "./FileUploadHandler";
+import ContextMenu, { ContextMenuAction } from "./ContextMenu";
 import { FileItemData } from "./FileItem";
 import LoadingSpinner from "./shared/LoadingSpinner";
 import ErrorDisplay from "./shared/ErrorDisplay";
@@ -42,6 +53,17 @@ import {
   removeUrlFromStorage,
   safeEncodeUrl,
 } from "../lib/helpers/urlStateUtils";
+
+type ContextMenuState =
+  | {
+    type: "new";
+    position: { x: number; y: number };
+  }
+  | {
+    type: "file";
+    position: { x: number; y: number };
+    file: FileItemData;
+  };
 
 export default function FileManager() {
   const searchParams = useSearchParams();
@@ -72,6 +94,26 @@ export default function FileManager() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [fileToDelete, setFileToDelete] = useState<FileItemData | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [contextMenuState, setContextMenuState] = useState<ContextMenuState | null>(null);
+
+  const closeContextMenu = () => setContextMenuState(null);
+
+  const handleBlankContextMenu = (event: React.MouseEvent) => {
+    event.preventDefault();
+    setContextMenuState({
+      type: "new",
+      position: { x: event.clientX, y: event.clientY },
+    });
+  };
+
+  const handleFileContextMenu = (file: FileItemData, event: React.MouseEvent) => {
+    event.preventDefault();
+    setContextMenuState({
+      type: "file",
+      file,
+      position: { x: event.clientX, y: event.clientY },
+    });
+  };
 
   useEffect(() => {
     if (isLoadingStorages || storages.length === 0 || isInitialized) {
@@ -119,6 +161,27 @@ export default function FileManager() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!contextMenuState) {
+      return;
+    }
+
+    const handleClick = () => setContextMenuState(null);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setContextMenuState(null);
+      }
+    };
+
+    document.addEventListener("click", handleClick);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("click", handleClick);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [contextMenuState]);
 
   const updateUrl = (url: string | null) => {
     if (!url || url === "/") {
@@ -172,6 +235,29 @@ export default function FileManager() {
 
   const handleFileUploaded = () => {
     triggerContainerRefresh();
+  };
+
+  const ensureStorageSelected = () => {
+    if (!containerUrlToBrowse) {
+      toast.error("Please select a storage first");
+      return false;
+    }
+    return true;
+  };
+
+  const triggerFileUploadDialog = () => {
+    if (!ensureStorageSelected()) return;
+    setFileUploadTrigger((prev) => prev + 1);
+  };
+
+  const triggerFolderUploadDialog = () => {
+    if (!ensureStorageSelected()) return;
+    setFolderUploadTrigger((prev) => prev + 1);
+  };
+
+  const openNewFolderDialog = () => {
+    if (!ensureStorageSelected()) return;
+    setShowNewFolderDialog(true);
   };
 
   const handleRename = (file: FileItemData) => {
@@ -252,13 +338,13 @@ export default function FileManager() {
       }
 
       toast.success(`Deleted "${fileToDelete.name}"`, { id: toastId });
-      
+
       // Clear selected files if the deleted file was selected
       setSelectedFileIds((prev) => prev.filter((id) => id !== fileToDelete.id));
-      
+
       setShowDeleteDialog(false);
       setFileToDelete(null);
-      
+
       // Wait a bit for server to process deletion, then trigger single refresh
       setTimeout(() => {
         setRefreshKey((prev) => prev + 1);
@@ -482,6 +568,98 @@ export default function FileManager() {
     }
   };
 
+  const newContextMenuActions: ContextMenuAction[] = [
+    {
+      label: "New Folder",
+      icon: FolderPlusIcon,
+      onClick: () => {
+        closeContextMenu();
+        openNewFolderDialog();
+      },
+    },
+    {
+      label: "File Upload",
+      icon: ArrowUpTrayIcon,
+      onClick: () => {
+        closeContextMenu();
+        triggerFileUploadDialog();
+      },
+    },
+    {
+      label: "Folder Upload",
+      icon: FolderPlusIcon,
+      onClick: () => {
+        closeContextMenu();
+        triggerFolderUploadDialog();
+      },
+    },
+  ];
+
+  const getFileContextMenuActions = (file: FileItemData): ContextMenuAction[] => {
+    const actions: ContextMenuAction[] = [];
+
+    if (file.type === "file") {
+      actions.push({
+        label: "Preview",
+        icon: EyeIcon,
+        onClick: () => {
+          closeContextMenu();
+          handlePreview(file);
+        },
+      });
+    }
+
+    actions.push(
+      {
+        label: "Rename",
+        icon: PencilIcon,
+        onClick: () => {
+          closeContextMenu();
+          handleRename(file);
+        },
+      },
+      {
+        label: "Download",
+        icon: ArrowDownTrayIcon,
+        onClick: () => {
+          closeContextMenu();
+          handleDownload(file);
+        },
+      },
+      {
+        label: "Copy",
+        icon: DocumentDuplicateIcon,
+        onClick: () => {
+          closeContextMenu();
+          handleCopy(file);
+        },
+      }
+    );
+
+    if (file.type === "file") {
+      actions.push({
+        label: "Move",
+        icon: ArrowRightCircleIcon,
+        onClick: () => {
+          closeContextMenu();
+          handleMove(file);
+        },
+      });
+    }
+
+    actions.push({
+      label: "Delete",
+      icon: TrashIcon,
+      danger: true,
+      onClick: () => {
+        closeContextMenu();
+        handleDelete(file);
+      },
+    });
+
+    return actions;
+  };
+
   const handleFileSelect = (file: FileItemData) => {
     setSelectedFileIds((prev) => {
       if (prev.includes(file.id)) {
@@ -621,7 +799,10 @@ export default function FileManager() {
             onFileUploadClick={() => setFileUploadTrigger((prev) => prev + 1)}
             onFolderUploadClick={() => setFolderUploadTrigger((prev) => prev + 1)}
           />
-          <main className="flex flex-1 flex-col overflow-hidden">
+          <main
+            className="flex flex-1 flex-col overflow-hidden"
+            onContextMenu={handleBlankContextMenu}
+          >
             <div className="flex-shrink-0">
               <Breadcrumb items={breadcrumbItems} onNavigate={handleBreadcrumbNavigate} />
             </div>
@@ -643,6 +824,7 @@ export default function FileManager() {
                   onFileDownload={handleDownload}
                   onFileDelete={handleDelete}
                   selectedFileIds={selectedFileIds}
+                  onFileContextMenu={handleFileContextMenu}
                 />
               </div>
             )}
@@ -722,6 +904,18 @@ export default function FileManager() {
           triggerUpload={fileUploadTrigger}
           triggerFolderUpload={folderUploadTrigger}
         />
+
+        {contextMenuState && (
+          <ContextMenu
+            position={contextMenuState.position}
+            actions={
+              contextMenuState.type === "new"
+                ? newContextMenuActions
+                : getFileContextMenuActions(contextMenuState.file)
+            }
+            onClose={closeContextMenu}
+          />
+        )}
       </div>
     </AuthWrapper>
   );

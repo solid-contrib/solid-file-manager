@@ -28,6 +28,7 @@ interface FileItemProps {
   onDownload?: (file: FileItemData) => void;
   onDelete?: (file: FileItemData) => void;
   isSelected?: boolean;
+  onContextMenu?: (file: FileItemData, event: React.MouseEvent) => void;
 }
 
 export default function FileItem({
@@ -42,6 +43,7 @@ export default function FileItem({
   onDownload,
   onDelete,
   isSelected = false,
+  onContextMenu,
 }: FileItemProps) {
   const [isHovered, setIsHovered] = useState(false);
   const clickCountRef = useRef(0);
@@ -128,6 +130,11 @@ export default function FileItem({
         role="button"
         tabIndex={0}
         aria-label={`${file.type === "folder" ? "Folder" : "File"}: ${file.name}`}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onContextMenu?.(file, event);
+        }}
       >
         {isHovered && (
           <FileItemMenu
@@ -164,6 +171,11 @@ export default function FileItem({
       role="button"
       tabIndex={0}
       aria-label={`${file.type === "folder" ? "Folder" : "File"}: ${file.name}`}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onContextMenu?.(file, event);
+      }}
     >
       <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center sm:h-10 sm:w-10">
         {getFileIcon(file.type, file.mimeType)}
