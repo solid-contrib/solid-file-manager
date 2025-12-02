@@ -4,9 +4,15 @@
   "private": true,
   "license": "MIT OR Apache-2.0",
   "scripts": {
-    "dev": "next dev --port=3001",
-    "build": "next build",
+    "dev": "npm run build:ldo && next dev --port=3001",
+    "build": "npm run build:ldo && npm run build:next",
+    "build:shacl2shex": "npx @jeswr/shacl2shex src/shapes/Model.shaclc src/shapes/Model.shex && node scripts/fix-shex.js",
+    "build:ldo": "npm run build:shacl2shex && npx @ldo/cli build --input ./src/shapes --output ./src/ldo || true && node scripts/generate-ldo-files.js && node -e \"const fs=require('fs');const files=['src/ldo/Model.context.ts','src/ldo/Model.schema.ts','src/ldo/Model.shapeTypes.ts'];const empty=files.filter(f=>!fs.existsSync(f)||fs.statSync(f).size===0);if(empty.length>0){console.error('Files are empty:',empty.join(', '));process.exit(1);}else{console.log('All LDO files generated successfully');}\"",
+    "build:next": "next build",
     "start": "next start",
+    "start:dev": "concurrently \"npm run start:css\" \"npm run start:ldo\" \"npm run dev\"",
+    "start:css": "npx @solid/community-server --port 3000 --loggingLevel info --config .cssconfig.json --rootFilePath data/ --seedConfig seed-config.json",
+    "start:ldo": "nodemon --watch src/shapes --ext shaclc --exec \"npm run build:ldo\"",
     "lint": "eslint"
   },
   "dependencies": {
@@ -14,20 +20,26 @@
     "@inrupt/solid-client": "^1.23.1",
     "@inrupt/solid-client-authn-browser": "^3.1.1",
     "@inrupt/vocab-common-rdf": "^1.0.5",
+    "@ldo/ldo": "^1.0.0-alpha.32",
+    "@ldo/schema-converter-shex": "^1.0.0-alpha.32",
     "jszip": "^3.10.1",
-    "n3": "^1.26.0",
     "next": "16.0.1",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-hot-toast": "^2.6.0"
   },
   "devDependencies": {
+    "@jeswr/shacl2shex": "^1.5.1",
+    "@ldo/cli": "^1.0.0-alpha.32",
+    "@solid/community-server": "^8.0.0-alpha.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^9",
     "eslint": "^9",
     "eslint-config-next": "16.0.1",
+    "nodemon": "^3",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

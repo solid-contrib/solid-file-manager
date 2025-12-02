@@ -1,0 +1,26 @@
+PREFIX acp: <http://www.w3.org/ns/solid/acp#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+shape <#AccessControlResourceShape> -> acp:AccessControlResource {
+    closed=true ignoredProperties=[rdf:type] . 
+    acp:resource IRI [1..1] .
+    acp:accessControl @<#AccessControlShape> [1..*] .
+}
+
+shape <#AccessControlShape> -> acp:AccessControl {
+    closed=true ignoredProperties=[rdf:type] . 
+    acp:apply @<#PolicyShape> [1..1] .
+}
+
+shape <#PolicyShape> -> acp:Policy {
+    closed=true ignoredProperties=[rdf:type] . 
+    acp:allow IRI [1..1] .
+    acp:anyOf <#MatcherShape> [1..1] .
+    acp:agentGroup <#AgentGroupShape> [0..*] .
+    acp:public <#PublicShape> [0..1] .
+}
+
+shape <#MatcherShape> -> acp:Matcher {
+    closed=true ignoredProperties=[rdf:type] . 
+    acp:agent IRI .
+}

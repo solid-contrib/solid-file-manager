@@ -16,6 +16,7 @@ interface FileListProps {
   onFileMove?: (file: FileItemData) => void;
   onFileDownload?: (file: FileItemData) => void;
   onFileDelete?: (file: FileItemData) => void;
+  onFileShare?: (file: FileItemData) => void;
   selectedFileIds: string[];
   onFileContextMenu?: (file: FileItemData, event: React.MouseEvent) => void;
 }
@@ -33,6 +34,7 @@ export default function FileList({
   onFileMove,
   onFileDownload,
   onFileDelete,
+  onFileShare,
   selectedFileIds,
   onFileContextMenu,
 }: FileListProps) {
@@ -73,6 +75,7 @@ export default function FileList({
                 onMove={onFileMove}
                 onDownload={onFileDownload}
                 onDelete={onFileDelete}
+                onShare={onFileShare}
                 isSelected={selectedFileIds.includes(file.id)}
                 onContextMenu={onFileContextMenu}
               />
@@ -93,6 +96,7 @@ export default function FileList({
                 onMove={onFileMove}
                 onDownload={onFileDownload}
                 onDelete={onFileDelete}
+                onShare={onFileShare}
                 isSelected={selectedFileIds.includes(file.id)}
                 onContextMenu={onFileContextMenu}
               />

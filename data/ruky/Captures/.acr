@@ -1,0 +1,17 @@
+<http://localhost:3000/ruky/Captures/.acr> a <http://www.w3.org/ns/solid/acp#AccessControlResource>;
+    <http://www.w3.org/ns/solid/acp#resource> <http://localhost:3000/ruky/Captures/>;
+    <http://www.w3.org/ns/solid/acp#accessControl> _:b9_b6_b6_accessControl_0, _:b9_b6_b6_accessControl_1.
+_:b9_b6_b6_accessControl_0 a <http://www.w3.org/ns/solid/acp#AccessControl>;
+    <http://www.w3.org/ns/solid/acp#apply> _:b9_b6_b6_policy_0.
+_:b9_b6_b6_accessControl_1 a <http://www.w3.org/ns/solid/acp#AccessControl>;
+    <http://www.w3.org/ns/solid/acp#apply> _:b9_b6_b6_policy_1.
+_:b9_b6_b6_policy_0 a <http://www.w3.org/ns/solid/acp#Policy>;
+    <http://www.w3.org/ns/solid/acp#allow> <http://www.w3.org/ns/solid/acp#Read>;
+    <http://www.w3.org/ns/solid/acp#anyOf> _:b9_b6_b6_matcher_0.
+_:b9_b6_b6_policy_1 a <http://www.w3.org/ns/solid/acp#Policy>;
+    <http://www.w3.org/ns/solid/acp#allow> <http://www.w3.org/ns/solid/acp#Write>;
+    <http://www.w3.org/ns/solid/acp#anyOf> _:b9_b6_b6_matcher_1.
+_:b9_b6_b6_matcher_0 a <http://www.w3.org/ns/solid/acp#Matcher>;
+    <http://www.w3.org/ns/solid/acp#agent> <http://localhost:3000/alice/profile/card#me>.
+_:b9_b6_b6_matcher_1 a <http://www.w3.org/ns/solid/acp#Matcher>;
+    <http://www.w3.org/ns/solid/acp#agent> <http://localhost:3000/alice/profile/card#me>.

@@ -27,6 +27,7 @@ interface FileItemProps {
   onMove?: (file: FileItemData) => void;
   onDownload?: (file: FileItemData) => void;
   onDelete?: (file: FileItemData) => void;
+  onShare?: (file: FileItemData) => void;
   isSelected?: boolean;
   onContextMenu?: (file: FileItemData, event: React.MouseEvent) => void;
 }
@@ -42,6 +43,7 @@ export default function FileItem({
   onMove,
   onDownload,
   onDelete,
+  onShare,
   isSelected = false,
   onContextMenu,
 }: FileItemProps) {
@@ -146,6 +148,7 @@ export default function FileItem({
             onCopy={onCopy}
             onMove={onMove}
             onDelete={onDelete}
+            onShare={onShare}
           />
         )}
         <div className="mb-1 flex h-12 w-12 items-center justify-center sm:mb-2 sm:h-16 sm:w-16">
@@ -199,6 +202,7 @@ export default function FileItem({
           onCopy={onCopy}
           onMove={onMove}
           onDelete={onDelete}
+          onShare={onShare}
         />
       )}
     </section>

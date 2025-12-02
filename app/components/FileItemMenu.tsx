@@ -10,6 +10,7 @@ import {
   ArrowRightCircleIcon,
   TrashIcon,
   EyeIcon,
+  ShareIcon,
 } from "@heroicons/react/24/outline";
 import { useClickOutside } from "../lib/hooks";
 import { FileItemData } from "./FileItem";
@@ -22,6 +23,7 @@ interface FileItemMenuProps {
   onMove?: (file: FileItemData) => void;
   onDelete?: (file: FileItemData) => void;
   onPreview?: (file: FileItemData) => void;
+  onShare?: (file: FileItemData) => void;
   position?: "top-right" | "right";
 }
 
@@ -33,6 +35,7 @@ export default function FileItemMenu({
   onMove,
   onDelete,
   onPreview,
+  onShare,
   position = "right",
 }: FileItemMenuProps) {
   const [showMenu, setShowMenu] = useState(false);
@@ -101,6 +104,13 @@ export default function FileItemMenu({
       label: "Copy",
       icon: DocumentDuplicateIcon,
       action: onCopy,
+      className: "text-gray-700 hover:bg-gray-100 border-b border-gray-100",
+      iconClassName: "text-gray-500",
+    },
+    {
+      label: "Share",
+      icon: ShareIcon,
+      action: onShare,
       className: "text-gray-700 hover:bg-gray-100 border-b border-gray-100",
       iconClassName: "text-gray-500",
     },
