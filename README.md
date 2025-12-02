@@ -47,12 +47,13 @@ This application provides a user-friendly interface for managing files and folde
 - **Google Drive-like Interface**: Clean, modern interface with familiar UX patterns
 - **Left Sidebar**: Displays all available file manager menus
 - **File Item Display**: Shows files and folders with appropriate icons, metadata, and context menus
-- **Context Menus**: Hover on folder/file and click the menu button to access the file operations menu dropdown (Rename, Copy, Move, Delete, Preview, Download)
+- **Context Menus**: Hover on folder/file and click the menu button to access the file operations menu dropdown (Rename, Copy, Move, Delete, Preview, Download, Share)
 - **Modals & Dialogs**: 
   - Rename dialog for renaming resources
   - Move dialog for selecting destination folder
   - Preview modal for viewing files
-  - Permissions dialog (UI ready)
+  - Share dialog for sharing files/folders with WebIDs (with contact autocomplete)
+  - Share success modal for displaying shared resource URLs
 - **Loading States**: Loading spinners and error displays throughout
 - **Toast Notifications**: User feedback for all operations
 - **Minimal Design**: Black, white, and light purple color scheme
@@ -64,8 +65,10 @@ This application provides a user-friendly interface for managing files and folde
 - **Profile Utilities**: WebID profile fetching and parsing utilities
 - **URL Utilities**: URL state management, encoding/decoding, and path resolution
 - **Binary File Detection**: Automatic detection of binary/system files (e.g., `.DS_Store`) to prevent unnecessary RDF conversion attempts
+- **ACP Utilities**: ACP sharing operations using LDO for type-safe RDF parsing and N3.js for ACR creation/updates
+- **Contact Utilities**: Fetching and parsing user contacts from WebID profiles for sharing autocomplete
 - **Error Handling**: Comprehensive error handling with user-friendly messages
-- **Type Safety**: Full TypeScript support throughout
+- **Type Safety**: Full TypeScript support throughout, including LDO-generated types from SHACL shapes
 - **Cache-Busting**: Automatic cache-busting for container listings after uploads/deletes to ensure fresh data
 
 ## Tech Stack
@@ -75,6 +78,7 @@ This application provides a user-friendly interface for managing files and folde
 - **Styling**: Tailwind CSS 4
 - **Language**: TypeScript
 - **Solid SDK**: [@inrupt/solid-client-js](https://github.com/inrupt/solid-client-js)
+- **LDO (Linked Data Objects)**: [@ldo/ldo](https://github.com/o-development/ldo) for type-safe ACP operations
 - **Icons**: [@heroicons/react](https://heroicons.com/)
 - **Notifications**: [react-hot-toast](https://react-hot-toast.com/)
 
@@ -98,12 +102,19 @@ cd solid-file-manager
 npm install
 ```
 
-3. Run the development server:
+3. Build LDO types (automatically runs before dev server):
+```bash
+npm run build:ldo
+```
+
+4. Run the development server:
 ```bash
 npm run dev
 ```
 
-4. Open [http://localhost:3001](http://localhost:3001) in your browser.
+5. Open [http://localhost:3001](http://localhost:3001) in your browser.
+
+**Note**: For ACP sharing functionality, you'll need to run a local Community Solid Server. See `README-CSS.md` for setup instructions.
 
 ## Development Setup
 
@@ -146,7 +157,8 @@ solid-file-manager/
 │   │   ├── NewFolderDialog.tsx # Dialog for creating folders
 │   │   ├── RenameDialog.tsx  # Dialog for renaming resources
 │   │   ├── MoveDialog.tsx   # Dialog for moving files
-│   │   ├── PreviewModal.tsx # Modal for previewing files
+│   │   ├── ShareDialog.tsx  # Dialog for sharing files/folders with WebIDs
+│   │   ├── ShareSuccessModal.tsx # Modal showing success after sharing
 │   │   ├── FileUploadHandler.tsx # File upload component
 │   │   ├── ProfileIcon.tsx  # User profile icon and logout
 │   │   ├── LoginPage.tsx   # Login page
@@ -172,12 +184,26 @@ solid-file-manager/
 │   │       ├── urlStateUtils.ts   # URL state management
 │   │       ├── urlUtils.ts        # URL utilities and binary file detection
 │   │       ├── fileTypeUtils.ts   # File type detection
+│   │       ├── acpUtils.ts        # ACP sharing utilities (LDO + N3.js)
+│   │       ├── contactUtils.ts    # Contact fetching for sharing
 │   │       └── ...
 │   ├── page.tsx             # Main page component
 │   ├── layout.tsx           # Root layout
 │   └── globals.css           # Global styles
+├── src/
+│   ├── shapes/              # SHACL Compact Syntax shape definitions
+│   │   └── Model.shaclc     # ACP shape definitions
+│   └── ldo/                 # Generated LDO types (auto-generated)
+│       ├── Model.typings.ts # TypeScript interfaces
+│       ├── Model.shapeTypes.ts # Shape type definitions
+│       ├── Model.context.ts # JSON-LD context
+│       └── Model.schema.ts  # ShEx schema
+├── scripts/
+│   ├── fix-shex.js          # Post-process ShEx output
+│   └── generate-ldo-files.js # Generate LDO files from ShEx
 ├── public/                   # Static assets
-└── README.md
+├── README.md
+└── README-CSS.md            # Local CSS setup instructions
 ```
 
 ## Solid Protocol Integration
@@ -185,7 +211,13 @@ solid-file-manager/
 This application integrates with Solid using:
 
 - **Solid Protocol**: [https://solidproject.org/TR/protocol#resources](https://solidproject.org/TR/protocol#resources)
-- **ACP (Access Control Policies)**: [https://solid.github.io/authorization-panel/acp-specification/](https://solid.github.io/authorization-panel/acp-specification/) (UI ready, full integration pending)
+- **ACP (Access Control Policies)**: [https://solid.github.io/authorization-panel/acp-specification/](https://solid.github.io/authorization-panel/acp-specification/)
+  - Full ACP sharing implementation with WebID-based access control
+  - Uses LDO (Linked Data Objects) for type-safe ACR parsing
+  - Uses N3.js for ACR creation and updates
+  - Supports Editor (Read + Write) and Viewer (Read) access levels
+  - Automatic ACR discovery via Link headers or `.acr` convention
+  - Contact autocomplete from WebID profiles (`foaf:knows`)
 - **Storage Root Discovery**: 
   - Uses `pim:storage` predicate from WebID profile
   - Uses `solid:storage` predicate as fallback
@@ -199,6 +231,11 @@ This application integrates with Solid using:
   - Recursive folder operations for copy, move, and delete
   - Automatic handling of binary files and system files
 - **SDK**: [@inrupt/solid-client-js](https://github.com/inrupt/solid-client-js)
+- **LDO Type Generation**: 
+  - SHACL Compact Syntax shapes defined in `src/shapes/Model.shaclc`
+  - Automatically converted to ShEx via `@jeswr/shacl2shex`
+  - TypeScript types generated via `@ldo/cli` and custom scripts
+  - Types are regenerated on `npm run dev` and `npm run build`
 
 ## Design Principles
 
@@ -213,6 +250,7 @@ This application integrates with Solid using:
 - [Solid Protocol Specification](https://solidproject.org/TR/protocol)
 - [ACP Specification](https://solid.github.io/authorization-panel/acp-specification/)
 - [Inrupt Solid Client JS](https://github.com/inrupt/solid-client-js)
+- [LDO (Linked Data Objects)](https://github.com/o-development/ldo)
 - [Community Solid Server](https://github.com/CommunitySolidServer/CommunitySolidServer)
 
 ## License
