@@ -8,6 +8,7 @@ import Button from "./shared/Button";
 const OIDC_ISSUERS = [
   { label: "Solid Community", value: "https://solidcommunity.net/" },
   { label: "Inrupt", value: "https://login.inrupt.com" },
+  { label: "Local CSS (ACP)", value: "http://localhost:3000/" },
 ] as const;
 
 export default function LoginPage() {

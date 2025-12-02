@@ -7,7 +7,8 @@ import Input from "./shared/Input";
 import { FileItemData } from "./FileItem";
 import { fetchUserContacts, Contact } from "../lib/helpers/contactUtils";
 import { fetchAndParseProfile, extractNameAndEmail } from "../lib/helpers/profileUtils";
-import { UserIcon, MagnifyingGlassIcon, LockClosedIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { getResourceAccessList } from "../lib/helpers/acpUtils";
+import { UserIcon, MagnifyingGlassIcon, LockClosedIcon, XMarkIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
 import LoadingSpinner from "./shared/LoadingSpinner";
 
 export type AccessLevel = "Editor" | "Viewer";
@@ -16,7 +17,7 @@ interface ShareDialogProps {
   isOpen: boolean;
   onClose: () => void;
   file: FileItemData | null;
-  onShare?: (webId: string, accessLevel: AccessLevel) => void;
+  onShare?: (webIds: string[], accessLevel: AccessLevel) => Promise<void>;
 }
 
 interface PersonChip {
@@ -39,12 +40,15 @@ export default function ShareDialog({
   const [selectedAccessLevel, setSelectedAccessLevel] = useState<AccessLevel>("Editor");
   const [peopleChips, setPeopleChips] = useState<PersonChip[]>([]);
   const [isAddingWebId, setIsAddingWebId] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [accessList, setAccessList] = useState<Array<{ webId: string; accessModes: string[] }> | null>(null);
+  const [isLoadingAccessList, setIsLoadingAccessList] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Fetch contacts when dialog opens
+  // Fetch contacts and access list when dialog opens
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && file) {
       setIsLoadingContacts(true);
       fetchUserContacts()
         .then((fetchedContacts) => {
@@ -55,6 +59,19 @@ export default function ShareDialog({
           console.error("Failed to fetch contacts:", error);
           setIsLoadingContacts(false);
         });
+
+      // Load current access list
+      setIsLoadingAccessList(true);
+      const resourceUrl = file.type === "folder" && !file.url.endsWith("/") ? file.url + "/" : file.url;
+      getResourceAccessList(resourceUrl)
+        .then((list) => {
+          setAccessList(list);
+          setIsLoadingAccessList(false);
+        })
+        .catch((error) => {
+          console.error("Failed to fetch access list:", error);
+          setIsLoadingAccessList(false);
+        });
     } else {
       // Reset state when dialog closes
       setWebIdInput("");
@@ -62,8 +79,9 @@ export default function ShareDialog({
       setFilteredContacts([]);
       setSelectedAccessLevel("Editor");
       setPeopleChips([]);
+      setAccessList(null);
     }
-  }, [isOpen]);
+  }, [isOpen, file]);
 
   // Filter contacts based on input
   useEffect(() => {
@@ -176,16 +194,31 @@ export default function ShareDialog({
     setPeopleChips(peopleChips.filter((p) => p.webId !== webId));
   };
 
-  const handleDone = () => {
-    // For now, just close the dialog
-    // The actual sharing logic will be implemented later
+  const handleDone = async () => {
     if (onShare && peopleChips.length > 0) {
-      // Share with all people using the selected access level
-      peopleChips.forEach((chip) => {
-        onShare(chip.webId, selectedAccessLevel);
-      });
+      setIsSharing(true);
+      try {
+        // Share with all people using the selected access level
+        const webIds = peopleChips.map((chip) => chip.webId);
+        await onShare(webIds, selectedAccessLevel);
+        
+        // Refresh access list after sharing
+        if (file) {
+          const resourceUrl = file.type === "folder" && !file.url.endsWith("/") ? file.url + "/" : file.url;
+          const updatedList = await getResourceAccessList(resourceUrl);
+          setAccessList(updatedList);
+        }
+        
+        onClose();
+      } catch (error) {
+        console.error("Failed to share:", error);
+        // Error is handled by the parent component via toast
+      } finally {
+        setIsSharing(false);
+      }
+    } else {
+      onClose();
     }
-    onClose();
   };
 
   const getDisplayName = (chip: PersonChip) => {
@@ -213,8 +246,8 @@ export default function ShareDialog({
 
   const footer = (
     <div className="flex justify-end">
-      <Button onClick={handleDone} variant="primary">
-        Done
+      <Button onClick={handleDone} variant="primary" disabled={isSharing || peopleChips.length === 0}>
+        {isSharing ? "Sharing..." : "Done"}
       </Button>
     </div>
   );
@@ -337,6 +370,40 @@ export default function ShareDialog({
             </select>
           </div>
         </div>
+
+        {/* People with access section */}
+        {accessList && accessList.length > 0 && (
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-gray-700">People with access</h3>
+            <div className="space-y-2">
+              {isLoadingAccessList ? (
+                <div className="flex items-center justify-center py-2">
+                  <LoadingSpinner />
+                </div>
+              ) : (
+                accessList.map((access, index) => {
+                  const hasWrite = access.accessModes.some((mode) => mode.includes("Write"));
+                  const accessLevel = hasWrite ? "Editor" : "Viewer";
+                  
+                  return (
+                    <div
+                      key={access.webId || index}
+                      className="flex items-center justify-between rounded-md border border-gray-200 bg-gray-50 px-3 py-2"
+                    >
+                      <div className="flex items-center gap-2">
+                        <CheckCircleIcon className="h-4 w-4 text-green-500" />
+                        <span className="text-sm text-gray-700 truncate max-w-xs">
+                          {access.webId}
+                        </span>
+                      </div>
+                      <span className="text-xs text-gray-500">{accessLevel}</span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
 
         {isLoadingContacts && (
           <div className="flex items-center justify-center py-4">

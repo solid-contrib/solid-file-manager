@@ -147,7 +147,6 @@ solid-file-manager/
 │   │   ├── RenameDialog.tsx  # Dialog for renaming resources
 │   │   ├── MoveDialog.tsx   # Dialog for moving files
 │   │   ├── PreviewModal.tsx # Modal for previewing files
-│   │   ├── PermissionsDialog.tsx # Sharing/permissions dialog
 │   │   ├── FileUploadHandler.tsx # File upload component
 │   │   ├── ProfileIcon.tsx  # User profile icon and logout
 │   │   ├── LoginPage.tsx   # Login page

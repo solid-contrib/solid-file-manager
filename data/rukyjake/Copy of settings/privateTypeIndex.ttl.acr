@@ -1,0 +1,39 @@
+<http://localhost:3000/rukyjake/Copy%20of%20settings/privateTypeIndex.ttl.acr> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/ns/solid/acp#AccessControlResource> .
+<http://localhost:3000/rukyjake/Copy%20of%20settings/privateTypeIndex.ttl.acr> <http://www.w3.org/ns/solid/acp#resource> <http://localhost:3000/rukyjake/Copy%20of%20settings/privateTypeIndex.ttl> .
+<http://localhost:3000/rukyjake/Copy%20of%20settings/privateTypeIndex.ttl.acr> <http://www.w3.org/ns/solid/acp#accessControl> _:b7_accessControl_0 .
+<http://localhost:3000/rukyjake/Copy%20of%20settings/privateTypeIndex.ttl.acr> <http://www.w3.org/ns/solid/acp#accessControl> _:b7_accessControl_1 .
+<http://localhost:3000/rukyjake/Copy%20of%20settings/privateTypeIndex.ttl.acr> <acp:resource> <http://localhost:3000/rukyjake/Copy%20of%20settings/privateTypeIndex.ttl> .
+_:b7_matcher_0 <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/ns/solid/acp#Matcher> .
+_:b7_matcher_0 <http://www.w3.org/ns/solid/acp#agent> <http://localhost:3000/alice/profile/card#me> .
+_:b7_policy_0 <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/ns/solid/acp#Policy> .
+_:b7_policy_0 <http://www.w3.org/ns/solid/acp#allow> <http://www.w3.org/ns/solid/acp#Read> .
+_:b7_policy_0 <http://www.w3.org/ns/solid/acp#anyOf> _:b7_matcher_0 .
+_:b7_accessControl_0 <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/ns/solid/acp#AccessControl> .
+_:b7_accessControl_0 <http://www.w3.org/ns/solid/acp#apply> _:b7_policy_0 .
+_:b7_matcher_1 <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/ns/solid/acp#Matcher> .
+_:b7_matcher_1 <http://www.w3.org/ns/solid/acp#agent> <http://localhost:3000/alice/profile/card#me> .
+_:b7_policy_1 <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/ns/solid/acp#Policy> .
+_:b7_policy_1 <http://www.w3.org/ns/solid/acp#allow> <http://www.w3.org/ns/solid/acp#Write> .
+_:b7_policy_1 <http://www.w3.org/ns/solid/acp#anyOf> _:b7_matcher_1 .
+_:b7_accessControl_1 <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/ns/solid/acp#AccessControl> .
+_:b7_accessControl_1 <http://www.w3.org/ns/solid/acp#apply> _:b7_policy_1 .
+
+@prefix acp: <http://www.w3.org/ns/solid/acp#>.
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>.
+
+_:matcher_0 a acp:Matcher;
+    acp:agent <http://localhost:3000/charlie/profile/card#me>.
+_:policy_0 a acp:Policy;
+    acp:allow acp:Read;
+    acp:anyOf _:matcher_0.
+_:accessControl_0 a acp:AccessControl;
+    acp:apply _:policy_0.
+<http://localhost:3000/rukyjake/Copy%20of%20settings/privateTypeIndex.ttl.acr> acp:accessControl _:accessControl_0.
+_:matcher_1 a acp:Matcher;
+    acp:agent <http://localhost:3000/charlie/profile/card#me>.
+_:policy_1 a acp:Policy;
+    acp:allow acp:Write;
+    acp:anyOf _:matcher_1.
+_:accessControl_1 a acp:AccessControl;
+    acp:apply _:policy_1.
+<http://localhost:3000/rukyjake/Copy%20of%20settings/privateTypeIndex.ttl.acr> acp:accessControl _:accessControl_1.

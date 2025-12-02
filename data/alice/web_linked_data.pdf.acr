@@ -1,0 +1,17 @@
+<http://localhost:3000/alice/web_linked_data.pdf.acr> a <http://www.w3.org/ns/solid/acp#AccessControlResource>;
+    <http://www.w3.org/ns/solid/acp#resource> <http://localhost:3000/alice/web_linked_data.pdf>;
+    <http://www.w3.org/ns/solid/acp#accessControl> _:accessControl_0, _:accessControl_1.
+_:accessControl_0 a <http://www.w3.org/ns/solid/acp#AccessControl>;
+    <http://www.w3.org/ns/solid/acp#apply> _:policy_0.
+_:policy_0 a <http://www.w3.org/ns/solid/acp#Policy>;
+    <http://www.w3.org/ns/solid/acp#allow> <http://www.w3.org/ns/solid/acp#Read>;
+    <http://www.w3.org/ns/solid/acp#anyOf> _:matcher_0.
+_:matcher_0 a <http://www.w3.org/ns/solid/acp#Matcher>;
+    <http://www.w3.org/ns/solid/acp#agent> <https://ruky-oritsedere.solidcommunity.net/profile/card#me>.
+_:accessControl_1 a <http://www.w3.org/ns/solid/acp#AccessControl>;
+    <http://www.w3.org/ns/solid/acp#apply> _:policy_1.
+_:policy_1 a <http://www.w3.org/ns/solid/acp#Policy>;
+    <http://www.w3.org/ns/solid/acp#allow> <http://www.w3.org/ns/solid/acp#Write>;
+    <http://www.w3.org/ns/solid/acp#anyOf> _:matcher_1.
+_:matcher_1 a <http://www.w3.org/ns/solid/acp#Matcher>;
+    <http://www.w3.org/ns/solid/acp#agent> <https://ruky-oritsedere.solidcommunity.net/profile/card#me>.

@@ -19,13 +19,13 @@ import Header from "./Header";
 import Sidebar from "./Sidebar";
 import Breadcrumb from "./Breadcrumb";
 import FileList from "./FileList";
-import PermissionsDialog, { Permission } from "./PermissionsDialog";
 import NewFolderDialog from "./NewFolderDialog";
 import RenameDialog from "./RenameDialog";
 import PreviewModal from "./PreviewModal";
 import MoveDialog from "./MoveDialog";
 import DeleteConfirmDialog from "./DeleteConfirmDialog";
 import ShareDialog, { AccessLevel } from "./ShareDialog";
+import ShareSuccessModal from "./ShareSuccessModal";
 import FileUploadHandler from "./FileUploadHandler";
 import ContextMenu, { ContextMenuAction } from "./ContextMenu";
 import { FileItemData } from "./FileItem";
@@ -48,6 +48,7 @@ import {
   hasFiles as hasFilesInDrag,
   isUnsupportedFolderDrag,
 } from "../lib/helpers";
+import { shareResourceWithAcp } from "../lib/helpers/acpUtils";
 import {
   getUrlFromSearchParams,
   getUrlFromStorage,
@@ -76,10 +77,6 @@ export default function FileManager() {
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [permissionsDialogOpen, setPermissionsDialogOpen] = useState(false);
-  const [selectedFileForPermissions, setSelectedFileForPermissions] =
-    useState<FileItemData | null>(null);
-  const [permissions, setPermissions] = useState<Permission[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
   const [fileUploadTrigger, setFileUploadTrigger] = useState(0);
@@ -99,6 +96,9 @@ export default function FileManager() {
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [fileToShare, setFileToShare] = useState<FileItemData | null>(null);
   const [contextMenuState, setContextMenuState] = useState<ContextMenuState | null>(null);
+  const [showShareSuccessModal, setShowShareSuccessModal] = useState(false);
+  const [sharedResourceUrl, setSharedResourceUrl] = useState<string>("");
+  const [sharedResourceName, setSharedResourceName] = useState<string>("");
 
   const closeContextMenu = () => setContextMenuState(null);
 
@@ -401,10 +401,38 @@ export default function FileManager() {
     setShowShareDialog(true);
   };
 
-  const handleShareConfirm = async (webId: string, accessLevel: AccessLevel) => {
-    // TODO: Implement actual sharing logic
-    console.log(`Sharing ${fileToShare?.name} with ${webId} as ${accessLevel}`);
-    toast.success(`Shared with ${webId} as ${accessLevel}`);
+  const handleShareConfirm = async (webIds: string[], accessLevel: AccessLevel) => {
+    if (!fileToShare) {
+      return;
+    }
+
+    const toastId = toast.loading(`Sharing "${fileToShare.name}"...`);
+    try {
+      // Get the resource URL - ensure it has a trailing slash for containers
+      let resourceUrl = fileToShare.url;
+      if (fileToShare.type === "folder" && !resourceUrl.endsWith("/")) {
+        resourceUrl += "/";
+      }
+
+      await shareResourceWithAcp(resourceUrl, webIds, accessLevel);
+
+      toast.success(`Successfully shared "${fileToShare.name}"`, { id: toastId });
+      setShowShareDialog(false);
+      
+      // Show success modal with resource URL
+      setSharedResourceUrl(resourceUrl);
+      setSharedResourceName(fileToShare.name);
+      setShowShareSuccessModal(true);
+      setFileToShare(null);
+    } catch (error) {
+      console.error("Failed to share resource:", error);
+      toast.error(
+        error instanceof Error
+          ? `Failed to share: ${error.message}`
+          : "Failed to share resource",
+        { id: toastId }
+      );
+    }
   };
 
   const handleDragEnter = (event: React.DragEvent<HTMLElement>) => {
@@ -711,41 +739,6 @@ export default function FileManager() {
     }
   };
 
-  const handleShareClickForFile = (file: FileItemData) => {
-    setSelectedFileForPermissions(file);
-    setPermissionsDialogOpen(true);
-    setPermissions([
-      {
-        id: "1",
-        type: "user",
-        webId: "https://id.inrupt.com/user",
-        name: "You",
-        role: "owner",
-      },
-    ]);
-  };
-
-  const handleAddPermission = async (webId: string, role: "viewer" | "editor") => {
-    const newPermission: Permission = {
-      id: Date.now().toString(),
-      type: "user",
-      webId,
-      name: webId.split("/").pop() || webId,
-      role,
-    };
-    setPermissions((prev) => [...prev, newPermission]);
-  };
-
-  const handleRemovePermission = (permissionId: string) => {
-    setPermissions((prev) => prev.filter((p) => p.id !== permissionId));
-  };
-
-  const handleUpdatePermission = (permissionId: string, role: "viewer" | "editor") => {
-    setPermissions((prev) =>
-      prev.map((p) => (p.id === permissionId ? { ...p, role } : p))
-    );
-  };
-
   if (isLoadingStorages) {
     return (
       <AuthWrapper>
@@ -831,7 +824,7 @@ export default function FileManager() {
             </div>
             {isBrowsing ? (
               <div className="flex flex-1 items-center justify-center">
-                <LoadingSpinner size="md" text="Loading folder contents..." />
+                    <LoadingSpinner size="md" text="Loading folder contents..." />
               </div>
             ) : (
               <div className="flex-1 min-h-0 overflow-hidden">
@@ -854,20 +847,7 @@ export default function FileManager() {
             )}
           </main>
         </div>
-        {selectedFileForPermissions && (
-          <PermissionsDialog
-            isOpen={permissionsDialogOpen}
-            onClose={() => {
-              setPermissionsDialogOpen(false);
-              setSelectedFileForPermissions(null);
-            }}
-            fileName={selectedFileForPermissions.name}
-            permissions={permissions}
-            onAddPermission={handleAddPermission}
-            onRemovePermission={handleRemovePermission}
-            onUpdatePermission={handleUpdatePermission}
-          />
-        )}
+        
         <NewFolderDialog
           isOpen={showNewFolderDialog}
           onClose={() => setShowNewFolderDialog(false)}
@@ -920,6 +900,16 @@ export default function FileManager() {
           }}
           file={fileToShare}
           onShare={handleShareConfirm}
+        />
+        <ShareSuccessModal
+          isOpen={showShareSuccessModal}
+          onClose={() => setShowShareSuccessModal(false)}
+          resourceUrl={sharedResourceUrl}
+          resourceName={sharedResourceName}
+          onOpenInApp={(url) => {
+            // Navigate to the resource URL in the file manager
+            updateUrl(url);
+          }}
         />
         {isDragActive && (
           <div className="pointer-events-none fixed inset-0 z-40 flex flex-col items-center justify-center bg-purple-500/10">
