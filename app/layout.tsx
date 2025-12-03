@@ -16,6 +16,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Solid File Manager",
   description: "A Google Drive-like file manager for Solid Pods",
+  icons: {
+    icon: "/solid.svg",
+    shortcut: "/solid.svg",
+    apple: "/solid.svg",
+  },
 };
 
 export default function RootLayout({
