@@ -81,6 +81,7 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
             let name = extractNameFromUrl(absoluteUrl);
             let lastModified: Date | undefined;
             let size: number | undefined;
+            let mimeType: string | undefined;
 
             // Check RDF metadata from container dataset- using getThing because it reads a resource (thing) from the RDF dataset to access properties like dcterms:title, rdfs:label, dcterms:modified, posix:size
             const itemThing = getThing(containerDataset, absoluteUrl);
@@ -132,6 +133,20 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
                 // otherwise only treat as container if URL explicitly ends with "/"
                 finalIsContainer = isContainerUrl;
               }
+
+              // Extract MIME type from IANA media type URIs in RDF types
+              // Pattern: http://www.w3.org/ns/iana/media-types/{mime-type}#Resource
+              // Example: http://www.w3.org/ns/iana/media-types/image/png#Resource -> image/png
+              if (!finalIsContainer && !mimeType) {
+                const ianaMediaTypePattern = /^http:\/\/www\.w3\.org\/ns\/iana\/media-types\/(.+)#Resource$/;
+                for (const type of types) {
+                  const match = type.match(ianaMediaTypePattern);
+                  if (match && match[1]) {
+                    mimeType = match[1];
+                    break; // Use the first IANA media type found
+                  }
+                }
+              }
             } else {
               // If no RDF metadata available
               if (isContainerUrl) {
@@ -143,6 +158,28 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
               }
             }
 
+            // For non-folder files, only fetch content-type if not already found in RDF metadata
+            if (!finalIsContainer && !mimeType) {
+              try {
+                const headResponse = await cacheBustingFetch(absoluteUrl, {
+                  method: "HEAD",
+                  headers: {
+                    Accept: "*/*",
+                  },
+                });
+                
+                if (headResponse.ok) {
+                  const contentType = headResponse.headers.get("Content-Type");
+                  if (contentType) {
+                    // Extract just the MIME type (remove charset, etc.)
+                    mimeType = contentType.split(";")[0].trim();
+                  }
+                }
+              } catch (err) {
+                console.debug(`Could not fetch content-type for ${absoluteUrl}:`, err);
+              }
+            }
+
             fileItems.push({
               id: absoluteUrl,
               name,
@@ -150,6 +187,7 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
               url: absoluteUrl,
               lastModified,
               size,
+              mimeType,
             });
           } catch (err) {
             console.error(`Failed to process item ${itemUrl}:`, err);
