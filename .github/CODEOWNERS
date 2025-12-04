@@ -2,7 +2,7 @@
 # This file defines who is responsible for code in this repository.
 # All changes require approval from at least one member of the odi-team.
 
-# All files in the repository are owned by the ODI Team in the Solid organization
-# This ensures all PRs require review from the team
-* @solid/odi-team
+# All files in the repository are owned by the ODI Team members
+# This ensures all PRs require review from at least one team member
+* @PreciousOritsedere @jeswr @hkir-dev @matthieubosquet @langsamu
 
