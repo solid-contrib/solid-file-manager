@@ -36,17 +36,16 @@ export default function Header({ onMenuClick, sidebarOpen = false }: HeaderProps
           )}
 
           {/* Logo/App Name */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="max-w-[250px] max-h-[200px] w-full h-full flex items-center justify-center flex-shrink-0">
             <Image
-              src="/solid.svg"
+              src="/file-manager-logo.svg"
               alt="Solid Logo"
               width={24}
               height={24}
-              className="h-6 w-6 flex-shrink-0 sm:h-7 sm:w-7"
+              className="w-full h-full object-cover "
               priority
               aria-hidden="true"
             />
-            <h1 className="text-sm font-medium text-black sm:text-lg">Solid File Manager</h1>
           </div>
 
           {/* Action Buttons */}

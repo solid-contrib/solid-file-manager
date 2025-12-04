@@ -40,14 +40,14 @@ export default function LoginPage() {
         aria-label="Branding section"
       >
         <div className="max-w-md">
-          <header className="mb-8">
-            <div className="mb-8">
+          <header className="flex flex-col items-center justify-center gap-2">
+            <div className="flex items-center justify-center w-[200px] h-[200px]">
               <Image
-                src="/solid.svg"
-                alt="Solid Logo"
-                width={80}
-                height={80}
-                className="mb-6"
+                src="/file-manager-logo.svg"
+                alt="Solid File Manager Logo"
+                width={60}
+                height={60}
+                className="w-full h-full object-cover"
                 priority
               />
             </div>
@@ -66,13 +66,14 @@ export default function LoginPage() {
       >
         <div className="w-full max-w-md">
           {/* Mobile logo */}
-          <header className="mb-8 lg:hidden">
-            <div className="mb-6 flex justify-center">
+          <header className="mb-8 lg:hidden flex flex-col items-center justify-center">
+            <div className="mb-2 flex items-center justify-center w-[200px] h-[200px]">
               <Image
-                src="/solid.svg"
-                alt="Solid Logo"
+                src="/file-manager-logo.svg"
+                alt="Solid File Manager Logo"
                 width={60}
                 height={60}
+                className="w-full h-full object-cover"
                 priority
               />
             </div>
