@@ -1,0 +1,41 @@
+<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="purpleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#9D4EDD;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7C4DFF;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- White circular background -->
+  <circle cx="32" cy="32" r="30" fill="white"/>
+  
+  <!-- Interlocking Pods/Files Icon - Centered and scaled larger for favicon -->
+  <!-- Center the icon by adjusting for its bounding box center (~2, -0.5) -->
+  <g transform="translate(32, 32) translate(-3.2, 0.8) scale(1.6)">
+    <!-- Three rounded squares representing interconnected pods/files -->
+    <!-- Back pod (lighter) -->
+    <rect x="-12" y="-7" width="18" height="18" rx="4" 
+          fill="#9D4EDD" opacity="0.4"
+          transform="rotate(-10 -3 2)"/>
+    
+    <!-- Middle pod -->
+    <rect x="-5" y="-12" width="18" height="18" rx="4" 
+          fill="#8B5CF6" opacity="0.7"
+          transform="rotate(5 4 -3.5)"/>
+    
+    <!-- Front pod (most prominent) -->
+    <rect x="-2" y="-10" width="18" height="18" rx="4" 
+          fill="url(#purpleGrad)"/>
+    
+    <!-- Connection dots showing data flow between pods -->
+    <circle cx="-6" cy="2" r="1.2" fill="#C4B5FD"/>
+    <circle cx="1" cy="-2" r="1.2" fill="#C4B5FD"/>
+    <circle cx="8" cy="4" r="1.2" fill="#C4B5FD"/>
+    
+    <!-- Minimalist file lines on front pod -->
+    <line x1="1" y1="-4" x2="12" y2="-4" stroke="white" stroke-width="1.2" stroke-linecap="round" opacity="0.9"/>
+    <line x1="1" y1="-1" x2="10" y2="-1" stroke="white" stroke-width="1.2" stroke-linecap="round" opacity="0.9"/>
+    <line x1="1" y1="2" x2="11" y2="2" stroke="white" stroke-width="1.2" stroke-linecap="round" opacity="0.9"/>
+  </g>
+</svg>
+
