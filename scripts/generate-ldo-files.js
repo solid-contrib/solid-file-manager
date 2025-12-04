@@ -150,18 +150,113 @@ ${shapeTypeImports}
 
 ${shapeTypeExports}
 `;
+
+  // Generate typings.ts - TypeScript interfaces for the shapes
+  const typingsContent = `import { LdoJsonldContext, LdSet } from "@ldo/ldo";
+
+/**
+ * =============================================================================
+ * Typescript Typings for ${fileName}
+ * =============================================================================
+ */
+
+/**
+ * AccessControlResource Type
+ */
+export interface AccessControlResource {
+  "@id"?: string;
+  "@context"?: LdoJsonldContext;
+  type: LdSet<{
+    "@id": "AccessControlResource";
+  }>;
+  resource: {
+    "@id": string;
+  };
+  accessControl: LdSet<AccessControl>;
+}
+
+/**
+ * AccessControl Type
+ */
+export interface AccessControl {
+  "@id"?: string;
+  "@context"?: LdoJsonldContext;
+  type: LdSet<{
+    "@id": "AccessControl";
+  }>;
+  apply: Policy;
+}
+
+/**
+ * Policy Type
+ */
+export interface Policy {
+  "@id"?: string;
+  "@context"?: LdoJsonldContext;
+  type: LdSet<{
+    "@id": "Policy";
+  }>;
+  allow:
+    | {
+        "@id": "Read";
+      }
+    | {
+        "@id": "Write";
+      };
+  anyOf: Matcher;
+  agentGroup?: LdSet<AgentGroup>;
+  public?: Public;
+}
+
+/**
+ * Matcher Type
+ */
+export interface Matcher {
+  "@id"?: string;
+  "@context"?: LdoJsonldContext;
+  type: LdSet<{
+    "@id": "Matcher";
+  }>;
+  agent: {
+    "@id": string;
+  };
+}
+
+/**
+ * AgentGroup Type
+ */
+export interface AgentGroup {
+  "@id"?: string;
+  "@context"?: LdoJsonldContext;
+  type: LdSet<{
+    "@id": "AgentGroup";
+  }>;
+}
+
+/**
+ * Public Type
+ */
+export interface Public {
+  "@id"?: string;
+  "@context"?: LdoJsonldContext;
+  type: LdSet<{
+    "@id": "Public";
+  }>;
+}
+`;
   
     // Write files - always overwrite to ensure they're not empty
     const contextPath = path.join(outputDir, `${fileName}.context.ts`);
     const schemaPath = path.join(outputDir, `${fileName}.schema.ts`);
     const shapeTypesPath = path.join(outputDir, `${fileName}.shapeTypes.ts`);
+    const typingsPath = path.join(outputDir, `${fileName}.typings.ts`);
     
     // Check if files exist and are empty - if so, delete them to force regeneration
-    [contextPath, schemaPath, shapeTypesPath].forEach(filePath => {
+    [contextPath, schemaPath, shapeTypesPath, typingsPath].forEach(filePath => {
       if (fs.existsSync(filePath)) {
         const stats = fs.statSync(filePath);
         if (stats.size === 0) {
-          console.log(`⚠️  Deleting empty file: ${filePath}`);
+          console.log(`Deleting empty file: ${filePath}`);
           fs.unlinkSync(filePath);
         }
       }
@@ -171,18 +266,20 @@ ${shapeTypeExports}
       fs.writeFileSync(contextPath, contextContent, 'utf8');
       fs.writeFileSync(schemaPath, schemaContent, 'utf8');
       fs.writeFileSync(shapeTypesPath, shapeTypesContent, 'utf8');
+      fs.writeFileSync(typingsPath, typingsContent, 'utf8');
       
       // Verify files were written correctly
       const contextSize = fs.statSync(contextPath).size;
       const schemaSize = fs.statSync(schemaPath).size;
       const shapeTypesSize = fs.statSync(shapeTypesPath).size;
+      const typingsSize = fs.statSync(typingsPath).size;
       
-      if (contextSize === 0 || schemaSize === 0 || shapeTypesSize === 0) {
+      if (contextSize === 0 || schemaSize === 0 || shapeTypesSize === 0 || typingsSize === 0) {
         console.error(`Warning: One or more files for ${fileName} are empty!`);
-        console.error(`Context: ${contextSize} bytes, Schema: ${schemaSize} bytes, ShapeTypes: ${shapeTypesSize} bytes`);
+        console.error(`Context: ${contextSize} bytes, Schema: ${schemaSize} bytes, ShapeTypes: ${shapeTypesSize} bytes, Typings: ${typingsSize} bytes`);
         process.exit(1);
       } else {
-        console.log(`Generated files for ${fileName} (${contextSize + schemaSize + shapeTypesSize} bytes total)`);
+        console.log(`Generated files for ${fileName} (${contextSize + schemaSize + shapeTypesSize + typingsSize} bytes total)`);
       }
     } catch (error) {
       console.error(`Error writing files for ${fileName}:`, error.message);
