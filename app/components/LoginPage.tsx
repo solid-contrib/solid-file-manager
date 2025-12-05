@@ -1,24 +1,28 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useSolidAuth } from "@ldo/solid-react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Button from "./shared/Button";
+import { ChevronDownIcon } from "@heroicons/react/24/outline";
 
-const OIDC_ISSUERS = [
+const PRESET_ISSUERS = [
   { label: "Solid Community", value: "https://solidcommunity.net/" },
   { label: "Inrupt", value: "https://login.inrupt.com" },
-  { label: "Local CSS (ACP)", value: "http://localhost:3000/" },
 ] as const;
 
 export default function LoginPage() {
   const { session, login } = useSolidAuth();
   const router = useRouter();
-  const [selectedIssuer, setSelectedIssuer] = useState<string>(
-    process.env.NEXT_PUBLIC_OIDC_ISSUER || OIDC_ISSUERS[0].value
+  const [issuerInput, setIssuerInput] = useState<string>(
+    process.env.NEXT_PUBLIC_OIDC_ISSUER || ""
   );
   const [isLoading, setIsLoading] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Redirect to home if already authenticated
   useEffect(() => {
@@ -32,15 +36,84 @@ export default function LoginPage() {
     return null;
   }
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node) &&
+        inputRef.current &&
+        !inputRef.current.contains(event.target as Node)
+      ) {
+        setShowDropdown(false);
+      }
+    };
+
+    if (showDropdown) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showDropdown]);
+
+  const validateIssuerUrl = (url: string): boolean => {
+    if (!url.trim()) {
+      setError("Please enter a Solid Identity Provider URL");
+      return false;
+    }
+
+    try {
+      const parsedUrl = new URL(url);
+      if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+        setError("URL must start with http:// or https://");
+        return false;
+      }
+    } catch {
+      setError("Please enter a valid URL");
+      return false;
+    }
+
+    setError(null);
+    return true;
+  };
+
   const handleLogin = async () => {
+    const trimmedIssuer = issuerInput.trim();
+    if (!validateIssuerUrl(trimmedIssuer)) {
+      return;
+    }
+
     setIsLoading(true);
     try {
-      await login(selectedIssuer);
+      await login(trimmedIssuer);
     } catch (error) {
       console.error("Login failed:", error);
       setIsLoading(false);
     }
   };
+
+  const handleIssuerSelect = (value: string) => {
+    setIssuerInput(value);
+    setShowDropdown(false);
+    setError(null);
+    inputRef.current?.focus();
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setIssuerInput(e.target.value);
+    if (error) {
+      setError(null);
+    }
+  };
+
+  // Filter preset issuers based on input
+  const filteredIssuers = PRESET_ISSUERS.filter((issuer) => {
+    if (!issuerInput.trim()) return true;
+    const query = issuerInput.toLowerCase();
+    return (
+      issuer.label.toLowerCase().includes(query) ||
+      issuer.value.toLowerCase().includes(query)
+    );
+  });
 
   return (
     <main className="flex min-h-screen bg-white" role="main" aria-label="Sign in page">
@@ -102,7 +175,7 @@ export default function LoginPage() {
             aria-label="Sign in form"
             noValidate
           >
-            {/* Identity Provider Selection */}
+            {/* Identity Provider Input */}
             <div>
               <label
                 htmlFor="oidc-issuer"
@@ -110,26 +183,74 @@ export default function LoginPage() {
               >
                 Solid Identity Provider
               </label>
-              <select
-                id="oidc-issuer"
-                name="oidc-issuer"
-                value={selectedIssuer}
-                onChange={(e) => setSelectedIssuer(e.target.value)}
-                className="h-12 w-full cursor-pointer rounded-md border border-gray-300 bg-white px-4 text-black focus:border-[#7B42F6] focus:outline-none focus:ring-1 focus:ring-[#7B42F6] disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={isLoading}
-                required
-                aria-required="true"
-                aria-label="Select Solid Identity Provider"
-                aria-describedby="oidc-issuer-description"
-              >
-                {OIDC_ISSUERS.map((issuer) => (
-                  <option key={issuer.value} value={issuer.value}>
-                    {issuer.label}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <input
+                  ref={inputRef}
+                  id="oidc-issuer"
+                  name="oidc-issuer"
+                  type="text"
+                  value={issuerInput}
+                  onChange={handleInputChange}
+                  onFocus={() => setShowDropdown(true)}
+                  placeholder="Enter your provider URL or select from the list"
+                  className={`h-12 w-full rounded-md border bg-white px-4 pr-10 text-black placeholder:text-gray-500 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:opacity-50 ${
+                    error
+                      ? "border-red-300 focus:border-red-500 focus:ring-red-500"
+                      : "border-gray-300 focus:border-[#7B42F6] focus:ring-[#7B42F6]"
+                  }`}
+                  disabled={isLoading}
+                  required
+                  aria-required="true"
+                  aria-label="Enter or select Solid Identity Provider"
+                  aria-describedby={error ? "oidc-issuer-error" : "oidc-issuer-description"}
+                  aria-invalid={!!error}
+                  autoComplete="url"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowDropdown(!showDropdown)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  aria-label="Show provider options"
+                  tabIndex={-1}
+                >
+                  <ChevronDownIcon className={`h-5 w-5 transition-transform ${showDropdown ? "rotate-180" : ""}`} />
+                </button>
+
+                {/* Dropdown with preset options */}
+                {showDropdown && filteredIssuers.length > 0 && (
+                  <div
+                    ref={dropdownRef}
+                    className="absolute z-10 mt-1 w-full rounded-md border border-gray-200 bg-white shadow-lg max-h-60 overflow-auto"
+                    role="listbox"
+                    aria-label="Preset identity providers"
+                  >
+                    {filteredIssuers.map((issuer) => (
+                      <button
+                        key={issuer.value}
+                        type="button"
+                        onClick={() => handleIssuerSelect(issuer.value)}
+                        className="w-full px-4 py-3 text-left hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+                        role="option"
+                        aria-selected={issuerInput === issuer.value}
+                      >
+                        <div className="text-sm font-medium text-gray-900">
+                          {issuer.label}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {issuer.value}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {error && (
+                <p id="oidc-issuer-error" className="mt-1 text-xs text-red-600" role="alert">
+                  {error}
+                </p>
+              )}
               <p id="oidc-issuer-description" className="sr-only">
-                Choose your Solid Identity Provider to sign in
+                Enter your Solid Identity Provider URL or select from the preset options
               </p>
             </div>
 
@@ -151,4 +272,3 @@ export default function LoginPage() {
     </main>
   );
 }
-
