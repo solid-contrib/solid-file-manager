@@ -3,7 +3,7 @@ PREFIX acp: <http://www.w3.org/ns/solid/acp#>
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 
 shape <AccessControlResourceShape> -> acp:AccessControlResource {
-    closed=true . 
+    closed=true .
     rdf:type IRI [1..1] .
     acp:resource IRI [1..1] .
     acp:accessControl @<AccessControlShape> [1..*] .
