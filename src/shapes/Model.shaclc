@@ -20,7 +20,6 @@ shape <PolicyShape> -> acp:Policy {
     rdf:type IRI [1..1] .
     acp:allow IRI [1..1] .
     acp:anyOf @<MatcherShape> [1..1] .
-    # TODO: Check this cardinality
     acp:agentGroup @<AgentGroupShape> [0..*] .
     acp:public @<PublicShape> [0..1] .
 }
