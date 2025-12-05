@@ -6,8 +6,7 @@
   "scripts": {
     "dev": "npm run build:ldo && next dev --port=3001",
     "build": "npm run build:ldo && npm run build:next",
-    "build:shacl2shex": "npx @jeswr/shacl2shex src/shapes/Model.shaclc src/shapes/Model.shex && node scripts/fix-shex.js",
-    "build:ldo": "npm run build:shacl2shex && npx @ldo/cli build --input ./src/shapes --output ./src/ldo || true && node scripts/generate-ldo-files.js && node -e \"const fs=require('fs');const files=['src/ldo/Model.context.ts','src/ldo/Model.schema.ts','src/ldo/Model.shapeTypes.ts','src/ldo/Model.typings.ts'];const empty=files.filter(f=>!fs.existsSync(f)||fs.statSync(f).size===0);if(empty.length>0){console.error('Files are empty:',empty.join(', '));process.exit(1);}else{console.log('All LDO files generated successfully');}\"",
+    "build:ldo": "ldo build --input ./src/shapes --output ./src/ldo",
     "build:next": "next build",
     "start": "next start",
     "start:dev": "concurrently \"npm run start:css\" \"npm run start:ldo\" \"npm run dev\"",
