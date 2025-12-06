@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Modal from "./shared/Modal";
 import Button from "./shared/Button";
-import Input from "./shared/Input";
+import UrlCombobox, { ComboboxOption } from "./shared/UrlCombobox";
 import { FileItemData } from "./FileItem";
 import { fetchUserContacts, Contact } from "../lib/helpers/contactUtils";
 import { fetchAndParseProfile, extractNameAndEmail } from "../lib/helpers/profileUtils";
@@ -35,16 +35,12 @@ export default function ShareDialog({
   const [webIdInput, setWebIdInput] = useState("");
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoadingContacts, setIsLoadingContacts] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [filteredContacts, setFilteredContacts] = useState<Contact[]>([]);
   const [selectedAccessLevel, setSelectedAccessLevel] = useState<AccessLevel>("Editor");
   const [peopleChips, setPeopleChips] = useState<PersonChip[]>([]);
   const [isAddingWebId, setIsAddingWebId] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [accessList, setAccessList] = useState<Array<{ webId: string; accessModes: string[] }> | null>(null);
   const [isLoadingAccessList, setIsLoadingAccessList] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Fetch contacts and access list when dialog opens
   useEffect(() => {
@@ -75,64 +71,34 @@ export default function ShareDialog({
     } else {
       // Reset state when dialog closes
       setWebIdInput("");
-      setShowDropdown(false);
-      setFilteredContacts([]);
       setSelectedAccessLevel("Editor");
       setPeopleChips([]);
       setAccessList(null);
     }
   }, [isOpen, file]);
 
-  // Filter contacts based on input
-  useEffect(() => {
-    if (!webIdInput.trim()) {
-      // When input is empty, show all contacts
-      setFilteredContacts(contacts);
-      return;
-    }
+  // Convert contacts to ComboboxOptions
+  const contactOptions: ComboboxOption[] = useMemo(() => {
+    return contacts.map((contact) => ({
+      label: contact.name || contact.email || contact.webId,
+      value: contact.webId,
+      secondaryLabel: contact.email && contact.name ? contact.email : undefined,
+      icon: (
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200">
+          {contact.name ? (
+            <span className="text-sm font-medium text-gray-700">
+              {contact.name.charAt(0).toUpperCase()}
+            </span>
+          ) : (
+            <UserIcon className="h-5 w-5 text-gray-500" />
+          )}
+        </div>
+      ),
+    }));
+  }, [contacts]);
 
-    const query = webIdInput.toLowerCase().trim();
-    const filtered = contacts.filter((contact) => {
-      const nameMatch = contact.name?.toLowerCase().includes(query);
-      const emailMatch = contact.email?.toLowerCase().includes(query);
-      const webIdMatch = contact.webId.toLowerCase().includes(query);
-      return nameMatch || emailMatch || webIdMatch;
-    });
-
-    setFilteredContacts(filtered);
-  }, [webIdInput, contacts]);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node) &&
-        inputRef.current &&
-        !inputRef.current.contains(event.target as Node)
-      ) {
-        setShowDropdown(false);
-      }
-    };
-
-    if (showDropdown) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
-    }
-  }, [showDropdown]);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setWebIdInput(e.target.value);
-  };
-
-  const handleContactSelect = (contact: Contact) => {
-    // Populate the input with the selected contact's WebID
-    setWebIdInput(contact.webId);
-    setShowDropdown(false);
-    // Focus back on input so user can press Enter to add
-    setTimeout(() => {
-      inputRef.current?.focus();
-    }, 0);
+  const handleWebIdChange = (value: string) => {
+    setWebIdInput(value);
   };
 
   const handleAddWebId = async () => {
@@ -144,7 +110,6 @@ export default function ShareDialog({
     // Check if person is already added
     if (peopleChips.some((p) => p.webId === webId)) {
       setWebIdInput("");
-      setShowDropdown(false);
       return;
     }
 
@@ -171,7 +136,6 @@ export default function ShareDialog({
         },
       ]);
       setWebIdInput("");
-      setShowDropdown(false);
     } catch (error) {
       console.error("Failed to fetch profile for WebID:", error);
       // Add with just WebID if profile fetch fails
@@ -184,7 +148,6 @@ export default function ShareDialog({
         },
       ]);
       setWebIdInput("");
-      setShowDropdown(false);
     } finally {
       setIsAddingWebId(false);
     }
@@ -294,65 +257,18 @@ export default function ShareDialog({
             </div>
           )}
 
-          <div className="relative">
-            <Input
-              ref={inputRef}
-              type="text"
-              placeholder="Add a WebID"
-              value={webIdInput}
-              onChange={handleInputChange}
-              onFocus={() => {
-                // Show all contacts when input is focused
-                if (contacts.length > 0) {
-                  setShowDropdown(true);
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && webIdInput.trim() && !isAddingWebId) {
-                  e.preventDefault();
-                  handleAddWebId();
-                }
-              }}
-              leftIcon={<MagnifyingGlassIcon className="h-5 w-5" />}
-              className="w-full"
-              disabled={isAddingWebId}
-            />
-            {showDropdown && filteredContacts.length > 0 && (
-              <div
-                ref={dropdownRef}
-                className="absolute z-10 mt-1 w-full rounded-md border border-gray-200 bg-white shadow-lg max-h-60 overflow-auto"
-              >
-                {filteredContacts.map((contact) => (
-                  <button
-                    key={contact.webId}
-                    type="button"
-                    onClick={() => handleContactSelect(contact)}
-                    className="w-full px-4 py-2 text-left hover:bg-gray-100 flex items-center gap-3"
-                  >
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200">
-                      {contact.name ? (
-                        <span className="text-sm font-medium text-gray-700">
-                          {contact.name.charAt(0).toUpperCase()}
-                        </span>
-                      ) : (
-                        <UserIcon className="h-5 w-5 text-gray-500" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-gray-900 truncate">
-                        {contact.name || contact.email || contact.webId}
-                      </div>
-                      {contact.email && contact.name && (
-                        <div className="text-xs text-gray-500 truncate">
-                          {contact.email}
-                        </div>
-                      )}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <UrlCombobox
+            value={webIdInput}
+            onChange={handleWebIdChange}
+            onSubmit={handleAddWebId}
+            options={contactOptions}
+            placeholder="Add a WebID"
+            disabled={isAddingWebId}
+            leftIcon={<MagnifyingGlassIcon className="h-5 w-5" />}
+            showChevron={false}
+            aria-label="Add a WebID"
+            inputClassName="h-9"
+          />
         </div>
 
         {/* General access section */}
