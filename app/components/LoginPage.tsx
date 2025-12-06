@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useSolidAuth } from "@ldo/solid-react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
@@ -21,6 +21,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -95,25 +96,69 @@ export default function LoginPage() {
     setIssuerInput(value);
     setShowDropdown(false);
     setError(null);
+    setHighlightedIndex(-1);
     inputRef.current?.focus();
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setIssuerInput(e.target.value);
+    setHighlightedIndex(-1);
     if (error) {
       setError(null);
     }
   };
 
+  const handleInputFocus = () => {
+    setShowDropdown(true);
+    setHighlightedIndex(-1);
+  };
+
   // Filter preset issuers based on input
-  const filteredIssuers = PRESET_ISSUERS.filter((issuer) => {
-    if (!issuerInput.trim()) return true;
-    const query = issuerInput.toLowerCase();
-    return (
-      issuer.label.toLowerCase().includes(query) ||
-      issuer.value.toLowerCase().includes(query)
-    );
-  });
+  const filteredIssuers = useMemo(() => {
+    return PRESET_ISSUERS.filter((issuer) => {
+      if (!issuerInput.trim()) return true;
+      const query = issuerInput.toLowerCase();
+      return (
+        issuer.label.toLowerCase().includes(query) ||
+        issuer.value.toLowerCase().includes(query)
+      );
+    });
+  }, [issuerInput]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showDropdown) {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        setShowDropdown(true);
+        setHighlightedIndex(-1);
+      }
+      return;
+    }
+
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setHighlightedIndex((prev) =>
+          prev < filteredIssuers.length - 1 ? prev + 1 : prev
+        );
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : prev));
+        break;
+      case "Enter":
+        if (highlightedIndex >= 0 && highlightedIndex < filteredIssuers.length) {
+          e.preventDefault();
+          handleIssuerSelect(filteredIssuers[highlightedIndex].value);
+        }
+        break;
+      case "Escape":
+        e.preventDefault();
+        setShowDropdown(false);
+        setHighlightedIndex(-1);
+        break;
+    }
+  };
 
   return (
     <main className="flex min-h-screen bg-white" role="main" aria-label="Sign in page">
@@ -191,7 +236,8 @@ export default function LoginPage() {
                   type="text"
                   value={issuerInput}
                   onChange={handleInputChange}
-                  onFocus={() => setShowDropdown(true)}
+                  onFocus={handleInputFocus}
+                  onKeyDown={handleKeyDown}
                   placeholder="Enter your provider URL or select from the list"
                   className={`h-12 w-full rounded-md border bg-white px-4 pr-10 text-black placeholder:text-gray-500 focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:opacity-50 ${
                     error
@@ -204,14 +250,22 @@ export default function LoginPage() {
                   aria-label="Enter or select Solid Identity Provider"
                   aria-describedby={error ? "oidc-issuer-error" : "oidc-issuer-description"}
                   aria-invalid={!!error}
-                  autoComplete="url"
+                  aria-expanded={showDropdown}
+                  aria-activedescendant={highlightedIndex >= 0 ? `issuer-option-${highlightedIndex}` : undefined}
+                  role="combobox"
+                  aria-autocomplete="list"
+                  aria-controls="issuer-listbox"
+                  autoComplete="off"
                 />
                 <button
                   type="button"
-                  onClick={() => setShowDropdown(!showDropdown)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  aria-label="Show provider options"
-                  tabIndex={-1}
+                  onClick={() => {
+                    setShowDropdown(!showDropdown);
+                    inputRef.current?.focus();
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none focus:text-gray-600"
+                  aria-label={showDropdown ? "Hide provider options" : "Show provider options"}
+                  aria-expanded={showDropdown}
                 >
                   <ChevronDownIcon className={`h-5 w-5 transition-transform ${showDropdown ? "rotate-180" : ""}`} />
                 </button>
@@ -220,16 +274,22 @@ export default function LoginPage() {
                 {showDropdown && filteredIssuers.length > 0 && (
                   <div
                     ref={dropdownRef}
+                    id="issuer-listbox"
                     className="absolute z-10 mt-1 w-full rounded-md border border-gray-200 bg-white shadow-lg max-h-60 overflow-auto"
                     role="listbox"
                     aria-label="Preset identity providers"
                   >
-                    {filteredIssuers.map((issuer) => (
+                    {filteredIssuers.map((issuer, index) => (
                       <button
                         key={issuer.value}
+                        id={`issuer-option-${index}`}
                         type="button"
                         onClick={() => handleIssuerSelect(issuer.value)}
-                        className="w-full px-4 py-3 text-left hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+                        className={`w-full px-4 py-3 text-left focus:outline-none ${
+                          highlightedIndex === index
+                            ? "bg-gray-100"
+                            : "hover:bg-gray-100"
+                        }`}
                         role="option"
                         aria-selected={issuerInput === issuer.value}
                       >
