@@ -27,7 +27,7 @@ interface UrlComboboxProps {
   "aria-describedby"?: string;
   className?: string;
   inputClassName?: string;
-  renderOption?: (option: ComboboxOption, isHighlighted: boolean) => ReactNode;
+  renderOption?: (option: ComboboxOption, isHighlighted: boolean, index: number) => ReactNode;
 }
 
 export default function UrlCombobox({
@@ -149,10 +149,10 @@ export default function UrlCombobox({
   const paddingLeft = leftIcon ? "pl-9" : "px-4";
   const paddingRight = showChevron ? "pr-10" : "pr-4";
 
-  const defaultRenderOption = (option: ComboboxOption, isHighlighted: boolean) => (
+  const defaultRenderOption = (option: ComboboxOption, isHighlighted: boolean, index: number) => (
     <button
       key={option.value}
-      id={`${inputId}-option-${filteredOptions.indexOf(option)}`}
+      id={`${inputId}-option-${index}`}
       type="button"
       onClick={() => handleSelect(option)}
       className={`w-full px-4 py-3 text-left focus:outline-none ${
@@ -245,8 +245,8 @@ export default function UrlCombobox({
           >
             {filteredOptions.map((option, index) => (
               renderOption 
-                ? renderOption(option, highlightedIndex === index)
-                : defaultRenderOption(option, highlightedIndex === index)
+                ? renderOption(option, highlightedIndex === index, index)
+                : defaultRenderOption(option, highlightedIndex === index, index)
             ))}
           </div>
         )}
