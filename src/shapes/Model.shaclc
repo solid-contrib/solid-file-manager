@@ -16,7 +16,7 @@ shape <AccessControlShape> -> acp:AccessControl {
 }
 
 shape <PolicyShape> -> acp:Policy {
-    closed=true . 
+    closed=true .
     rdf:type IRI [1..1] .
     acp:allow IRI [1..1] .
     acp:anyOf @<MatcherShape> [1..1] .
