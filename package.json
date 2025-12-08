@@ -23,9 +23,9 @@
     "@ldo/ldo": "^1.0.0-alpha.32",
     "@ldo/schema-converter-shex": "^1.0.0-alpha.32",
     "jszip": "^3.10.1",
-    "next": "16.0.1",
-    "react": "19.2.0",
-    "react-dom": "19.2.0",
+    "next": "16.0.7",
+    "react": "19.2.1",
+    "react-dom": "19.2.1",
     "react-hot-toast": "^2.6.0"
   },
   "devDependencies": {
@@ -39,7 +39,7 @@
     "@types/react-dom": "^19",
     "concurrently": "^9",
     "eslint": "^9",
-    "eslint-config-next": "16.0.1",
+    "eslint-config-next": "16.0.7",
     "nodemon": "^3",
     "tailwindcss": "^4",
     "typescript": "^5"
