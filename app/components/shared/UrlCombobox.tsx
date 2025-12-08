@@ -151,7 +151,6 @@ export default function UrlCombobox({
 
   const defaultRenderOption = (option: ComboboxOption, isHighlighted: boolean, index: number) => (
     <button
-      key={option.value}
       id={`${inputId}-option-${index}`}
       type="button"
       onClick={() => handleSelect(option)}
