@@ -244,11 +244,12 @@ export default function UrlCombobox({
             role="listbox"
             aria-label="Options"
           >
-            {filteredOptions.map((option, index) => (
-              renderOption 
+            {filteredOptions.map((option, index) => {
+              const content = renderOption
                 ? renderOption(option, highlightedIndex === index, index)
-                : defaultRenderOption(option, highlightedIndex === index, index)
-            ))}
+                : defaultRenderOption(option, highlightedIndex === index, index);
+              return <div key={option.value}>{content}</div>;
+            })}
           </div>
         )}
       </div>
