@@ -4,31 +4,65 @@ import { useState } from "react";
 import { login } from "@inrupt/solid-client-authn-browser";
 import Image from "next/image";
 import Button from "./shared/Button";
+import UrlCombobox, { ComboboxOption } from "./shared/UrlCombobox";
 
-const OIDC_ISSUERS = [
-  { label: "Solid Community", value: "https://solidcommunity.net/" },
-  { label: "Inrupt", value: "https://login.inrupt.com" },
-  { label: "Local CSS (ACP)", value: "http://localhost:3000/" },
-] as const;
+const PRESET_ISSUERS: ComboboxOption[] = [
+  { label: "Solid Community", value: "https://solidcommunity.net/", secondaryLabel: "https://solidcommunity.net/" },
+  { label: "Inrupt", value: "https://login.inrupt.com", secondaryLabel: "https://login.inrupt.com" },
+];
 
 export default function LoginPage() {
-  const [selectedIssuer, setSelectedIssuer] = useState<string>(
-    process.env.NEXT_PUBLIC_OIDC_ISSUER || OIDC_ISSUERS[0].value
+  const [issuerInput, setIssuerInput] = useState<string>(
+    process.env.NEXT_PUBLIC_OIDC_ISSUER || ""
   );
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const validateIssuerUrl = (url: string): boolean => {
+    if (!url.trim()) {
+      setError("Please enter a Solid Identity Provider URL");
+      return false;
+    }
+
+    try {
+      const parsedUrl = new URL(url);
+      if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+        setError("URL must start with http:// or https://");
+        return false;
+      }
+    } catch {
+      setError("Please enter a valid URL");
+      return false;
+    }
+
+    setError(null);
+    return true;
+  };
 
   const handleLogin = async () => {
+    const trimmedIssuer = issuerInput.trim();
+    if (!validateIssuerUrl(trimmedIssuer)) {
+      return;
+    }
+
     setIsLoading(true);
     try {
       const baseUrl = window.location.origin + window.location.pathname;
       await login({
-        oidcIssuer: selectedIssuer,
+        oidcIssuer: trimmedIssuer,
         clientName: "Solid File Manager",
         redirectUrl: baseUrl,
       });
     } catch (error) {
       console.error("Login failed:", error);
       setIsLoading(false);
+    }
+  };
+
+  const handleIssuerChange = (value: string) => {
+    setIssuerInput(value);
+    if (error) {
+      setError(null);
     }
   };
 
@@ -92,36 +126,18 @@ export default function LoginPage() {
             aria-label="Sign in form"
             noValidate
           >
-            {/* Identity Provider Selection */}
-            <div>
-              <label
-                htmlFor="oidc-issuer"
-                className="mb-2 block text-sm font-medium text-black"
-              >
-                Solid Identity Provider
-              </label>
-              <select
-                id="oidc-issuer"
-                name="oidc-issuer"
-                value={selectedIssuer}
-                onChange={(e) => setSelectedIssuer(e.target.value)}
-                className="h-12 w-full cursor-pointer rounded-md border border-gray-300 bg-white px-4 text-black focus:border-[#7B42F6] focus:outline-none focus:ring-1 focus:ring-[#7B42F6] disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={isLoading}
-                required
-                aria-required="true"
-                aria-label="Select Solid Identity Provider"
-                aria-describedby="oidc-issuer-description"
-              >
-                {OIDC_ISSUERS.map((issuer) => (
-                  <option key={issuer.value} value={issuer.value}>
-                    {issuer.label}
-                  </option>
-                ))}
-              </select>
-              <p id="oidc-issuer-description" className="sr-only">
-                Choose your Solid Identity Provider to sign in
-              </p>
-            </div>
+            {/* Identity Provider Input */}
+            <UrlCombobox
+              id="oidc-issuer"
+              label="Solid Identity Provider"
+              value={issuerInput}
+              onChange={handleIssuerChange}
+              options={PRESET_ISSUERS}
+              placeholder="Enter your provider URL or select from the list"
+              error={error || undefined}
+              disabled={isLoading}
+              aria-label="Enter or select Solid Identity Provider"
+            />
 
             {/* Action button */}
             <div className="flex items-center justify-end pt-4">
