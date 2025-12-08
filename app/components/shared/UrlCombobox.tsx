@@ -130,12 +130,14 @@ export default function UrlCombobox({
         setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : prev));
         break;
       case "Enter":
-        e.preventDefault();
         if (highlightedIndex >= 0 && highlightedIndex < filteredOptions.length) {
+          e.preventDefault();
           handleSelect(filteredOptions[highlightedIndex]);
         } else if (onSubmit && value.trim()) {
+          e.preventDefault();
           onSubmit(value.trim());
         }
+        // Otherwise, allow the form to submit naturally
         break;
       case "Escape":
         e.preventDefault();
