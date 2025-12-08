@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Toaster from "./components/shared/Toaster";
+import LdoProvider from "./components/providers/LdoProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,9 +18,9 @@ export const metadata: Metadata = {
   title: "Solid File Manager",
   description: "A Google Drive-like file manager for Solid Pods",
     icons: {
-      icon: "/favicon.svg",
-      shortcut: "/favicon.svg",
-      apple: "/favicon.svg",
+      icon: "/file-manager-logo.svg",
+      shortcut: "/file-manager-logo.svg",
+      apple: "/file-manager-logo.svg",
     },
 };
 
@@ -33,8 +34,10 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
-        <Toaster />
+        <LdoProvider>
+          {children}
+          <Toaster />
+        </LdoProvider>
       </body>
     </html>
   );

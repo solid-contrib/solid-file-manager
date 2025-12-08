@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getDefaultSession } from "@inrupt/solid-client-authn-browser";
+import { useSolidAuth } from "@ldo/solid-react";
 import { NamedNode, Literal } from "n3";
 import { fetchAndParseProfile } from "../helpers/profileUtils";
 
@@ -39,6 +39,7 @@ interface UseUserProfileResult {
  * Hook to fetch user profile information from WebID
  */
 export function useUserProfile(): UseUserProfileResult {
+  const { session } = useSolidAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -49,25 +50,13 @@ export function useUserProfile(): UseUserProfileResult {
         setIsLoading(true);
         setError(null);
 
-        const session = getDefaultSession();
-        
         // Wait for authentication to complete
-        if (!session.info.isLoggedIn || !session.info.webId) {
-          // Poll for authentication
-          const checkInterval = setInterval(() => {
-            const currentSession = getDefaultSession();
-            if (currentSession.info.isLoggedIn && currentSession.info.webId) {
-              clearInterval(checkInterval);
-              fetchProfile();
-            }
-          }, 500);
-          
-          setTimeout(() => clearInterval(checkInterval), 10000);
+        if (!session.isLoggedIn || !session.webId) {
           setIsLoading(false);
           return;
         }
 
-        const webId = session.info.webId;
+        const webId = session.webId;
 
         // Use shared profile fetching utility (with caching)
         const { store, baseUrl, mainSubject } = await fetchAndParseProfile(webId);

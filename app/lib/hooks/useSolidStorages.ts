@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getDefaultSession } from "@inrupt/solid-client-authn-browser";
+import { useSolidAuth } from "@ldo/solid-react";
 import { Parser, Store, NamedNode, Literal } from "n3";
 import { fetchAndParseProfile } from "../helpers/profileUtils";
 
@@ -202,13 +202,13 @@ async function discoverStorageViaTraversal(
  * 2. Hierarchical traversal to find pim:Storage containers by walking up the directory tree
  */
 export function useSolidStorages(): UseSolidStoragesResult {
+  const { session } = useSolidAuth();
   const [storages, setStorages] = useState<SolidStorage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     let isMounted = true;
-    let checkInterval: NodeJS.Timeout | null = null;
     
     async function fetchStorages() {
       try {
@@ -217,46 +217,13 @@ export function useSolidStorages(): UseSolidStoragesResult {
         setIsLoading(true);
         setError(null);
 
-        const session = getDefaultSession();
-        
-        // Wait a bit for authentication to complete
-        if (!session.info.isLoggedIn || !session.info.webId) {
-          // Set up a polling mechanism to check when authentication completes
-          // Keep isLoading as true while waiting for authentication
-          checkInterval = setInterval(() => {
-            if (!isMounted) {
-              if (checkInterval) clearInterval(checkInterval);
-              return;
-            }
-            
-            const currentSession = getDefaultSession();
-            if (currentSession.info.isLoggedIn && currentSession.info.webId) {
-              if (checkInterval) clearInterval(checkInterval);
-              // Trigger re-fetch by calling fetchStorages again
-              fetchStorages();
-            }
-          }, 500);
-          
-          // Clear interval after 10 seconds to avoid infinite polling
-          setTimeout(() => {
-            if (checkInterval) {
-              clearInterval(checkInterval);
-              checkInterval = null;
-            }
-            // Only set loading to false if we've given up waiting and component is still mounted
-            if (isMounted) {
-              const finalSession = getDefaultSession();
-              if (!finalSession.info.isLoggedIn || !finalSession.info.webId) {
-                setIsLoading(false);
-              }
-            }
-          }, 10000);
-          
-          // Don't set isLoading to false here - keep it true while waiting
+        // Wait for authentication to complete
+        if (!session.isLoggedIn || !session.webId) {
+          setIsLoading(false);
           return;
         }
 
-        const webId = session.info.webId;
+        const webId = session.webId;
 
         // Use shared profile fetching utility (with caching)
         const { store, baseUrl, mainSubject } = await fetchAndParseProfile(webId);
@@ -319,7 +286,12 @@ export function useSolidStorages(): UseSolidStoragesResult {
         // Based on: https://github.com/SolidLabResearch/Bashlib/blob/80de25cbb4b3ed057f95e25bc057f1be9b00cef3/src/utils/util.ts#L73-L104
         if (storageUrls.length === 0) {
           try {
-            const traversalStorages = await discoverStorageViaTraversal(webId, session.fetch || fetch);
+            // LDO's session object has fetch property, but TypeScript types may not include it
+            // Use type assertion to access it, with fallback to regular fetch
+            const fetchFn = ('fetch' in session && typeof (session as any).fetch === 'function') 
+              ? (session as any).fetch 
+              : fetch;
+            const traversalStorages = await discoverStorageViaTraversal(webId, fetchFn);
             traversalStorages.forEach(url => {
               if (!storageUrls.includes(url)) {
                 storageUrls.push(url);
@@ -372,27 +344,16 @@ export function useSolidStorages(): UseSolidStoragesResult {
       }
     }
 
-    fetchStorages();
-    
-    // Also set up a listener for session changes
-    const checkSession = setInterval(() => {
-      if (!isMounted) {
-        clearInterval(checkSession);
-        return;
-      }
-      
-      const session = getDefaultSession();
-      if (session.info.isLoggedIn && session.info.webId && storages.length === 0 && !isLoading) {
-        fetchStorages();
-      }
-    }, 1000);
+    if (session.isLoggedIn && session.webId) {
+      fetchStorages();
+    } else {
+      setIsLoading(false);
+    }
     
     return () => {
       isMounted = false;
-      if (checkInterval) clearInterval(checkInterval);
-      clearInterval(checkSession);
     };
-  }, []);
+  }, [session.isLoggedIn, session.webId]);
 
   return { storages, isLoading, error };
 }

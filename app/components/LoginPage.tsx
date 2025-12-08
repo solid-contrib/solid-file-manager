@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { login } from "@inrupt/solid-client-authn-browser";
+import { useState, useEffect } from "react";
+import { useSolidAuth } from "@ldo/solid-react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Button from "./shared/Button";
 
@@ -12,20 +13,29 @@ const OIDC_ISSUERS = [
 ] as const;
 
 export default function LoginPage() {
+  const { session, login } = useSolidAuth();
+  const router = useRouter();
   const [selectedIssuer, setSelectedIssuer] = useState<string>(
     process.env.NEXT_PUBLIC_OIDC_ISSUER || OIDC_ISSUERS[0].value
   );
   const [isLoading, setIsLoading] = useState(false);
 
+  // Redirect to home if already authenticated
+  useEffect(() => {
+    if (session.isLoggedIn) {
+      router.replace("/");
+    }
+  }, [session.isLoggedIn, router]);
+
+  // Don't render login form if already authenticated (redirecting)
+  if (session.isLoggedIn) {
+    return null;
+  }
+
   const handleLogin = async () => {
     setIsLoading(true);
     try {
-      const baseUrl = window.location.origin + window.location.pathname;
-      await login({
-        oidcIssuer: selectedIssuer,
-        clientName: "Solid File Manager",
-        redirectUrl: baseUrl,
-      });
+      await login(selectedIssuer);
     } catch (error) {
       console.error("Login failed:", error);
       setIsLoading(false);
