@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSolidAuth } from "@ldo/solid-react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import LoadingSpinner from "./shared/LoadingSpinner";
@@ -27,7 +27,7 @@ function hasSessionInStorage(): boolean {
   }
 }
 
-export default function AuthWrapper({ children }: AuthWrapperProps) {
+function AuthWrapperContent({ children }: AuthWrapperProps) {
   const { session } = useSolidAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -137,4 +137,19 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
 
   // User is authenticated and on correct page, show the app
   return <>{children}</>;
+}
+
+
+export default function AuthWrapper({ children }: AuthWrapperProps) {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-white">
+          <LoadingSpinner size="md" text="Loading..." />
+        </div>
+      }
+    >
+      <AuthWrapperContent>{children}</AuthWrapperContent>
+    </Suspense>
+  );
 }
