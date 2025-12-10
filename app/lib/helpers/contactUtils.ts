@@ -1,6 +1,16 @@
 import { NamedNode } from "n3";
 import { fetchAndParseProfile, extractNameAndEmail, getCachedProfile } from "./profileUtils";
-import { getSession } from "./sessionUtils";
+import { getSession, getAuthenticatedSession } from "./sessionUtils";
+import { 
+  getSolidDataset, 
+  getThing, 
+  createThing, 
+  addUrl, 
+  getUrlAll,
+  setThing, 
+  saveSolidDatasetAt,
+  UrlString 
+} from "@inrupt/solid-client";
 
 export interface Contact {
     webId: string;
@@ -73,5 +83,62 @@ export async function fetchUserContacts(): Promise<Contact[]> {
     } catch (error) {
         console.error("Failed to fetch user contacts:", error);
         return [];
+    }
+}
+
+/**
+ * Adds a contact (WebID) to the user's profile using foaf:knows relationship
+ * @param contactWebId - The WebID of the contact to add
+ * @returns Promise that resolves when the contact is added
+ */
+export async function addContactToProfile(contactWebId: string): Promise<void> {
+    const session = getSession();
+
+    if (!session.info.isLoggedIn || !session.info.webId) {
+        throw new Error("User is not logged in");
+    }
+
+    const userWebId = session.info.webId;
+    const { fetch } = getAuthenticatedSession();
+    
+    const profileUrl = userWebId.split('#')[0] as UrlString;
+    
+    try {
+        // Fetch the user's profile dataset
+        let dataset = await getSolidDataset(profileUrl, { fetch });
+        
+        // Get the main subject (usually WebID or WebID#me)
+        const mainSubject = userWebId as UrlString;
+        let thing = getThing(dataset, mainSubject);
+        
+        // If thing doesn't exist, try with #me fragment
+        if (!thing) {
+            const meSubject = `${profileUrl}#me` as UrlString;
+            thing = getThing(dataset, meSubject);
+        }
+        
+        // If still doesn't exist, create a new thing
+        if (!thing) {
+            thing = createThing({ url: mainSubject });
+        }
+        
+        // Check if the contact is already in the knows list
+        const existingKnows = getUrlAll(thing, FOAF_KNOWS);
+        if (existingKnows.includes(contactWebId)) {
+            // Contact already exists, no need to add
+            return;
+        }
+        
+        // Add the foaf:knows relationship
+        thing = addUrl(thing, FOAF_KNOWS, contactWebId as UrlString);
+        
+        // Update the dataset
+        const updatedDataset = setThing(dataset, thing);
+        
+        // Save the updated dataset
+        await saveSolidDatasetAt(profileUrl, updatedDataset, { fetch });
+    } catch (error) {
+        console.error("Failed to add contact to profile:", error);
+        throw error;
     }
 }
