@@ -119,6 +119,36 @@ export default function FileManager() {
     });
   };
 
+  // Handle URL changes from browser back/forward buttons
+  useEffect(() => {
+    if (isLoadingStorages || storages.length === 0 || !isInitialized) {
+      return;
+    }
+
+    const urlParam = getUrlFromSearchParams();
+
+    if (!urlParam) {
+      // No URL in params - reset to root if we have a storage selected
+      if (selectedStorageId) {
+        const storage = storages.find((s) => s.id === selectedStorageId);
+        if (storage) {
+          setCurrentPath("/");
+          removeUrlFromStorage();
+        }
+      }
+      return;
+    }
+
+    // URL changed - update state to match
+    const matchingStorage = storages.find((s) => urlParam === s.url || urlParam.startsWith(s.url));
+
+    if (matchingStorage) {
+      setSelectedStorageId(matchingStorage.id);
+      setCurrentPath(urlParam === matchingStorage.url ? "/" : urlParam);
+      saveUrlToStorage(urlParam);
+    }
+  }, [searchParams, storages, isLoadingStorages, isInitialized, selectedStorageId]);
+
   useEffect(() => {
     if (isLoadingStorages || storages.length === 0 || isInitialized) {
       return;
@@ -187,11 +217,15 @@ export default function FileManager() {
     };
   }, [contextMenuState]);
 
-  const updateUrl = (url: string | null) => {
+  const updateUrl = (url: string | null, addToHistory: boolean = true) => {
     if (!url || url === "/") {
       removeUrlFromStorage();
       if (typeof window !== "undefined" && window.location.search) {
-        router.replace("/", { scroll: false });
+        if (addToHistory) {
+          router.push("/", { scroll: false });
+        } else {
+          router.replace("/", { scroll: false });
+        }
       }
       return;
     }
@@ -199,7 +233,12 @@ export default function FileManager() {
     const params = new URLSearchParams();
     params.set("url", safeEncodeUrl(url));
     saveUrlToStorage(url);
-    router.replace(`/?${params.toString()}`, { scroll: false });
+    
+    if (addToHistory) {
+      router.push(`/?${params.toString()}`, { scroll: false });
+    } else {
+      router.replace(`/?${params.toString()}`, { scroll: false });
+    }
   };
 
   const containerUrlToBrowse = selectedStorageId
@@ -273,7 +312,7 @@ export default function FileManager() {
 
     if (fileToRename && currentPath === fileToRename.url) {
       setCurrentPath(newUrl);
-      updateUrl(newUrl);
+      updateUrl(newUrl, false);
     }
     // Trigger refresh to update file list immediately
     setRefreshKey((prev) => prev + 1);
@@ -600,11 +639,11 @@ export default function FileManager() {
         setSelectedStorageId(file.id);
         setCurrentPath("/");
         setSelectedFileIds([]);
-        updateUrl(file.url);
+        updateUrl(file.url, true);
       } else if (selectedStorageId) {
         setCurrentPath(file.url);
         setSelectedFileIds([]);
-        updateUrl(file.url);
+        updateUrl(file.url, true);
       }
     } else {
       window.open(file.url, "_blank");
@@ -725,15 +764,15 @@ export default function FileManager() {
       setSelectedStorageId(null);
       setCurrentPath("/");
       setSelectedFileIds([]);
-      updateUrl(null);
+      updateUrl(null, true);
     } else {
       const selectedStorage = storages.find((s) => s.id === selectedStorageId);
       if (selectedStorage && path === selectedStorage.url) {
         setCurrentPath("/");
-        updateUrl(selectedStorage.url);
+        updateUrl(selectedStorage.url, true);
       } else {
         setCurrentPath(path);
-        updateUrl(path);
+        updateUrl(path, true);
       }
       setSelectedFileIds([]);
     }
@@ -907,8 +946,7 @@ export default function FileManager() {
           resourceUrl={sharedResourceUrl}
           resourceName={sharedResourceName}
           onOpenInApp={(url) => {
-            // Navigate to the resource URL in the file manager
-            updateUrl(url);
+            updateUrl(url, true);
           }}
         />
         {isDragActive && (

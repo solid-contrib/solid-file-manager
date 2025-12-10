@@ -5,7 +5,7 @@ import Modal from "./shared/Modal";
 import Button from "./shared/Button";
 import UrlCombobox, { ComboboxOption } from "./shared/UrlCombobox";
 import { FileItemData } from "./FileItem";
-import { fetchUserContacts, Contact } from "../lib/helpers/contactUtils";
+import { fetchUserContacts, Contact, addContactToProfile } from "../lib/helpers/contactUtils";
 import { fetchAndParseProfile, extractNameAndEmail } from "../lib/helpers/profileUtils";
 import { getResourceAccessList } from "../lib/helpers/acpUtils";
 import { UserIcon, MagnifyingGlassIcon, LockClosedIcon, XMarkIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
@@ -164,6 +164,28 @@ export default function ShareDialog({
         // Share with all people using the selected access level
         const webIds = peopleChips.map((chip) => chip.webId);
         await onShare(webIds, selectedAccessLevel);
+        
+        // After successful sharing, add new WebIDs to contacts if they're not already there
+        const existingContactWebIds = new Set(contacts.map(c => c.webId));
+        const newWebIds = webIds.filter(webId => !existingContactWebIds.has(webId));
+        
+        for (const webId of newWebIds) {
+          try {
+            await addContactToProfile(webId);
+          } catch (error) {
+            console.warn(`Failed to add ${webId} to contacts:`, error);
+          }
+        }
+        
+        // Refresh contacts list if we added any new ones
+        if (newWebIds.length > 0) {
+          try {
+            const updatedContacts = await fetchUserContacts();
+            setContacts(updatedContacts);
+          } catch (error) {
+            console.warn("Failed to refresh contacts list:", error);
+          }
+        }
         
         // Refresh access list after sharing
         if (file) {
