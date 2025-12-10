@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { login } from "@inrupt/solid-client-authn-browser";
+import { useState, useEffect } from "react";
+import { useSolidAuth } from "@ldo/solid-react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Button from "./shared/Button";
 import UrlCombobox, { ComboboxOption } from "./shared/UrlCombobox";
@@ -12,11 +13,25 @@ const PRESET_ISSUERS: ComboboxOption[] = [
 ];
 
 export default function LoginPage() {
+  const { session, login } = useSolidAuth();
+  const router = useRouter();
   const [issuerInput, setIssuerInput] = useState<string>(
     process.env.NEXT_PUBLIC_OIDC_ISSUER || ""
   );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Redirect to home if already authenticated
+  useEffect(() => {
+    if (session.isLoggedIn) {
+      router.replace("/");
+    }
+  }, [session.isLoggedIn, router]);
+
+  // Don't render login form if already authenticated (redirecting)
+  if (session.isLoggedIn) {
+    return null;
+  }
 
   const validateIssuerUrl = (url: string): boolean => {
     if (!url.trim()) {
@@ -47,12 +62,7 @@ export default function LoginPage() {
 
     setIsLoading(true);
     try {
-      const baseUrl = window.location.origin + window.location.pathname;
-      await login({
-        oidcIssuer: trimmedIssuer,
-        clientName: "Solid File Manager",
-        redirectUrl: baseUrl,
-      });
+      await login(trimmedIssuer);
     } catch (error) {
       console.error("Login failed:", error);
       setIsLoading(false);
@@ -157,4 +167,3 @@ export default function LoginPage() {
     </main>
   );
 }
-

@@ -1,27 +1,21 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { logout } from "@inrupt/solid-client-authn-browser";
-import { getSession } from "../lib/helpers";
+import { useState, useRef } from "react";
+import { useSolidAuth } from "@ldo/solid-react";
 import { useUserProfile, useClickOutside } from "../lib/hooks";
 import { UserCircleIcon, ArrowRightStartOnRectangleIcon, PhoneIcon, BuildingOfficeIcon, BriefcaseIcon, GlobeAltIcon, ClipboardIcon } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
 
 export default function ProfileIcon() {
+  const { session, logout } = useSolidAuth();
   const [showTooltip, setShowTooltip] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const { profile } = useUserProfile();
-  const [webId, setWebId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => {
-    const session = getSession();
-    if (session.info.webId) {
-      setWebId(session.info.webId);
-    }
-  }, []);
+  const webId = session.webId || null;
 
   useClickOutside({
     isEnabled: showDropdown,
@@ -32,9 +26,11 @@ export default function ProfileIcon() {
   const handleLogout = async () => {
     try {
       await logout();
-      window.location.href = "/";
+      // Redirect to login page after logout
+      window.location.href = "/login";
     } catch (error) {
       console.error("Logout failed:", error);
+      toast.error("Failed to sign out");
     }
   };
 

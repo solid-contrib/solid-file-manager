@@ -21,6 +21,7 @@
     "@inrupt/vocab-common-rdf": "^1.0.5",
     "@ldo/ldo": "^1.0.0-alpha.32",
     "@ldo/schema-converter-shex": "^1.0.0-alpha.32",
+    "@ldo/solid-react": "^1.0.0-alpha.33",
     "jszip": "^3.10.1",
     "next": "16.0.7",
     "react": "19.2.1",

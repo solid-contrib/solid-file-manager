@@ -1,98 +1,112 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { handleIncomingRedirect } from "@inrupt/solid-client-authn-browser";
-import { getSession } from "../lib/helpers";
-import LoginPage from "./LoginPage";
+import { useEffect, useState, Suspense } from "react";
+import { useSolidAuth } from "@ldo/solid-react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import LoadingSpinner from "./shared/LoadingSpinner";
-import ErrorDisplay from "./shared/ErrorDisplay";
 
 interface AuthWrapperProps {
   children: React.ReactNode;
 }
 
-export default function AuthWrapper({ children }: AuthWrapperProps) {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const [isChecking, setIsChecking] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+// Check if there's any indication of a session in storage
+function hasSessionInStorage(): boolean {
+  if (typeof window === "undefined") return false;
+  
+  try {
+    const keys = Object.keys(localStorage);
+    // Look for keys that might indicate a session exists
+    return keys.some(key => 
+      key.includes("solidClientAuthn") || 
+      key.includes("solid-auth") ||
+      key.includes("oidc") ||
+      key.includes("session")
+    );
+  } catch {
+    return false;
+  }
+}
+
+function AuthWrapperContent({ children }: AuthWrapperProps) {
+  const { session } = useSolidAuth();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const [hasSessionIndicator, setHasSessionIndicator] = useState(() => hasSessionInStorage());
+  const [wasLoggedIn, setWasLoggedIn] = useState(false);
+
+  // Check if we're in the middle of an OAuth callback
+  const isOAuthCallback = searchParams.has("code") || searchParams.has("state");
+  const isLoginPage = pathname === "/login";
+
+ 
+  const hasSessionData = !!(session.webId || session.sessionId || session.clientAppId);
 
   useEffect(() => {
-    async function checkAuth() {
-      try {
-        setError(null);
+    if (session.isLoggedIn) {
+      setWasLoggedIn(true);
+    }
 
-        // First, handle any incoming OAuth redirect (processes code and state parameters)
-        await handleIncomingRedirect({ restorePreviousSession: true });
-
-        // Get the session instance after handling redirect
-        const session = getSession();
-
-        let isLoggedIn = session.info.isLoggedIn && !!session.info.webId;
-
-        // Check expiration if session exists
-        if (isLoggedIn && session.info.expirationDate) {
-          const expirationDate = new Date(session.info.expirationDate);
-          const now = new Date();
-          if (expirationDate <= now) {
-            isLoggedIn = false;
+    // If we're in an OAuth callback, keep checking until session is established
+    // Don't redirect until session is confirmed
+    if (isOAuthCallback) {
+      setIsCheckingSession(true);
+      
+      if (session.isLoggedIn) {
+        setIsCheckingSession(false);
+        // Redirect to home after successful OAuth (remove OAuth params from URL)
+        const redirectTimer = setTimeout(() => {
+          if (typeof window !== "undefined") {
+            window.location.href = "/";
           }
-        }
-
-        setIsAuthenticated(isLoggedIn);
-      } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err : new Error("Authentication check failed");
-        setError(errorMessage);
-        setIsAuthenticated(false);
-      } finally {
-        setIsChecking(false);
+        }, 200);
+        return () => clearTimeout(redirectTimer);
+      } else {
+        // Session not yet established, keep waiting
+        // Set a timeout to prevent infinite waiting (max 10 seconds)
+        const maxWaitTimer = setTimeout(() => {
+          setIsCheckingSession(false);
+        }, 10000);
+        return () => clearTimeout(maxWaitTimer);
       }
     }
 
-    checkAuth();
-  }, []);
-
-  // Re-check authentication state periodically in case user logs in from another tab
-  useEffect(() => {
-    if (!isAuthenticated && !error) {
-      const interval = setInterval(async () => {
-        try {
-          const session = getSession();
-          if (session.info.isLoggedIn) {
-            setIsAuthenticated(true);
-            setError(null);
-          }
-        } catch (err) {
-          // Silent fail for polling
-        }
-      }, 1000);
-
-      return () => clearInterval(interval);
+   
+    if (session.isLoggedIn) {
+      setIsCheckingSession(false);
+      if (isLoginPage) {
+        router.replace("/");
+      }
+      return;
     }
-  }, [isAuthenticated, error]);
 
-  const handleRetry = () => {
-    setError(null);
-    setIsChecking(true);
-    setIsAuthenticated(null);
+  
+    if (wasLoggedIn && !session.isLoggedIn) {
+      setIsCheckingSession(false);
+      if (!isLoginPage) {
+        router.replace("/login");
+      }
+      return;
+    }
 
-    handleIncomingRedirect({ restorePreviousSession: true })
-      .then(() => {
-        const session = getSession();
-        setIsAuthenticated(session.info.isLoggedIn);
-      })
-      .catch((err) => {
-        const errorMessage =
-          err instanceof Error ? err : new Error("Authentication check failed");
-        setError(errorMessage);
-        setIsAuthenticated(false);
-      })
-      .finally(() => {
-        setIsChecking(false);
-      });
-  };
+    // If we have session data (webId, sessionId, etc.) but isLoggedIn is false,
+    // the session is likely being restored - wait longer
+    // Otherwise, if no session data and no storage indicator, show login quickly
+    const shouldWaitForRestore = hasSessionData || hasSessionIndicator;
+    const checkTimer = setTimeout(() => {
+      setIsCheckingSession(false);
 
-  if (isChecking) {
+      if (!session.isLoggedIn && !isLoginPage && !isOAuthCallback) {
+        router.replace("/login");
+      }
+    }, shouldWaitForRestore ? 2000 : 200);
+
+    return () => clearTimeout(checkTimer);
+  }, [session.isLoggedIn, session.webId, session.sessionId, isOAuthCallback, hasSessionIndicator, hasSessionData, wasLoggedIn, isLoginPage, router]);
+
+ 
+  if (isCheckingSession || isOAuthCallback) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-white">
         <LoadingSpinner size="md" text="Loading..." />
@@ -100,20 +114,42 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
     );
   }
 
-  if (error) {
+  // If OAuth callback is on login page, we're still processing - show loading
+  // This handles the case where OAuth redirects back to /login
+  if (isOAuthCallback && isLoginPage) {
     return (
-      <ErrorDisplay
-        title="Authentication Error"
-        message={error.message || "Failed to authenticate. Please try again."}
-        onRetry={handleRetry}
-      />
+      <div className="flex min-h-screen items-center justify-center bg-white">
+        <LoadingSpinner size="md" text="Loading..." />
+      </div>
     );
   }
 
-  if (!isAuthenticated) {
-    return <LoginPage />;
+  // If not authenticated and not on login page, redirect will happen in useEffect
+  // If authenticated and on login page, redirect will happen in useEffect
+  // For now, just show children (or nothing if redirecting)
+  if (!session.isLoggedIn && !isLoginPage) {
+    return null; // Redirecting to login
   }
 
+  if (session.isLoggedIn && isLoginPage) {
+    return null; // Redirecting to home
+  }
+
+  // User is authenticated and on correct page, show the app
   return <>{children}</>;
 }
 
+
+export default function AuthWrapper({ children }: AuthWrapperProps) {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-white">
+          <LoadingSpinner size="md" text="Loading..." />
+        </div>
+      }
+    >
+      <AuthWrapperContent>{children}</AuthWrapperContent>
+    </Suspense>
+  );
+}
