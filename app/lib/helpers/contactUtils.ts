@@ -1,16 +1,6 @@
-import { NamedNode } from "n3";
-import { fetchAndParseProfile, extractNameAndEmail, getCachedProfile } from "./profileUtils";
+import { parseRdf, toTurtle } from "@ldo/ldo";
 import { getSession, getAuthenticatedSession } from "./sessionUtils";
-import { 
-  getSolidDataset, 
-  getThing, 
-  createThing, 
-  addUrl, 
-  getUrlAll,
-  setThing, 
-  saveSolidDatasetAt,
-  UrlString 
-} from "@inrupt/solid-client";
+import { SolidProfileShapeType } from "../../../src/ldo/Profile.shapeTypes";
 
 export interface Contact {
     webId: string;
@@ -20,74 +10,12 @@ export interface Contact {
 
 const FOAF_KNOWS = "http://xmlns.com/foaf/0.1/knows";
 
-/**
- * Fetches contacts from the logged-in user's WebID profile using foaf:knows relationships
- * Uses cached profile if available to avoid duplicate fetches
- * @returns Array of contacts with their WebID, name, and email
- */
-export async function fetchUserContacts(): Promise<Contact[]> {
-    const session = getSession();
-
-    if (!session.info.isLoggedIn || !session.info.webId) {
-        return [];
-    }
-
-    try {
-        const userWebId = session.info.webId;
-
-        // Try to get cached profile first, otherwise fetch it
-        let userProfile = getCachedProfile(userWebId);
-        if (!userProfile) {
-            userProfile = await fetchAndParseProfile(userWebId);
-        }
-
-        const { store, mainSubject } = userProfile;
-
-        // Get all foaf:knows relationships
-        const knowsQuads = store.getQuads(mainSubject, new NamedNode(FOAF_KNOWS), null, null);
-
-        const contacts: Contact[] = [];
-
-        // For each known person, fetch their profile to get name and email
-        for (const quad of knowsQuads) {
-            if (quad.object.termType !== "NamedNode") {
-                continue;
-            }
-
-            const contactWebId = quad.object.value;
-
-            try {
-                // Fetch the contact's profile (will use cache if already fetched)
-                const { store: contactStore, mainSubject: contactSubject } = await fetchAndParseProfile(contactWebId);
-
-                // Extract name and email using the shared helper
-                const { name, email } = extractNameAndEmail(contactStore, contactSubject);
-
-                contacts.push({
-                    webId: contactWebId,
-                    name,
-                    email,
-                });
-            } catch (error) {
-                // If we can't fetch the contact's profile, still add them with just the WebID
-                console.warn(`Could not fetch profile for contact ${contactWebId}:`, error);
-                contacts.push({
-                    webId: contactWebId,
-                    name: null,
-                    email: null,
-                });
-            }
-        }
-
-        return contacts;
-    } catch (error) {
-        console.error("Failed to fetch user contacts:", error);
-        return [];
-    }
-}
+// NOTE: fetchUserContacts has been replaced by the useUserContacts hook
+// located at app/lib/hooks/useUserContacts.ts
 
 /**
  * Adds a contact (WebID) to the user's profile using foaf:knows relationship
+ * Uses LDO for parsing and serializing RDF data
  * @param contactWebId - The WebID of the contact to add
  * @returns Promise that resolves when the contact is added
  */
@@ -101,42 +29,75 @@ export async function addContactToProfile(contactWebId: string): Promise<void> {
     const userWebId = session.info.webId;
     const { fetch } = getAuthenticatedSession();
     
-    const profileUrl = userWebId.split('#')[0] as UrlString;
+    const profileUrl = userWebId.split('#')[0];
     
     try {
-        // Fetch the user's profile dataset
-        let dataset = await getSolidDataset(profileUrl, { fetch });
+        // Fetch the user's profile
+        const response = await fetch(profileUrl, {
+            headers: {
+                'Accept': 'text/turtle',
+            },
+        });
         
-        // Get the main subject (usually WebID or WebID#me)
-        const mainSubject = userWebId as UrlString;
-        let thing = getThing(dataset, mainSubject);
-        
-        // If thing doesn't exist, try with #me fragment
-        if (!thing) {
-            const meSubject = `${profileUrl}#me` as UrlString;
-            thing = getThing(dataset, meSubject);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch profile: ${response.statusText}`);
         }
         
-        // If still doesn't exist, create a new thing
-        if (!thing) {
-            thing = createThing({ url: mainSubject });
-        }
+        const content = await response.text();
         
-        // Check if the contact is already in the knows list
-        const existingKnows = getUrlAll(thing, FOAF_KNOWS);
-        if (existingKnows.includes(contactWebId)) {
+        // Parse profile with LDO
+        const ldoDataset = await parseRdf(content, {
+            baseIRI: profileUrl,
+            format: "Turtle",
+        });
+        
+        // Get the profile subject (could be WebID or WebID#me)
+        let profile = ldoDataset
+            .usingType(SolidProfileShapeType)
+            .fromSubject(userWebId);
+        
+        // Check if contact already exists
+        const existingContacts = profile.knows ? [...profile.knows] : [];
+        const contactExists = existingContacts.some(c => c["@id"] === contactWebId);
+        
+        if (contactExists) {
             // Contact already exists, no need to add
             return;
         }
         
-        // Add the foaf:knows relationship
-        thing = addUrl(thing, FOAF_KNOWS, contactWebId as UrlString);
+        // Add the contact using foaf:knows
+        if (!profile.knows) {
+            // Initialize the knows set if it doesn't exist
+            profile = ldoDataset
+                .usingType(SolidProfileShapeType)
+                .fromSubject(userWebId);
+        }
         
-        // Update the dataset
-        const updatedDataset = setThing(dataset, thing);
+        profile.knows?.add({ "@id": contactWebId });
         
-        // Save the updated dataset
-        await saveSolidDatasetAt(profileUrl, updatedDataset, { fetch });
+        // Serialize to Turtle
+        const updatedTurtle = toTurtle(profile);
+        
+        // Use PATCH to update the profile
+        // Build SPARQL UPDATE to add the triple
+        const sparqlUpdate = `
+            PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+            INSERT DATA {
+                <${userWebId}> foaf:knows <${contactWebId}> .
+            }
+        `;
+        
+        const patchResponse = await fetch(profileUrl, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/sparql-update',
+            },
+            body: sparqlUpdate,
+        });
+        
+        if (!patchResponse.ok) {
+            throw new Error(`Failed to update profile: ${patchResponse.statusText}`);
+        }
     } catch (error) {
         console.error("Failed to add contact to profile:", error);
         throw error;

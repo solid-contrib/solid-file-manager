@@ -13,6 +13,8 @@ export { useSolidStorages } from "./useSolidStorages";
 export type { SolidStorage } from "./useSolidStorages";
 export { useUserProfile } from "./useUserProfile";
 export type { UserProfile } from "./useUserProfile";
+export { useUserContacts } from "./useUserContacts";
+export type { Contact } from "./useUserContacts";
 export { useBrowseStorage } from "./useBrowseStorage";
 export { useClickOutside } from "./useClickOutside";
 

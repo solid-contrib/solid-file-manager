@@ -1,170 +1,246 @@
-import { Parser, Store, NamedNode } from "n3";
-import { getSession } from "./sessionUtils";
+/**
+ * Profile utilities for working with Solid Profile data via LDO
+ * 
+ * This module provides helper functions for extracting data from SolidProfile objects.
+ * Fetching is handled by LDO's useResource and useSubject hooks in React components.
+ * For on-demand fetching (e.g., in event handlers), use fetchProfileOnDemand.
+ */
 
-// Cache for parsed profile documents
-const profileCache = new Map<string, { store: Store; baseUrl: string; mainSubject: NamedNode }>();
+import { parseRdf } from "@ldo/ldo";
+import { SolidProfile } from "../../../src/ldo/Profile.typings";
+import { SolidProfileShapeType as ProfileShapeType } from "../../../src/ldo/Profile.shapeTypes";
+
+// Re-export shape type for convenience
+export { SolidProfileShapeType } from "../../../src/ldo/Profile.shapeTypes";
+
+// Re-export types for convenience
+export type { SolidProfile } from "../../../src/ldo/Profile.typings";
 
 /**
- * Fetches and parses the WebID profile document, with caching to avoid duplicate fetches
+ * Fetches and parses a profile on-demand using LDO.
+ * Use this for event handlers and other non-hook contexts.
+ * For React components, prefer using useResource and useSubject hooks.
+ * 
  * @param webId - The WebID to fetch
- * @returns The parsed RDF store, base URL, and main subject
+ * @param fetchFn - Optional custom fetch function (e.g., authenticated fetch)
+ * @returns The parsed LDO profile
  */
-export async function fetchAndParseProfile(
-  webId: string
-): Promise<{ store: Store; baseUrl: string; mainSubject: NamedNode }> {
-  // Check cache first
-  if (profileCache.has(webId)) {
-    return profileCache.get(webId)!;
+export async function fetchProfileOnDemand(
+  webId: string,
+  fetchFn: typeof fetch = fetch
+): Promise<SolidProfile> {
+  const response = await fetchFn(webId, {
+    method: 'GET',
+    headers: {
+      'Accept': 'text/turtle, application/turtle, text/n3',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch profile: ${response.status} ${response.statusText}`);
   }
 
-  const session = getSession();
-  const fetchFn = session.fetch || fetch;
-
-  // Try different Accept headers to get the profile
-  const acceptHeaders = [
-    'text/turtle, application/turtle, text/n3, application/n3',
-    'text/turtle',
-    'application/ld+json',
-  ];
-
-  let content: string | null = null;
-  let contentType: string = '';
-
-  for (const acceptHeader of acceptHeaders) {
-    try {
-      const response = await fetchFn(webId, {
-        method: 'GET',
-        headers: {
-          'Accept': acceptHeader,
-        },
-      });
-
-      if (response.ok) {
-        contentType = response.headers.get('content-type') || '';
-        content = await response.text();
-        break;
-      }
-    } catch (err) {
-      continue;
-    }
-  }
-
-  if (!content) {
-    throw new Error("Failed to fetch profile document with any Accept header");
-  }
-
-  // Parse the RDF content
-  const store = new Store();
+  const content = await response.text();
   const baseUrl = webId.split('#')[0];
 
-  if (contentType.includes('text/turtle') || contentType.includes('application/turtle') || 
-      contentType.includes('text/n3') || contentType.includes('application/n3')) {
-    const parser = new Parser({ baseIRI: baseUrl });
-    const quads = parser.parse(content);
-    store.addQuads(quads);
-  } else if (contentType.includes('application/ld+json')) {
-    // Try parsing as Turtle anyway (most servers return Turtle even if JSON-LD is requested)
-    try {
-      const parser = new Parser({ baseIRI: baseUrl });
-      const quads = parser.parse(content);
-      store.addQuads(quads);
-    } catch (e) {
-      // Silent error handling
-    }
-  }
+  // Parse RDF using LDO
+  const ldoDataset = await parseRdf(content, {
+    baseIRI: baseUrl,
+    format: "Turtle",
+  });
 
-  // Find the main subject - try different variants
-  const FOAF_NAME = "http://xmlns.com/foaf/0.1/name";
-  const subjectVariants = [
-    new NamedNode(webId),
-    new NamedNode(baseUrl + '#me'),
-    new NamedNode('#me'),
-    new NamedNode(baseUrl + '#card'),
-  ];
-
-  let mainSubject: NamedNode | null = null;
-
-  for (const subject of subjectVariants) {
-    const nameQuads = store.getQuads(subject, new NamedNode(FOAF_NAME), null, null);
-    if (nameQuads.length > 0) {
-      mainSubject = subject;
-      break;
-    }
-  }
-
-  // If still not found, try to find Person type
-  if (!mainSubject) {
-    const personType = new NamedNode('http://xmlns.com/foaf/0.1/Person');
-    const personQuads = store.getQuads(null, new NamedNode('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'), personType, null);
-    if (personQuads.length > 0 && personQuads[0].subject.termType === 'NamedNode') {
-      mainSubject = personQuads[0].subject as NamedNode;
-    }
-  }
-
-  // Fallback to WebID itself
-  if (!mainSubject) {
-    mainSubject = new NamedNode(webId);
-  }
-
-  // Cache the result
-  const result = { store, baseUrl, mainSubject };
-  profileCache.set(webId, result);
-
-  return result;
+  // Get the profile from the dataset
+  const profile = ldoDataset.usingType(ProfileShapeType).fromSubject(webId);
+  
+  return profile;
 }
 
 /**
- * Extracts name and email from a parsed profile store
- * @param store - The RDF store containing the profile
- * @param mainSubject - The main subject node to extract data from
+ * Extracts name and email from a parsed LDO profile
+ * @param profile - The LDO SolidProfile object
  * @returns Object with name and email (both can be null)
  */
-export function extractNameAndEmail(store: Store, mainSubject: NamedNode): {
+export function extractNameAndEmail(profile: SolidProfile | null | undefined): {
   name: string | null;
   email: string | null;
 } {
-  const VCARD_FN = "http://www.w3.org/2006/vcard/ns#fn";
-  const FOAF_NAME = "http://xmlns.com/foaf/0.1/name";
-  const VCARD_EMAIL = "http://www.w3.org/2006/vcard/ns#email";
-
-  // Try to get name (prefer vcard:fn, then foaf:name)
-  let name: string | null = null;
-  const vcardFnQuads = store.getQuads(mainSubject, new NamedNode(VCARD_FN), null, null);
-  if (vcardFnQuads.length > 0 && vcardFnQuads[0].object.termType === "Literal") {
-    name = vcardFnQuads[0].object.value;
-  } else {
-    const foafNameQuads = store.getQuads(mainSubject, new NamedNode(FOAF_NAME), null, null);
-    if (foafNameQuads.length > 0 && foafNameQuads[0].object.termType === "Literal") {
-      name = foafNameQuads[0].object.value;
-    }
+  if (!profile) {
+    return { name: null, email: null };
   }
 
-  // Try to get email
+  // Prefer vcard:fn, then foaf:name
+  const name = profile.fn || profile.name || null;
+
+  // Email handling - hasEmail contains URIs (often mailto: URIs)
   let email: string | null = null;
-  const emailQuads = store.getQuads(mainSubject, new NamedNode(VCARD_EMAIL), null, null);
-  if (emailQuads.length > 0 && emailQuads[0].object.termType === "Literal") {
-    email = emailQuads[0].object.value;
+  if (profile.hasEmail) {
+    // LdSet is iterable, iterate over it
+    for (const emailObj of profile.hasEmail) {
+      if (emailObj && emailObj["@id"]) {
+        const emailUri = emailObj["@id"];
+        // Check if it's a mailto: URI
+        if (emailUri.startsWith('mailto:')) {
+          email = emailUri.replace('mailto:', '');
+        } else {
+          // It might be a blank node or nested vcard structure
+          // For now, return the URI as-is if not mailto
+          email = emailUri;
+        }
+        break; // Take only the first email
+      }
+    }
   }
 
   return { name, email };
 }
 
 /**
- * Gets the cached profile for a WebID if it exists
- * @param webId - The WebID to get from cache
- * @returns The cached profile or null if not cached
+ * Gets all storage URLs from a profile (combines pim:storage and solid:storage)
+ * @param profile - The LDO SolidProfile object
+ * @returns Array of storage URLs
  */
-export function getCachedProfile(webId: string): { store: Store; baseUrl: string; mainSubject: NamedNode } | null {
-  return profileCache.get(webId) || null;
+export function getStorageUrls(profile: SolidProfile | null | undefined): string[] {
+  if (!profile) {
+    return [];
+  }
+
+  const storageUrls: string[] = [];
+
+  // pim:storage
+  if (profile.storage) {
+    for (const storage of profile.storage) {
+      if (storage && storage["@id"]) {
+        storageUrls.push(storage["@id"]);
+      }
+    }
+  }
+
+  // solid:storage (mapped to storage2 in LDO due to name collision)
+  if (profile.storage2) {
+    for (const storage of profile.storage2) {
+      if (storage && storage["@id"] && !storageUrls.includes(storage["@id"])) {
+        storageUrls.push(storage["@id"]);
+      }
+    }
+  }
+
+  return storageUrls;
 }
 
 /**
- * Clears the profile cache (useful for testing or when profile might have changed)
+ * Gets all contact WebIDs (foaf:knows) from a profile
+ * @param profile - The LDO SolidProfile object
+ * @returns Array of WebID URLs
  */
-export function clearProfileCache(webId?: string): void {
-  if (webId) {
-    profileCache.delete(webId);
-  } else {
-    profileCache.clear();
+export function getContactWebIds(profile: SolidProfile | null | undefined): string[] {
+  if (!profile) {
+    return [];
   }
+
+  const contacts: string[] = [];
+
+  if (profile.knows) {
+    for (const contact of profile.knows) {
+      if (contact && contact["@id"]) {
+        contacts.push(contact["@id"]);
+      }
+    }
+  }
+
+  return contacts;
+}
+
+/**
+ * Gets photo URL from a profile
+ * @param profile - The LDO SolidProfile object
+ * @param baseUrl - The base URL for resolving relative URLs
+ * @returns Photo URL or null
+ */
+export function getPhotoUrl(profile: SolidProfile | null | undefined, baseUrl: string): string | null {
+  if (!profile) {
+    return null;
+  }
+
+  let photoUrl: string | null = null;
+
+  // Try vcard:hasPhoto first, then foaf:img
+  if (profile.hasPhoto && profile.hasPhoto["@id"]) {
+    photoUrl = profile.hasPhoto["@id"];
+  } else if (profile.img && profile.img["@id"]) {
+    photoUrl = profile.img["@id"];
+  }
+
+  // Resolve relative URLs
+  if (photoUrl && !photoUrl.startsWith('http://') && !photoUrl.startsWith('https://')) {
+    try {
+      photoUrl = new URL(photoUrl, baseUrl).href;
+    } catch (e) {
+      // Silent error handling
+    }
+  }
+
+  return photoUrl;
+}
+
+/**
+ * Gets website URL from a profile
+ * @param profile - The LDO SolidProfile object
+ * @returns Website URL or null
+ */
+export function getWebsiteUrl(profile: SolidProfile | null | undefined): string | null {
+  if (!profile) {
+    return null;
+  }
+
+  // Try vcard:hasURL first, then foaf:homepage
+  if (profile.hasURL && profile.hasURL["@id"]) {
+    return profile.hasURL["@id"];
+  }
+  if (profile.homepage && profile.homepage["@id"]) {
+    return profile.homepage["@id"];
+  }
+  return null;
+}
+
+/**
+ * Gets phone number from a profile
+ * @param profile - The LDO SolidProfile object
+ * @returns Phone number or null
+ */
+export function getPhone(profile: SolidProfile | null | undefined): string | null {
+  if (!profile) {
+    return null;
+  }
+
+  if (profile.hasTelephone) {
+    for (const phoneObj of profile.hasTelephone) {
+      if (phoneObj && phoneObj["@id"]) {
+        const phoneUri = phoneObj["@id"];
+        return phoneUri.startsWith('tel:') ? phoneUri.replace('tel:', '') : phoneUri;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Gets the display name from a profile with fallback to WebID parsing
+ * @param profile - The LDO SolidProfile object
+ * @param webId - The WebID to use as fallback for name extraction
+ * @returns Display name or null
+ */
+export function getDisplayName(profile: SolidProfile | null | undefined, webId?: string): string | null {
+  const { name } = extractNameAndEmail(profile);
+  
+  if (name) {
+    return name;
+  }
+  
+  // Fallback to WebID parsing
+  if (webId) {
+    return webId.split("/").pop()?.split("#")[0] || null;
+  }
+  
+  return null;
 }

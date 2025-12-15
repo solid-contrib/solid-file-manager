@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useSolidAuth } from "@ldo/solid-react";
 import Modal from "./shared/Modal";
 import Button from "./shared/Button";
 import UrlCombobox, { ComboboxOption } from "./shared/UrlCombobox";
 import { FileItemData } from "./FileItem";
-import { fetchUserContacts, Contact, addContactToProfile } from "../lib/helpers/contactUtils";
-import { fetchAndParseProfile, extractNameAndEmail } from "../lib/helpers/profileUtils";
+import { Contact, addContactToProfile } from "../lib/helpers/contactUtils";
+import { fetchProfileOnDemand, extractNameAndEmail } from "../lib/helpers/profileUtils";
+import { useUserContacts } from "../lib/hooks/useUserContacts";
 import { getResourceAccessList } from "../lib/helpers/acpUtils";
 import { UserIcon, MagnifyingGlassIcon, LockClosedIcon, XMarkIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
 import LoadingSpinner from "./shared/LoadingSpinner";
@@ -32,9 +34,10 @@ export default function ShareDialog({
   file,
   onShare,
 }: ShareDialogProps) {
+  const { session } = useSolidAuth();
+  const { contacts, isLoading: isLoadingContacts, refetch: refetchContacts } = useUserContacts();
+  
   const [webIdInput, setWebIdInput] = useState("");
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [isLoadingContacts, setIsLoadingContacts] = useState(false);
   const [selectedAccessLevel, setSelectedAccessLevel] = useState<AccessLevel>("Editor");
   const [peopleChips, setPeopleChips] = useState<PersonChip[]>([]);
   const [isAddingWebId, setIsAddingWebId] = useState(false);
@@ -42,20 +45,9 @@ export default function ShareDialog({
   const [accessList, setAccessList] = useState<Array<{ webId: string; accessModes: string[] }> | null>(null);
   const [isLoadingAccessList, setIsLoadingAccessList] = useState(false);
 
-  // Fetch contacts and access list when dialog opens
+  // Fetch access list when dialog opens
   useEffect(() => {
     if (isOpen && file) {
-      setIsLoadingContacts(true);
-      fetchUserContacts()
-        .then((fetchedContacts) => {
-          setContacts(fetchedContacts);
-          setIsLoadingContacts(false);
-        })
-        .catch((error) => {
-          console.error("Failed to fetch contacts:", error);
-          setIsLoadingContacts(false);
-        });
-
       // Load current access list
       setIsLoadingAccessList(true);
       const resourceUrl = file.type === "folder" && !file.url.endsWith("/") ? file.url + "/" : file.url;
@@ -121,11 +113,16 @@ export default function ShareDialog({
     setIsAddingWebId(true);
 
     try {
-      // Fetch profile to get name and email 
-      const { store, mainSubject } = await fetchAndParseProfile(webId);
+      // Get authenticated fetch from session
+      const fetchFn = ('fetch' in session && typeof (session as any).fetch === 'function')
+        ? (session as any).fetch
+        : fetch;
+      
+      // Fetch profile to get name and email using on-demand fetch
+      const profile = await fetchProfileOnDemand(webId, fetchFn);
       
       // Extract name and email using the shared helper
-      const { name, email } = extractNameAndEmail(store, mainSubject);
+      const { name, email } = extractNameAndEmail(profile);
 
       setPeopleChips([
         ...peopleChips,
@@ -179,12 +176,7 @@ export default function ShareDialog({
         
         // Refresh contacts list if we added any new ones
         if (newWebIds.length > 0) {
-          try {
-            const updatedContacts = await fetchUserContacts();
-            setContacts(updatedContacts);
-          } catch (error) {
-            console.warn("Failed to refresh contacts list:", error);
-          }
+          refetchContacts();
         }
         
         // Refresh access list after sharing

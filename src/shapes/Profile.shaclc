@@ -1,0 +1,50 @@
+BASE <https://example.org/shapes#>
+PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+PREFIX vcard: <http://www.w3.org/2006/vcard/ns#>
+PREFIX pim: <http://www.w3.org/ns/pim/space#>
+PREFIX solid: <http://www.w3.org/ns/solid/terms#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+shape <SolidProfileShape> -> foaf:Person {
+    # Name fields
+    foaf:name xsd:string [0..1] .
+    vcard:fn xsd:string [0..1] .
+    
+    # Storage roots
+    pim:storage IRI [0..*] .
+    solid:storage IRI [0..*] .
+    
+    # Contacts/relationships
+    foaf:knows IRI [0..*] .
+    
+    # Photo
+    vcard:hasPhoto IRI [0..1] .
+    foaf:img IRI [0..1] .
+    
+    # Email (can be a mailto: URI or nested vcard structure)
+    vcard:hasEmail IRI [0..*] .
+    
+    # Telephone
+    vcard:hasTelephone IRI [0..*] .
+    
+    # Organization info
+    vcard:organization-name xsd:string [0..1] .
+    vcard:role xsd:string [0..1] .
+    vcard:title xsd:string [0..1] .
+    
+    # Website/homepage
+    vcard:hasURL IRI [0..1] .
+    foaf:homepage IRI [0..1] .
+}
+
+shape <VCardValueShape> {
+    vcard:value IRI [0..1] .
+}
+
+# Shape for .meta files that describe resources
+shape <ResourceMetaShape> {
+    dcterms:title xsd:string [0..1] .
+    rdfs:label xsd:string [0..1] .
+}

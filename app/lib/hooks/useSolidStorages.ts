@@ -1,17 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSolidAuth } from "@ldo/solid-react";
-import { Parser, Store, NamedNode, Literal } from "n3";
-import { fetchAndParseProfile } from "../helpers/profileUtils";
+import { useEffect, useState, useMemo } from "react";
+import { useSolidAuth, useResource, useSubject } from "@ldo/solid-react";
+import { parseRdf } from "@ldo/ldo";
+import { namedNode } from "@ldo/rdf-utils";
+import { SolidProfileShapeType, getStorageUrls } from "../helpers/profileUtils";
 
-// Storage predicates and types
-const PIM_STORAGE = "http://www.w3.org/ns/pim/space#storage";
-const SOLID_STORAGE = "http://www.w3.org/ns/solid/terms#storage";
+// Storage predicates and types (used for hierarchical traversal fallback)
 const PIM_STORAGE_TYPE = "http://www.w3.org/ns/pim/space#Storage";
 const RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
-const FOAF_NAME = "http://xmlns.com/foaf/0.1/name";
-const VCARD_FN = "http://www.w3.org/2006/vcard/ns#fn";
 
 export interface SolidStorage {
   id: string;
@@ -131,19 +128,34 @@ async function discoverStorageViaTraversal(
         const contentType = response.headers.get('Content-Type') || '';
         const content = await response.text();
         
-        // Parse the RDF content
-        const store = new Store();
+        // Parse the RDF content using LDO
+        let isStorage = false;
+        
         if (contentType.includes('text/turtle') || contentType.includes('application/turtle') || 
             contentType.includes('text/n3') || contentType.includes('application/n3')) {
-          const parser = new Parser({ baseIRI: currentUrl });
-          const quads = parser.parse(content);
-          store.addQuads(quads);
+          try {
+            const ldoDataset = await parseRdf(content, { baseIRI: currentUrl });
+            
+            // Check if this container is of type pim:Storage using dataset.match()
+            const containerNode = namedNode(currentUrl);
+            const rdfTypeNode = namedNode(RDF_TYPE);
+            const pimStorageNode = namedNode(PIM_STORAGE_TYPE);
+            const matchingQuads = ldoDataset.match(containerNode, rdfTypeNode, pimStorageNode);
+            isStorage = matchingQuads.size > 0;
+          } catch (e) {
+            // Parse failed, continue to parent
+          }
         } else {
           // Try parsing as Turtle anyway (some servers don't set content-type correctly)
           try {
-            const parser = new Parser({ baseIRI: currentUrl });
-            const quads = parser.parse(content);
-            store.addQuads(quads);
+            const ldoDataset = await parseRdf(content, { baseIRI: currentUrl });
+            
+            // Check if this container is of type pim:Storage using dataset.match()
+            const containerNode = namedNode(currentUrl);
+            const rdfTypeNode = namedNode(RDF_TYPE);
+            const pimStorageNode = namedNode(PIM_STORAGE_TYPE);
+            const matchingQuads = ldoDataset.match(containerNode, rdfTypeNode, pimStorageNode);
+            isStorage = matchingQuads.size > 0;
           } catch (e) {
             // Move up one level and continue
             const parentUrl = currentUrl.substring(0, currentUrl.lastIndexOf('/', currentUrl.length - 2) + 1);
@@ -155,14 +167,6 @@ async function discoverStorageViaTraversal(
             continue;
           }
         }
-        
-        const containerNode = new NamedNode(currentUrl);
-        const rdfType = new NamedNode(RDF_TYPE);
-        const pimStorageType = new NamedNode(PIM_STORAGE_TYPE);
-        
-        // Check if this container is of type pim:Storage
-        const typeQuads = store.getQuads(containerNode, rdfType, pimStorageType, null);
-        const isStorage = typeQuads.length > 0;
         
         if (isStorage) {
           // Ensure URL ends with /
@@ -198,162 +202,128 @@ async function discoverStorageViaTraversal(
 /**
  * Hook to fetch Solid storage roots from the user's WebID profile.
  * Uses two methods:
- * 1. Direct RDF parsing to discover storage locations via pim:storage and solid:storage predicates
- * 2. Hierarchical traversal to find pim:Storage containers by walking up the directory tree
+ * 1. LDO's useResource and useSubject to discover storage locations via pim:storage and solid:storage predicates
+ * 2. Hierarchical traversal to find pim:Storage containers by walking up the directory tree (fallback)
  */
 export function useSolidStorages(): UseSolidStoragesResult {
   const { session } = useSolidAuth();
-  const [storages, setStorages] = useState<SolidStorage[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const webId = session.webId;
+  const [fallbackStorages, setFallbackStorages] = useState<string[]>([]);
+  const [fallbackLoading, setFallbackLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-
+  
+  // useResource handles fetching automatically
+  const resource = useResource(webId);
+  
+  // useSubject extracts typed data from the resource
+  const profile = useSubject(SolidProfileShapeType, webId);
+  
+  // Check if resource is still loading
+  const resourceIsLoading = resource ? (
+    'isReading' in resource ? resource.isReading() : 
+    'isUnfetched' in resource ? resource.isUnfetched() : 
+    false
+  ) : true;
+  
+  // Get storage URLs from profile using LDO
+  const profileStorageUrls = useMemo(() => {
+    if (!webId || !profile) {
+      return [];
+    }
+    
+    const baseUrl = webId.split('#')[0];
+    const storageUrls: string[] = [];
+    
+    // Get storages from the profile using the helper function
+    const profileStorages = getStorageUrls(profile);
+    profileStorages.forEach(url => {
+      const resolvedUrl = resolveStorageUrl(url, baseUrl);
+      if (resolvedUrl && !storageUrls.includes(resolvedUrl)) {
+        storageUrls.push(resolvedUrl);
+      }
+    });
+    
+    return storageUrls;
+  }, [webId, profile]);
+  
+  // Fallback: Hierarchical traversal when no storage found in profile
   useEffect(() => {
     let isMounted = true;
     
-    async function fetchStorages() {
-      try {
-        if (!isMounted) return;
-        
-        setIsLoading(true);
-        setError(null);
-
-        // Wait for authentication to complete
-        if (!session.isLoggedIn || !session.webId) {
-          setIsLoading(false);
-          return;
-        }
-
-        const webId = session.webId;
-
-        // Use shared profile fetching utility (with caching)
-        const { store, baseUrl, mainSubject } = await fetchAndParseProfile(webId);
-
-
-        // Get storage roots using both pim:storage and solid:storage predicates
-        const storageUrls: string[] = [];
-        
-        // Try pim:storage
-        const pimStorageQuads = store.getQuads(mainSubject, new NamedNode(PIM_STORAGE), null, null);
+    async function runFallback() {
+      if (!webId || !session.isLoggedIn) return;
       
-        pimStorageQuads.forEach(quad => {
-          if (quad.object instanceof NamedNode) {
-            const resolvedUrl = resolveStorageUrl(quad.object.value, baseUrl);
-            if (resolvedUrl && !storageUrls.includes(resolvedUrl)) {
-              storageUrls.push(resolvedUrl);
-            }
-          }
-        });
-
-        // Try solid:storage
-        const solidStorageQuads = store.getQuads(mainSubject, new NamedNode(SOLID_STORAGE), null, null);
-        solidStorageQuads.forEach(quad => {
-          if (quad.object instanceof NamedNode) {
-            const storageUrl = quad.object.value;
-            if (!storageUrls.includes(storageUrl)) {
-              storageUrls.push(storageUrl);
-            }
-          }
-        });
-
-        // Also check all quads in the store for storage predicates (in case subject is different)
-        const allPimStorageQuads = store.getQuads(null, new NamedNode(PIM_STORAGE), null, null);
-        allPimStorageQuads.forEach(quad => {
-          if (quad.object instanceof NamedNode) {
-            const resolvedUrl = resolveStorageUrl(quad.object.value, baseUrl);
-            if (resolvedUrl && !storageUrls.includes(resolvedUrl)) {
-              storageUrls.push(resolvedUrl);
-            }
-          } else if (quad.object instanceof Literal) {
-            // Sometimes storage might be a literal, try to resolve it
-            const resolvedUrl = resolveStorageUrl(quad.object.value, baseUrl);
-            if (resolvedUrl && !storageUrls.includes(resolvedUrl)) {
-              storageUrls.push(resolvedUrl);
-            }
-          }
-        });
-
-        const allSolidStorageQuads = store.getQuads(null, new NamedNode(SOLID_STORAGE), null, null);
-        allSolidStorageQuads.forEach(quad => {
-          if (quad.object instanceof NamedNode) {
-            const storageUrl = quad.object.value;
-            if (!storageUrls.includes(storageUrl)) {
-              storageUrls.push(storageUrl);
-            }
-          }
-        });
-
+      // Only run fallback if profile is loaded and no storages found
+      if (resourceIsLoading || profileStorageUrls.length > 0) return;
+      
+      setFallbackLoading(true);
+      
+      try {
         // Method 2: Hierarchical traversal (if no storage found via predicates)
-        // Based on: https://github.com/SolidLabResearch/Bashlib/blob/80de25cbb4b3ed057f95e25bc057f1be9b00cef3/src/utils/util.ts#L73-L104
-        if (storageUrls.length === 0) {
-          try {
-            // LDO's session object has fetch property, but TypeScript types may not include it
-            // Use type assertion to access it, with fallback to regular fetch
-            const fetchFn = ('fetch' in session && typeof (session as any).fetch === 'function') 
-              ? (session as any).fetch 
-              : fetch;
-            const traversalStorages = await discoverStorageViaTraversal(webId, fetchFn);
-            traversalStorages.forEach(url => {
-              if (!storageUrls.includes(url)) {
-                storageUrls.push(url);
-              }
-            });
-          } catch (err) {
-            // Silent error handling
-          }
-        }
-
-        // If still no storage found, try to infer from WebID
-        if (storageUrls.length === 0) {
-          // Extract base URL from WebID
-          const webIdUrl = new URL(webId);
-          const baseUrl = `${webIdUrl.protocol}//${webIdUrl.host}/`;
-          
-          // For solidcommunity.net, storage is typically at the root
-          if (webId.includes("solidcommunity.net")) {
-            storageUrls.push(baseUrl);
+        const fetchFn = ('fetch' in session && typeof (session as any).fetch === 'function') 
+          ? (session as any).fetch 
+          : fetch;
+        const traversalStorages = await discoverStorageViaTraversal(webId, fetchFn);
+        
+        if (isMounted) {
+          if (traversalStorages.length > 0) {
+            setFallbackStorages(traversalStorages);
           } else {
-            // For other providers, try common patterns
-            storageUrls.push(baseUrl);
+            // If still no storage found, try to infer from WebID
+            const webIdUrl = new URL(webId);
+            const baseUrl = `${webIdUrl.protocol}//${webIdUrl.host}/`;
+            setFallbackStorages([baseUrl]);
           }
         }
-
-        // Filter out invalid URLs (those with "undefined" or not starting with http)
-        const validStorageUrls = storageUrls.filter(url => 
-          url && 
-          (url.startsWith('http://') || url.startsWith('https://')) &&
-          !url.includes('undefined')
-        );
-
-        // Convert to SolidStorage format
-        const discoveredStorages: SolidStorage[] = validStorageUrls.map((url) => {
-          return {
-            id: url,
-            name: url,
-            url: url,
-          };
-        });
-
-        setStorages(discoveredStorages);
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err : new Error("Failed to fetch storage roots");
-        setError(errorMessage);
-        setStorages([]);
+        if (isMounted) {
+          setError(err instanceof Error ? err : new Error("Failed to discover storage"));
+        }
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setFallbackLoading(false);
+        }
       }
     }
-
-    if (session.isLoggedIn && session.webId) {
-      fetchStorages();
-    } else {
-      setIsLoading(false);
-    }
+    
+    runFallback();
     
     return () => {
       isMounted = false;
     };
-  }, [session.isLoggedIn, session.webId]);
+  }, [webId, session.isLoggedIn, resourceIsLoading, profileStorageUrls.length]);
+  
+  // Combine profile storages with fallback storages
+  const storages = useMemo<SolidStorage[]>(() => {
+    const allUrls = profileStorageUrls.length > 0 ? profileStorageUrls : fallbackStorages;
+    
+    // Filter out invalid URLs
+    const validStorageUrls = allUrls.filter(url => 
+      url && 
+      (url.startsWith('http://') || url.startsWith('https://')) &&
+      !url.includes('undefined')
+    );
+    
+    // Convert to SolidStorage format
+    return validStorageUrls.map((url) => ({
+      id: url,
+      name: url,
+      url: url,
+    }));
+  }, [profileStorageUrls, fallbackStorages]);
+  
+  // Determine loading state
+  const isLoading = !session.isLoggedIn 
+    ? false 
+    : resourceIsLoading || fallbackLoading;
+  
+  // Handle resource error
+  const resourceError = useMemo(() => {
+    if (resource && 'isError' in resource && resource.isError) {
+      return new Error("Failed to fetch profile for storage discovery");
+    }
+    return error;
+  }, [resource, error]);
 
-  return { storages, isLoading, error };
+  return { storages, isLoading, error: resourceError };
 }

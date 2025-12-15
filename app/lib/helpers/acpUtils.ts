@@ -3,20 +3,23 @@
  * 
  * This file contains the utility functions for ACP operations.
  * It creates, updates, and reads Access Control Resources (ACRs) that define who can access resources.
- * The file uses a hybrid approach:
- * LDO (Linked Data Objects): for reading/parsing existing ACRs
- * N3.js: for creating/updating ACRs (because LDO doesn't initialize properties for new subjects)
+ * Uses LDO (Linked Data Objects) for both reading and writing ACRs.
  */
 
-import { parseRdf, toTurtle, LdoDataset } from "@ldo/ldo";
+import { parseRdf, toTurtle, LdoDataset, createLdoDataset } from "@ldo/ldo";
 import { getAuthenticatedSession } from "./sessionUtils";
 import {
   AccessControlResource,
+  AccessControl,
+  Policy,
+  Matcher,
 } from "../../../src/ldo/Model.typings";
 import {
   AccessControlResourceShapeType,
+  AccessControlShapeType,
+  PolicyShapeType,
+  MatcherShapeType,
 } from "../../../src/ldo/Model.shapeTypes";
-import { DataFactory, Writer, Store } from "n3";
 
 const ACP = {
   Read: "http://www.w3.org/ns/solid/acp#Read",
@@ -201,11 +204,8 @@ async function fetchAcr(
 }
 
 /**
- * Creates a new ACR with the given policies using N3.js
+ * Creates a new ACR with the given policies using LDO
  * Returns the Turtle serialization ready to be PUT to the server
- * 
- * NOTE: N3.js is used for creation/updates because LDO doesn't initialize
- * properties that don't exist in RDF. LDO is only used for reading existing ACRs.
  */
 async function createAcr(
   resourceUrl: string,
@@ -213,16 +213,19 @@ async function createAcr(
   webIds: string[],
   accessLevel: AccessLevel
 ): Promise<string> {
-  const { namedNode, blankNode, quad } = DataFactory;
-  const quads: any[] = [];
+  const ACP_NS = "http://www.w3.org/ns/solid/acp#";
   
-  const acrSubject = namedNode(acrUrl);
-  const acp = "http://www.w3.org/ns/solid/acp#";
-  const rdf = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
+  // Create a new LDO dataset
+  const ldoDataset = createLdoDataset();
   
-  // Add ACR type and resource
-  quads.push(quad(acrSubject, namedNode(`${rdf}type`), namedNode(`${acp}AccessControlResource`)));
-  quads.push(quad(acrSubject, namedNode(`${acp}resource`), namedNode(resourceUrl)));
+  // Create the ACR subject
+  const acr = ldoDataset
+    .usingType(AccessControlResourceShapeType)
+    .fromSubject(acrUrl);
+  
+  // Set ACR type and resource
+  acr.type.add({ "@id": `${ACP_NS}AccessControlResource` });
+  acr.resource = { "@id": resourceUrl };
   
   // Create Access Controls for each WebID and access mode
   const accessModes = getAccessModes(accessLevel);
@@ -230,49 +233,46 @@ async function createAcr(
   
   webIds.forEach((webId) => {
     accessModes.forEach((mode) => {
-      // Create blank nodes for nested structure
-      const matcherNode = blankNode(`matcher_${controlIndex}`);
-      const policyNode = blankNode(`policy_${controlIndex}`);
-      const accessControlNode = blankNode(`accessControl_${controlIndex}`);
+      // Create Matcher with blank node
+      const matcherId = `_:matcher_${controlIndex}`;
+      const matcher = ldoDataset
+        .usingType(MatcherShapeType)
+        .fromSubject(matcherId);
+      matcher.type.add({ "@id": `${ACP_NS}Matcher` });
+      matcher.agent = { "@id": webId };
       
-      // Matcher: type and agent
-      quads.push(quad(matcherNode, namedNode(`${rdf}type`), namedNode(`${acp}Matcher`)));
-      quads.push(quad(matcherNode, namedNode(`${acp}agent`), namedNode(webId)));
+      // Create Policy with blank node
+      const policyId = `_:policy_${controlIndex}`;
+      const policy = ldoDataset
+        .usingType(PolicyShapeType)
+        .fromSubject(policyId);
+      policy.type.add({ "@id": `${ACP_NS}Policy` });
+      policy.allow = { "@id": `${ACP_NS}${mode}` };
+      policy.anyOf = matcher;
       
-      // Policy: type, allow, and anyOf (matcher)
-      quads.push(quad(policyNode, namedNode(`${rdf}type`), namedNode(`${acp}Policy`)));
-      quads.push(quad(policyNode, namedNode(`${acp}allow`), namedNode(`${acp}${mode}`)));
-      quads.push(quad(policyNode, namedNode(`${acp}anyOf`), matcherNode));
-      
-      // AccessControl: type and apply (policy)
-      quads.push(quad(accessControlNode, namedNode(`${rdf}type`), namedNode(`${acp}AccessControl`)));
-      quads.push(quad(accessControlNode, namedNode(`${acp}apply`), policyNode));
+      // Create AccessControl with blank node
+      const accessControlId = `_:accessControl_${controlIndex}`;
+      const accessControl = ldoDataset
+        .usingType(AccessControlShapeType)
+        .fromSubject(accessControlId);
+      accessControl.type.add({ "@id": `${ACP_NS}AccessControl` });
+      accessControl.apply = policy;
       
       // Link AccessControl to ACR
-      quads.push(quad(acrSubject, namedNode(`${acp}accessControl`), accessControlNode));
+      acr.accessControl.add(accessControl);
       
       controlIndex++;
     });
   });
   
-  // Convert quads to Turtle using N3 Writer
-  return new Promise<string>((resolve, reject) => {
-    const writer = new Writer({ prefixes: { acp, rdf } });
-    quads.forEach(q => writer.addQuad(q));
-    writer.end((error, result) => {
-      if (error) reject(error);
-      else resolve(result);
-    });
-  });
+  // Serialize to Turtle
+  return toTurtle(acr);
 }
 
 /**
  * Updates an existing ACR by adding new policies for the given WebIDs
- * Uses N3.js to build new access controls, then merges with existing ACR Turtle
+ * Uses LDO to parse existing ACR, add new access controls, and serialize
  * Returns the combined Turtle serialization
- * 
- * NOTE: LDO is used only to read the existing ACR and extract existing agents.
- * All updates are done with N3.js.
  */
 async function updateAcr(
   existingTurtle: string,
@@ -280,26 +280,26 @@ async function updateAcr(
   webIds: string[],
   accessLevel: AccessLevel
 ): Promise<string> {
-  // Use LDO to parse existing ACR and extract existing agents (LDO works for reading)
+  const ACP_NS = "http://www.w3.org/ns/solid/acp#";
+  
+  // Parse existing ACR with LDO
+  const ldoDataset = await parseRdf(existingTurtle, {
+    baseIRI: acrUrl,
+    format: "Turtle",
+  });
+  
+  const acr = ldoDataset
+    .usingType(AccessControlResourceShapeType)
+    .fromSubject(acrUrl);
+  
+  // Extract existing agents to avoid duplicates
   const existingAgents = new Set<string>();
-  try {
-    const ldoDataset = await parseRdf(existingTurtle, {
-      baseIRI: acrUrl,
-      format: "Turtle",
-    });
-    const acr = ldoDataset
-      .usingType(AccessControlResourceShapeType)
-      .fromSubject(acrUrl);
-    
-    if (acr.accessControl) {
-      acr.accessControl.forEach((accessControl) => {
-        if (accessControl.apply?.anyOf?.agent?.["@id"]) {
-          existingAgents.add(accessControl.apply.anyOf.agent["@id"]);
-        }
-      });
+  if (acr.accessControl) {
+    for (const accessControl of acr.accessControl) {
+      if (accessControl.apply?.anyOf?.agent?.["@id"]) {
+        existingAgents.add(accessControl.apply.anyOf.agent["@id"]);
+      }
     }
-  } catch (error) {
-    console.warn("Could not parse existing ACR to extract agents:", error);
   }
   
   // Filter out WebIDs that already have access
@@ -309,14 +309,6 @@ async function updateAcr(
     return existingTurtle;
   }
   
-  // Build new access controls using N3.js
-  const { namedNode, blankNode, quad } = DataFactory;
-  const quads: any[] = [];
-  
-  const acrSubject = namedNode(acrUrl);
-  const acp = "http://www.w3.org/ns/solid/acp#";
-  const rdf = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
-  
   // Estimate control index from existing agents count
   let controlIndex = existingAgents.size * getAccessModes(accessLevel).length;
   
@@ -324,38 +316,40 @@ async function updateAcr(
   newWebIds.forEach((webId) => {
     const accessModes = getAccessModes(accessLevel);
     accessModes.forEach((mode) => {
-      const matcherNode = blankNode(`matcher_${controlIndex}`);
-      const policyNode = blankNode(`policy_${controlIndex}`);
-      const accessControlNode = blankNode(`accessControl_${controlIndex}`);
+      // Create Matcher with blank node
+      const matcherId = `_:matcher_${controlIndex}`;
+      const matcher = ldoDataset
+        .usingType(MatcherShapeType)
+        .fromSubject(matcherId);
+      matcher.type.add({ "@id": `${ACP_NS}Matcher` });
+      matcher.agent = { "@id": webId };
       
-      quads.push(quad(matcherNode, namedNode(`${rdf}type`), namedNode(`${acp}Matcher`)));
-      quads.push(quad(matcherNode, namedNode(`${acp}agent`), namedNode(webId)));
+      // Create Policy with blank node
+      const policyId = `_:policy_${controlIndex}`;
+      const policy = ldoDataset
+        .usingType(PolicyShapeType)
+        .fromSubject(policyId);
+      policy.type.add({ "@id": `${ACP_NS}Policy` });
+      policy.allow = { "@id": `${ACP_NS}${mode}` };
+      policy.anyOf = matcher;
       
-      quads.push(quad(policyNode, namedNode(`${rdf}type`), namedNode(`${acp}Policy`)));
-      quads.push(quad(policyNode, namedNode(`${acp}allow`), namedNode(`${acp}${mode}`)));
-      quads.push(quad(policyNode, namedNode(`${acp}anyOf`), matcherNode));
+      // Create AccessControl with blank node
+      const accessControlId = `_:accessControl_${controlIndex}`;
+      const accessControl = ldoDataset
+        .usingType(AccessControlShapeType)
+        .fromSubject(accessControlId);
+      accessControl.type.add({ "@id": `${ACP_NS}AccessControl` });
+      accessControl.apply = policy;
       
-      quads.push(quad(accessControlNode, namedNode(`${rdf}type`), namedNode(`${acp}AccessControl`)));
-      quads.push(quad(accessControlNode, namedNode(`${acp}apply`), policyNode));
-      
-      quads.push(quad(acrSubject, namedNode(`${acp}accessControl`), accessControlNode));
+      // Link AccessControl to ACR
+      acr.accessControl.add(accessControl);
       
       controlIndex++;
     });
   });
   
-  // Convert new quads to Turtle
-  const newTurtle = await new Promise<string>((resolve, reject) => {
-    const writer = new Writer({ prefixes: { acp, rdf } });
-    quads.forEach(q => writer.addQuad(q));
-    writer.end((error, result) => {
-      if (error) reject(error);
-      else resolve(result);
-    });
-  });
-  
-  // Combine existing and new Turtle
-  return existingTurtle + "\n" + newTurtle;
+  // Serialize to Turtle
+  return toTurtle(acr);
 }
 
 /**
@@ -466,7 +460,7 @@ export async function getResourceAccessList(resourceUrl: string): Promise<Array<
     const { fetch } = getAuthenticatedSession();
     const acrUrl = await getAcrUrl(resourceUrl, fetch);
     
-    // Fetch ACR directly and parse with N3.js since LDO isn't initializing accessControl
+    // Fetch ACR and parse with LDO
     const response = await fetch(acrUrl, {
       method: "GET",
       headers: {
@@ -483,80 +477,42 @@ export async function getResourceAccessList(resourceUrl: string): Promise<Array<
 
     const turtle = await response.text();
     
-    // Parse with N3.js to extract access controls directly
-    const { Parser } = require('n3');
-    const parser = new Parser();
-    const quads = parser.parse(turtle);
-    
-    const acp = "http://www.w3.org/ns/solid/acp#";
-    const acrSubject = acrUrl;
-    const accessMap = new Map<string, Set<string>>();
-    
-    // Build a map of access controls: accessControl -> policy -> matcher -> agent
-    const accessControlToPolicy = new Map<string, string>();
-    const policyToMatcher = new Map<string, string>();
-    const policyToAllow = new Map<string, string>();
-    const matcherToAgent = new Map<string, string>();
-    
-    quads.forEach((quad: any) => {
-      const subject = quad.subject.value;
-      const predicate = quad.predicate.value;
-      const object = quad.object.value;
-      
-      // Map accessControl -> policy (via acp:apply)
-      if (predicate === `${acp}apply`) {
-        accessControlToPolicy.set(subject, object);
-      }
-      
-      // Map policy -> matcher (via acp:anyOf)
-      if (predicate === `${acp}anyOf`) {
-        policyToMatcher.set(subject, object);
-      }
-      
-      // Map policy -> allow (via acp:allow)
-      if (predicate === `${acp}allow`) {
-        policyToAllow.set(subject, object);
-      }
-      
-      // Map matcher -> agent (via acp:agent)
-      if (predicate === `${acp}agent`) {
-        matcherToAgent.set(subject, object);
-      }
+    // Parse with LDO
+    const ldoDataset = await parseRdf(turtle, {
+      baseIRI: acrUrl,
+      format: "Turtle",
     });
     
-    // Find all access controls linked to the ACR
-    quads.forEach((quad: any) => {
-      if (quad.subject.value === acrSubject && quad.predicate.value === `${acp}accessControl`) {
-        const accessControlNode = quad.object.value;
-        const policyNode = accessControlToPolicy.get(accessControlNode);
-        
-        if (policyNode) {
-          const matcherNode = policyToMatcher.get(policyNode);
-          const allowValue = policyToAllow.get(policyNode);
+    const acr = ldoDataset
+      .usingType(AccessControlResourceShapeType)
+      .fromSubject(acrUrl);
+    
+    // Build access map from the ACR
+    const accessMap = new Map<string, Set<string>>();
+    
+    if (acr.accessControl) {
+      for (const accessControl of acr.accessControl) {
+        if (accessControl.apply?.anyOf?.agent?.["@id"] && accessControl.apply?.allow?.["@id"]) {
+          const agentWebId = accessControl.apply.anyOf.agent["@id"];
+          const allowValue = accessControl.apply.allow["@id"];
           
-          if (matcherNode) {
-            const agentWebId = matcherToAgent.get(matcherNode);
-            
-            if (agentWebId && allowValue) {
-              // Determine access mode
-              let accessMode: string | null = null;
-              if (allowValue === ACP.Read || allowValue.endsWith("#Read") || allowValue.endsWith("/Read")) {
-                accessMode = ACP.Read;
-              } else if (allowValue === ACP.Write || allowValue.endsWith("#Write") || allowValue.endsWith("/Write")) {
-                accessMode = ACP.Write;
-              }
-              
-              if (accessMode) {
-                if (!accessMap.has(agentWebId)) {
-                  accessMap.set(agentWebId, new Set());
-                }
-                accessMap.get(agentWebId)!.add(accessMode);
-              }
+          // Determine access mode
+          let accessMode: string | null = null;
+          if (allowValue === ACP.Read || allowValue.endsWith("#Read") || allowValue.endsWith("/Read")) {
+            accessMode = ACP.Read;
+          } else if (allowValue === ACP.Write || allowValue.endsWith("#Write") || allowValue.endsWith("/Write")) {
+            accessMode = ACP.Write;
+          }
+          
+          if (accessMode) {
+            if (!accessMap.has(agentWebId)) {
+              accessMap.set(agentWebId, new Set());
             }
+            accessMap.get(agentWebId)!.add(accessMode);
           }
         }
       }
-    });
+    }
 
     return Array.from(accessMap.entries()).map(([webId, modes]) => ({
       webId,
