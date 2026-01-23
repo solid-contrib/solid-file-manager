@@ -23,7 +23,9 @@
     "@ldo/schema-converter-shex": "^1.0.0-alpha.32",
     "@ldo/solid-react": "^1.0.0-alpha.33",
     "jszip": "^3.10.1",
+    "n3": "^2.0.1",
     "next": "16.0.7",
+    "rdfjs-wrapper": "^0.9.0",
     "react": "19.2.1",
     "react-dom": "19.2.1",
     "react-hot-toast": "^2.6.0"

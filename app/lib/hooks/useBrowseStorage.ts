@@ -11,11 +11,15 @@ import {
   getStringNoLocale,
   getIriAll,
   UrlString,
+  toRdfJsDataset,
 } from "@inrupt/solid-client";
 import { DCTERMS, POSIX, RDFS } from "@inrupt/vocab-common-rdf";
 import { LDP } from "@inrupt/vocab-common-rdf";
 import { FileItemData } from "../../components/FileItem";
 import { extractNameFromUrl, resolveUrl, isLikelyFile, isBinaryFile } from "../helpers/urlUtils";
+import { Container } from "../class/Container";
+import { ContainerDataset } from "../class/ContainerDataset";
+import { DataFactory } from "n3";
 
 interface UseBrowseStorageResult {
   files: FileItemData[];
@@ -61,12 +65,18 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
           : fetchFn;
 
         // Use @inrupt/solid-client to fetch the container dataset
-        const containerDataset = await getSolidDataset(url, {
+        const containerDataset = ContainerDataset.wrap(toRdfJsDataset(await getSolidDataset(url, {
           fetch: cacheBustingFetch,
-        });
+        })), DataFactory)
+        const container = containerDataset.container
+
+        if (container === undefined) {
+          throw new Error()
+        }
+        //const x = new Container(DataFactory.namedNode(url), containerDataset, DataFactory)
 
         // Get all contained resource URLs using @inrupt/solid-client
-        const containedUrls = getContainedResourceUrlAll(containerDataset);
+        const containedUrls = [ ... container.contains].map(resource => resource.iri)
 
         const fileItems: FileItemData[] = [];
 
