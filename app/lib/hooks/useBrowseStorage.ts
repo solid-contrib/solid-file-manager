@@ -2,22 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { getAuthenticatedSession } from "../helpers";
-import {
-  getSolidDataset,
-  getContainedResourceUrlAll,
-  getThing,
-  getInteger,
-  getDatetime,
-  getStringNoLocale,
-  getIriAll,
-  UrlString,
-  toRdfJsDataset,
-} from "@inrupt/solid-client";
-import { DCTERMS, POSIX, RDFS } from "@inrupt/vocab-common-rdf";
-import { LDP } from "@inrupt/vocab-common-rdf";
+import { getSolidDataset, toRdfJsDataset } from "@inrupt/solid-client";
 import { FileItemData } from "../../components/FileItem";
-import { extractNameFromUrl, resolveUrl, isLikelyFile, isBinaryFile } from "../helpers/urlUtils";
-import { Container } from "../class/Container";
 import { ContainerDataset } from "../class/ContainerDataset";
 import { DataFactory } from "n3";
 
@@ -29,7 +15,6 @@ interface UseBrowseStorageResult {
 
 /**
  * Hook to browse/list the contents of a Solid storage container
- * Uses LDP to fetch and parse container contents
  */
 export function useBrowseStorage(containerUrl: string | null, refreshKey?: number): UseBrowseStorageResult {
   const [files, setFiles] = useState<FileItemData[]>([]);
@@ -65,113 +50,27 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
           : fetchFn;
 
         // Use @inrupt/solid-client to fetch the container dataset
-        const containerDataset = ContainerDataset.wrap(toRdfJsDataset(await getSolidDataset(url, {
-          fetch: cacheBustingFetch,
-        })), DataFactory)
-        const container = containerDataset.container
+        // and map it to plain object-oriented classes using rdfjs-wrapper
+        const container =
+            ContainerDataset.wrap(
+                toRdfJsDataset(await getSolidDataset(url, {fetch: cacheBustingFetch})),
+                DataFactory)
+                .container
 
         if (container === undefined) {
-          throw new Error()
+          throw new Error() // TODO: Handle properly
         }
-        //const x = new Container(DataFactory.namedNode(url), containerDataset, DataFactory)
-
-        // Get all contained resource URLs using @inrupt/solid-client
-        const containedUrls = [ ... container.contains].map(resource => resource.iri)
 
         const fileItems: FileItemData[] = [];
 
-        for (const itemUrl of containedUrls) {
+        for (const item of container.contains) {
           try {
-            const absoluteUrl = resolveUrl(itemUrl, url) as UrlString;
-            const isContainerUrl = absoluteUrl.endsWith("/");
-
-            // Try to get preferred name in this order:
-            // 1. RDF metadata from container (dcterms:title or rdfs:label)
-            // 2. URL extraction (fallback)
-            let name = extractNameFromUrl(absoluteUrl);
-            let lastModified: Date | undefined;
-            let size: number | undefined;
-            let mimeType: string | undefined;
-
-            // Check RDF metadata from container dataset- using getThing because it reads a resource (thing) from the RDF dataset to access properties like dcterms:title, rdfs:label, dcterms:modified, posix:size
-            const itemThing = getThing(containerDataset, absoluteUrl);
-            let finalIsContainer = isContainerUrl;
-
-            if (itemThing) {
-              // Check for preferred name in metadata (dcterms:title or rdfs:label)
-              const title = getStringNoLocale(itemThing, DCTERMS.title);
-              if (title) {
-                name = title;
-              } else {
-                const label = getStringNoLocale(itemThing, RDFS.label);
-                if (label) {
-                  name = label;
-                }
-              }
-
-              const modifiedDate = getDatetime(itemThing, DCTERMS.modified);
-              if (modifiedDate) {
-                lastModified = modifiedDate;
-              }
-
-              if (!lastModified) {
-                const mtime = getDatetime(itemThing, POSIX.mtime);
-                if (mtime) {
-                  lastModified = mtime;
-                }
-              }
-
-              const fileSize = getInteger(itemThing, POSIX.size);
-              if (fileSize !== null) {
-                size = fileSize;
-              }
-
-              // Check RDF types to determine if it's a container (from container listing metadata)
-              // This avoids making individual HTTP requests for each resource
-              const types = getIriAll(itemThing, "http://www.w3.org/1999/02/22-rdf-syntax-ns#type");
-              const isContainerType = types.some(type =>
-                type === LDP.Container ||
-                type === LDP.BasicContainer ||
-                type === "http://www.w3.org/ns/ldp#Container" ||
-                type === "http://www.w3.org/ns/ldp#BasicContainer"
-              );
-
-              if (isContainerType) {
-                finalIsContainer = true;
-              } else {
-                // If RDF metadata says it's not a container type, trust it
-                // otherwise only treat as container if URL explicitly ends with "/"
-                finalIsContainer = isContainerUrl;
-              }
-
-              // Extract MIME type from IANA media type URIs in RDF types
-              // Pattern: http://www.w3.org/ns/iana/media-types/{mime-type}#Resource
-              // Example: http://www.w3.org/ns/iana/media-types/image/png#Resource -> image/png
-              if (!finalIsContainer && !mimeType) {
-                const ianaMediaTypePattern = /^http:\/\/www\.w3\.org\/ns\/iana\/media-types\/(.+)#Resource$/;
-                for (const type of types) {
-                  const match = type.match(ianaMediaTypePattern);
-                  if (match && match[1]) {
-                    mimeType = match[1];
-                    break; // Use the first IANA media type found
-                  }
-                }
-              }
-            } else {
-              // If no RDF metadata available
-              if (isContainerUrl) {
-                finalIsContainer = true;
-              } else if (isBinaryFile(absoluteUrl) || isLikelyFile(absoluteUrl)) {
-                finalIsContainer = false;
-              } else {
-                finalIsContainer = false;
-              }
-            }
+            let mimeType = item.mimeType;
 
             // For non-folder files, only fetch content-type if not already found in RDF metadata
-            if (!finalIsContainer && !mimeType) {
+            if (!item.isContainer && !mimeType) {
               try {
-                const headResponse = await cacheBustingFetch(absoluteUrl, {
+                const headResponse = await cacheBustingFetch(item.id, {
                   method: "HEAD",
                   headers: {
                     Accept: "*/*",
@@ -186,21 +85,21 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
                   }
                 }
               } catch (err) {
-                console.debug(`Could not fetch content-type for ${absoluteUrl}:`, err);
+                console.debug(`Could not fetch content-type for ${item}:`, err);
               }
             }
 
             fileItems.push({
-              id: absoluteUrl,
-              name,
-              type: finalIsContainer ? "folder" : "file",
-              url: absoluteUrl,
-              lastModified,
-              size,
+              id: item.id,
+              name: item.name,
+              type: item.fileType,
+              url: item.id,
+              lastModified: item.lastModified,
+              size: item.size,
               mimeType,
             });
           } catch (err) {
-            console.error(`Failed to process item ${itemUrl}:`, err);
+            console.error(`Failed to process item ${item}:`, err);
           }
         }
         // sort by folder first then in alphabetical order using the name
