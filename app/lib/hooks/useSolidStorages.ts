@@ -2,16 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useSolidAuth } from "@ldo/solid-react";
-import { Parser, Store, NamedNode, Literal } from "n3";
+import { Parser, Store, NamedNode } from "n3";
 import { fetchAndParseProfile } from "../helpers/profileUtils";
 
 // Storage predicates and types
-const PIM_STORAGE = "http://www.w3.org/ns/pim/space#storage";
-const SOLID_STORAGE = "http://www.w3.org/ns/solid/terms#storage";
 const PIM_STORAGE_TYPE = "http://www.w3.org/ns/pim/space#Storage";
 const RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
-const FOAF_NAME = "http://xmlns.com/foaf/0.1/name";
-const VCARD_FN = "http://www.w3.org/2006/vcard/ns#fn";
 
 export interface SolidStorage {
   id: string;
@@ -23,63 +19,6 @@ interface UseSolidStoragesResult {
   storages: SolidStorage[];
   isLoading: boolean;
   error: Error | null;
-}
-
-/**
- * Resolves and normalizes a storage URL, handling relative URLs, undefined prefixes, etc.
- * @param {string} storageUrl - The storage URL to resolve
- * @param {string} baseUrl - The base URL to resolve relative URLs against
- * @returns {string | null} - The resolved absolute URL, or null if invalid
- */
-function resolveStorageUrl(storageUrl: string, baseUrl: string): string | null {
-  // Handle the case where n3 parser didn't resolve the prefix correctly
-  // "pre:" prefix resolves to "</.>" which should be the root "/"
-  if (storageUrl === 'undefined/' || storageUrl.includes('undefined')) {
-    const baseUrlObj = new URL(baseUrl);
-    return `${baseUrlObj.protocol}//${baseUrlObj.host}/`;
-  }
-
-  // Handle relative URLs that end with "/." or are just "/"
-  if (storageUrl.endsWith('/.') || storageUrl.endsWith('/./') || 
-      storageUrl === './' || storageUrl === '/' || 
-      (storageUrl.startsWith('/') && !storageUrl.startsWith('http'))) {
-    const baseUrlObj = new URL(baseUrl);
-    if (storageUrl.endsWith('/.') || storageUrl === './' || storageUrl === '/') {
-      return `${baseUrlObj.protocol}//${baseUrlObj.host}/`;
-    } else {
-      // Handle paths like "/path" -> "https://domain.com/path"
-      try {
-        return new URL(storageUrl, baseUrl).href;
-      } catch (e) {
-        // If URL construction fails, try manual resolution
-        if (storageUrl.startsWith('/')) {
-          return `${baseUrlObj.protocol}//${baseUrlObj.host}${storageUrl}`;
-        }
-      }
-    }
-  }
-
-  // Also check if it's a relative URL without protocol
-  if (!storageUrl.startsWith('http://') && !storageUrl.startsWith('https://')) {
-    try {
-      const baseUrlObj = new URL(baseUrl);
-      if (storageUrl.startsWith('/')) {
-        return `${baseUrlObj.protocol}//${baseUrlObj.host}${storageUrl}`;
-      } else {
-        return new URL(storageUrl, baseUrl).href;
-      }
-    } catch (e) {
-      // Silent error handling
-      return null;
-    }
-  }
-
-  // Final validation - ensure it's a valid absolute URL
-  if (storageUrl && storageUrl.startsWith('http')) {
-    return storageUrl;
-  }
-
-  return null;
 }
 
 /**
@@ -133,7 +72,7 @@ async function discoverStorageViaTraversal(
         
         // Parse the RDF content
         const store = new Store();
-        if (contentType.includes('text/turtle') || contentType.includes('application/turtle') || 
+        if (contentType.includes('text/turtle') || contentType.includes('application/turtle') ||
             contentType.includes('text/n3') || contentType.includes('application/n3')) {
           const parser = new Parser({ baseIRI: currentUrl });
           const quads = parser.parse(content);
@@ -226,75 +165,25 @@ export function useSolidStorages(): UseSolidStoragesResult {
         const webId = session.webId;
 
         // Use shared profile fetching utility (with caching)
-        const { store, baseUrl, mainSubject } = await fetchAndParseProfile(webId);
+        const mainSubject = await fetchAndParseProfile(webId);
 
 
         // Get storage roots using both pim:storage and solid:storage predicates
-        const storageUrls: string[] = [];
-        
-        // Try pim:storage
-        const pimStorageQuads = store.getQuads(mainSubject, new NamedNode(PIM_STORAGE), null, null);
-      
-        pimStorageQuads.forEach(quad => {
-          if (quad.object instanceof NamedNode) {
-            const resolvedUrl = resolveStorageUrl(quad.object.value, baseUrl);
-            if (resolvedUrl && !storageUrls.includes(resolvedUrl)) {
-              storageUrls.push(resolvedUrl);
-            }
-          }
-        });
-
-        // Try solid:storage
-        const solidStorageQuads = store.getQuads(mainSubject, new NamedNode(SOLID_STORAGE), null, null);
-        solidStorageQuads.forEach(quad => {
-          if (quad.object instanceof NamedNode) {
-            const storageUrl = quad.object.value;
-            if (!storageUrls.includes(storageUrl)) {
-              storageUrls.push(storageUrl);
-            }
-          }
-        });
-
-        // Also check all quads in the store for storage predicates (in case subject is different)
-        const allPimStorageQuads = store.getQuads(null, new NamedNode(PIM_STORAGE), null, null);
-        allPimStorageQuads.forEach(quad => {
-          if (quad.object instanceof NamedNode) {
-            const resolvedUrl = resolveStorageUrl(quad.object.value, baseUrl);
-            if (resolvedUrl && !storageUrls.includes(resolvedUrl)) {
-              storageUrls.push(resolvedUrl);
-            }
-          } else if (quad.object instanceof Literal) {
-            // Sometimes storage might be a literal, try to resolve it
-            const resolvedUrl = resolveStorageUrl(quad.object.value, baseUrl);
-            if (resolvedUrl && !storageUrls.includes(resolvedUrl)) {
-              storageUrls.push(resolvedUrl);
-            }
-          }
-        });
-
-        const allSolidStorageQuads = store.getQuads(null, new NamedNode(SOLID_STORAGE), null, null);
-        allSolidStorageQuads.forEach(quad => {
-          if (quad.object instanceof NamedNode) {
-            const storageUrl = quad.object.value;
-            if (!storageUrls.includes(storageUrl)) {
-              storageUrls.push(storageUrl);
-            }
-          }
-        });
+        const storageUrls: Set<string> = mainSubject.storageUrls;
 
         // Method 2: Hierarchical traversal (if no storage found via predicates)
         // Based on: https://github.com/SolidLabResearch/Bashlib/blob/80de25cbb4b3ed057f95e25bc057f1be9b00cef3/src/utils/util.ts#L73-L104
-        if (storageUrls.length === 0) {
+        if (storageUrls.size === 0) {
           try {
             // LDO's session object has fetch property, but TypeScript types may not include it
             // Use type assertion to access it, with fallback to regular fetch
-            const fetchFn = ('fetch' in session && typeof (session as any).fetch === 'function') 
-              ? (session as any).fetch 
+            const fetchFn = ('fetch' in session && typeof (session as any).fetch === 'function')
+              ? (session as any).fetch
               : fetch;
             const traversalStorages = await discoverStorageViaTraversal(webId, fetchFn);
             traversalStorages.forEach(url => {
-              if (!storageUrls.includes(url)) {
-                storageUrls.push(url);
+              if (!storageUrls.has(url)) {
+                storageUrls.add(url);
               }
             });
           } catch (err) {
@@ -303,29 +192,22 @@ export function useSolidStorages(): UseSolidStoragesResult {
         }
 
         // If still no storage found, try to infer from WebID
-        if (storageUrls.length === 0) {
+        if (storageUrls.size === 0) {
           // Extract base URL from WebID
           const webIdUrl = new URL(webId);
           const baseUrl = `${webIdUrl.protocol}//${webIdUrl.host}/`;
           
           // For solidcommunity.net, storage is typically at the root
           if (webId.includes("solidcommunity.net")) {
-            storageUrls.push(baseUrl);
+            storageUrls.add(baseUrl);
           } else {
             // For other providers, try common patterns
-            storageUrls.push(baseUrl);
+            storageUrls.add(baseUrl);
           }
         }
 
-        // Filter out invalid URLs (those with "undefined" or not starting with http)
-        const validStorageUrls = storageUrls.filter(url => 
-          url && 
-          (url.startsWith('http://') || url.startsWith('https://')) &&
-          !url.includes('undefined')
-        );
-
         // Convert to SolidStorage format
-        const discoveredStorages: SolidStorage[] = validStorageUrls.map((url) => {
+        const discoveredStorages: SolidStorage[] = [...storageUrls].map((url) => {
           return {
             id: url,
             name: url,
