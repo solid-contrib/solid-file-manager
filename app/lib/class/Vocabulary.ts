@@ -1,5 +1,20 @@
 import { DataFactory } from "n3"
 
+export class ACP {
+    static resource = DataFactory.namedNode("http://www.w3.org/ns/solid/acp#resource")
+    static accessControl = DataFactory.namedNode("http://www.w3.org/ns/solid/acp#accessControl")
+    static memberAccessControl = DataFactory.namedNode("http://www.w3.org/ns/solid/acp#memberAccessControl")
+    static AccessControlResource = DataFactory.namedNode("http://www.w3.org/ns/solid/acp#AccessControlResource")
+    static apply = DataFactory.namedNode("http://www.w3.org/ns/solid/acp#apply")
+    static anyOf = DataFactory.namedNode("http://www.w3.org/ns/solid/acp#anyOf")
+    static agent = DataFactory.namedNode("http://www.w3.org/ns/solid/acp#agent")
+    static Matcher = DataFactory.namedNode("http://www.w3.org/ns/solid/acp#Matcher")
+    static Policy = DataFactory.namedNode("http://www.w3.org/ns/solid/acp#Policy")
+    static allow = DataFactory.namedNode("http://www.w3.org/ns/solid/acp#allow")
+    static mode = DataFactory.namedNode("http://www.w3.org/ns/solid/acp#mode")
+    static AccessControl = DataFactory.namedNode("http://www.w3.org/ns/solid/acp#AccessControl")
+}
+
 export class DC {
     static modified = DataFactory.namedNode("http://purl.org/dc/terms/modified")
     static title = DataFactory.namedNode("http://purl.org/dc/terms/title")
