@@ -65,10 +65,10 @@ This application provides a user-friendly interface for managing files and folde
 - **Profile Utilities**: WebID profile fetching and parsing utilities
 - **URL Utilities**: URL state management, encoding/decoding, and path resolution
 - **Binary File Detection**: Automatic detection of binary/system files (e.g., `.DS_Store`) to prevent unnecessary RDF conversion attempts
-- **ACP Utilities**: ACP sharing operations using LDO for type-safe RDF parsing and N3.js for ACR creation/updates
+- **ACP Utilities**: ACP sharing operations using RDF/JS Wrapper for type-safe RDF parsing and N3.js for ACR creation/updates
 - **Contact Utilities**: Fetching and parsing user contacts from WebID profiles for sharing autocomplete
 - **Error Handling**: Comprehensive error handling with user-friendly messages
-- **Type Safety**: Full TypeScript support throughout, including LDO-generated types from SHACL shapes
+- **Type Safety**: Full TypeScript support throughout, including RDF/JS Wrapper classes
 - **Cache-Busting**: Automatic cache-busting for container listings after uploads/deletes to ensure fresh data
 
 ## Tech Stack
@@ -78,7 +78,7 @@ This application provides a user-friendly interface for managing files and folde
 - **Styling**: Tailwind CSS 4
 - **Language**: TypeScript
 - **Solid SDK**: [@inrupt/solid-client-js](https://github.com/inrupt/solid-client-js)
-- **LDO (Linked Data Objects)**: [@ldo/ldo](https://github.com/o-development/ldo) for type-safe ACP operations
+- **RDF/JS Wrapper**: Object graph mapper
 - **Icons**: [@heroicons/react](https://heroicons.com/)
 - **Notifications**: [react-hot-toast](https://react-hot-toast.com/)
 
@@ -100,11 +100,6 @@ cd solid-file-manager
 2. Install dependencies:
 ```bash
 npm install
-```
-
-3. Build LDO types (automatically runs before dev server):
-```bash
-npm run build:ldo
 ```
 
 4. Run the development server:
@@ -184,23 +179,12 @@ solid-file-manager/
 │   │       ├── urlStateUtils.ts   # URL state management
 │   │       ├── urlUtils.ts        # URL utilities and binary file detection
 │   │       ├── fileTypeUtils.ts   # File type detection
-│   │       ├── acpUtils.ts        # ACP sharing utilities (LDO + N3.js)
+│   │       ├── acpUtils.ts        # ACP sharing utilities (RDF/JS Wrapper + N3.js)
 │   │       ├── contactUtils.ts    # Contact fetching for sharing
 │   │       └── ...
 │   ├── page.tsx             # Main page component
 │   ├── layout.tsx           # Root layout
 │   └── globals.css           # Global styles
-├── src/
-│   ├── shapes/              # SHACL Compact Syntax shape definitions
-│   │   └── Model.shaclc     # ACP shape definitions
-│   └── ldo/                 # Generated LDO types (auto-generated)
-│       ├── Model.typings.ts # TypeScript interfaces
-│       ├── Model.shapeTypes.ts # Shape type definitions
-│       ├── Model.context.ts # JSON-LD context
-│       └── Model.schema.ts  # ShEx schema
-├── scripts/
-│   ├── fix-shex.js          # Post-process ShEx output
-│   └── generate-ldo-files.js # Generate LDO files from ShEx
 ├── public/                   # Static assets
 ├── README.md
 └── README-CSS.md            # Local CSS setup instructions
@@ -213,7 +197,7 @@ This application integrates with Solid using:
 - **Solid Protocol**: [https://solidproject.org/TR/protocol#resources](https://solidproject.org/TR/protocol#resources)
 - **ACP (Access Control Policies)**: [https://solid.github.io/authorization-panel/acp-specification/](https://solid.github.io/authorization-panel/acp-specification/)
   - Full ACP sharing implementation with WebID-based access control
-  - Uses LDO (Linked Data Objects) for type-safe ACR parsing
+  - Uses RDF/JS Wrapper for type-safe ACR parsing
   - Uses N3.js for ACR creation and updates
   - Supports Editor (Read + Write) and Viewer (Read) access levels
   - Automatic ACR discovery via Link headers or `.acr` convention
@@ -231,11 +215,6 @@ This application integrates with Solid using:
   - Recursive folder operations for copy, move, and delete
   - Automatic handling of binary files and system files
 - **SDK**: [@inrupt/solid-client-js](https://github.com/inrupt/solid-client-js)
-- **LDO Type Generation**: 
-  - SHACL Compact Syntax shapes defined in `src/shapes/Model.shaclc`
-  - Automatically converted to ShEx via `@jeswr/shacl2shex`
-  - TypeScript types generated via `@ldo/cli` and custom scripts
-  - Types are regenerated on `npm run dev` and `npm run build`
 
 ## Design Principles
 
@@ -250,7 +229,7 @@ This application integrates with Solid using:
 - [Solid Protocol Specification](https://solidproject.org/TR/protocol)
 - [ACP Specification](https://solid.github.io/authorization-panel/acp-specification/)
 - [Inrupt Solid Client JS](https://github.com/inrupt/solid-client-js)
-- [LDO (Linked Data Objects)](https://github.com/o-development/ldo)
+- [RDF/JS Wrapper](https://github.com/theodi/rdfjs-wrapper)
 - [Community Solid Server](https://github.com/CommunitySolidServer/CommunitySolidServer)
 
 ## License

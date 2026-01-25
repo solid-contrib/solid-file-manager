@@ -35,7 +35,6 @@ yarn-error.log*
 
 # seed config (contains passwords)
 seed-config.json
-src/ldo/
 
 # vercel
 .vercel
