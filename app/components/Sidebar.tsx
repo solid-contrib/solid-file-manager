@@ -4,6 +4,7 @@ import { useRef } from "react";
 import Button from "./shared/Button";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import NewMenuButton from "./NewMenuButton";
+import GitHubLinks from "./shared/GitHubLinks";
 import { useClickOutside } from "../lib/hooks";
 
 interface SidebarProps {
@@ -105,6 +106,11 @@ export default function Sidebar({
               );
             })}
           </ul>
+
+          {/* Footer links - pushed to bottom */}
+          <div className="mt-auto border-t border-gray-200 pt-4">
+            <GitHubLinks layout="vertical" />
+          </div>
         </nav>
       </aside>
     </>
