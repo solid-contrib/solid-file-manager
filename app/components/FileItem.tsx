@@ -82,7 +82,7 @@ export default function FileItem({
     }
   };
 
-  const handleTouchStart = (e: React.TouchEvent) => {
+  const handleTouchStart = () => {
     touchHandledRef.current = true;
     // Reset the flag after a delay to allow click events to be ignored
     setTimeout(() => {
@@ -94,8 +94,7 @@ export default function FileItem({
     
     if (tapLength < 300 && tapLength > 0) {
       // Double tap detected
-      e.preventDefault();
-      e.stopPropagation();
+     
       if (clickTimeoutRef.current) {
         clearTimeout(clickTimeoutRef.current);
         clickTimeoutRef.current = null;

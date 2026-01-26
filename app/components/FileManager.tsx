@@ -646,7 +646,8 @@ export default function FileManager() {
         updateUrl(file.url, true);
       }
     } else {
-      window.open(file.url, "_blank");
+      // Open preview modal
+      handlePreview(file);
     }
   };
 
