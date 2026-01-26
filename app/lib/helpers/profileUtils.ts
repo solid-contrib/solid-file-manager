@@ -77,6 +77,7 @@ export async function fetchAndParseProfile(webId: string): Promise<Agent> {
 
   const mainSubject: Agent | undefined = webIdDataset.mainSubject;
   if (mainSubject === undefined) {
+console.log("BOB")
       throw new Error; // TODO: Handle properly
   }
 

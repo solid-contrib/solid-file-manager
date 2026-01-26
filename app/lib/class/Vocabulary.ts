@@ -21,6 +21,7 @@ export class DC {
 }
 
 export class FOAF {
+    static isPrimaryTopicOf = DataFactory.namedNode("http://xmlns.com/foaf/0.1/isPrimaryTopicOf")
     static primaryTopic = DataFactory.namedNode("http://xmlns.com/foaf/0.1/primaryTopic")
     static fname = DataFactory.namedNode("http://xmlns.com/foaf/0.1/name")
     static email = DataFactory.namedNode("http://xmlns.com/foaf/0.1/email")
@@ -50,6 +51,7 @@ export class RDFS {
 }
 
 export class SOLID {
+    static oidcIssuer = DataFactory.namedNode("http://www.w3.org/ns/solid/terms#oidcIssuer")
     static storage = DataFactory.namedNode("http://www.w3.org/ns/solid/terms#storage")
 }
 

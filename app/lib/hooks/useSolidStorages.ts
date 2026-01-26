@@ -170,6 +170,7 @@ export function useSolidStorages(): UseSolidStoragesResult {
 
         // Get storage roots using both pim:storage and solid:storage predicates
         const storageUrls: Set<string> = mainSubject.storageUrls;
+        console.log("URLS", storageUrls)
 
         // Method 2: Hierarchical traversal (if no storage found via predicates)
         // Based on: https://github.com/SolidLabResearch/Bashlib/blob/80de25cbb4b3ed057f95e25bc057f1be9b00cef3/src/utils/util.ts#L73-L104

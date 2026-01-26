@@ -1,6 +1,6 @@
 import type { DataFactory, DatasetCore } from "@rdfjs/types"
 import { Agent } from "@/app/lib/class/Agent"
-import { FOAF } from "@/app/lib/class/Vocabulary"
+import { SOLID } from "@/app/lib/class/Vocabulary"
 
 export class WebIdDataset {
     #dataset: DatasetCore
@@ -16,8 +16,11 @@ export class WebIdDataset {
     }
 
     get mainSubject(): Agent | undefined {
-        for (const q of this.#dataset.match(undefined, FOAF.primaryTopic)) {
-            return Agent.wrap(q.object, this.#dataset, this.#factory);
+        // TODO: Fix with FOAF: Primary topic either via Inrupt or spec because this does not work with Inrupt WebID
+        // TODO: do the isPrimaryTopicOf route and the primaryTopic (maybe)
+        // Or not because all WebIDs will have an issuer (otherwise also needs to restrict to the document URL as subject or object to realise the benefit)
+        for (const q of this.#dataset.match(undefined, SOLID.oidcIssuer)) {
+            return Agent.wrap(q.subject, this.#dataset, this.#factory);
         }
     }
 }
