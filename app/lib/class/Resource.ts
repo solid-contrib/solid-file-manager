@@ -1,29 +1,9 @@
 import { TermMappings, ValueMappings, Wrapper } from "rdfjs-wrapper"
-import type { DataFactory, DatasetCore, Term } from "@rdfjs/types"
 import { DC, POSIX, RDF, RDFS } from "@/app/lib/class/Vocabulary"
 import { extractNameFromUrl, FileType } from "@/app/lib/helpers"
 
 export class Resource extends Wrapper {
     #ianaMediaTypePattern = /^http:\/\/www\.w3\.org\/ns\/iana\/media-types\/(.+)#Resource$/;
-
-    protected constructor(term: Term, dataset: DatasetCore, factory: DataFactory) {
-        super(term, dataset, factory)
-    }
-
-    static wrap(wrapper: Wrapper): Resource
-    static wrap(term: Term, dataset: DatasetCore, factory: DataFactory): Resource
-    static wrap(termOrWrapper: Term | Wrapper, dataset?: DatasetCore, factory?: DataFactory): Resource {
-        if (dataset !== undefined && factory !== undefined) {
-            return new Resource(termOrWrapper as Term, dataset, factory)
-        } else {
-            const {term, dataset, factory} = termOrWrapper as Wrapper
-            return new Resource(term, dataset, factory)
-        }
-    }
-
-    public static wrap2(wrapper: Wrapper): Resource {
-        return Resource.wrap(wrapper.term, wrapper.dataset, wrapper.factory)
-    }
 
     get id(): string {
         return this.term.value

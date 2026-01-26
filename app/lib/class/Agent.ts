@@ -1,23 +1,7 @@
 import { TermMappings, ValueMappings, Wrapper } from "rdfjs-wrapper"
-import type { DataFactory, DatasetCore, Term } from "@rdfjs/types"
 import { FOAF, PIM, SOLID, VCARD } from "@/app/lib/class/Vocabulary"
 
 export class Agent extends Wrapper {
-    protected constructor(node: Term, dataset: DatasetCore, factory: DataFactory) {
-        super(node, dataset, factory)
-    }
-
-    static wrap(wrapper: Wrapper): Agent
-    static wrap(n: Term, dataset: DatasetCore, factory: DataFactory): Agent
-    static wrap(nodeOrWrapper: Term | Wrapper, dataset?: DatasetCore, factory?: DataFactory): Agent {
-        if (dataset !== undefined && factory !== undefined) {
-            return new Agent(nodeOrWrapper as Term, dataset, factory)
-        } else {
-            const {term, dataset, factory} = nodeOrWrapper as Wrapper
-            return new Agent(term, dataset, factory)
-        }
-    }
-
     get vcardFn(): string | undefined {
         return this.singularNullable(VCARD.fn, ValueMappings.literalToString)
     }
@@ -43,7 +27,7 @@ export class Agent extends Wrapper {
     }
 
     get hasTelephone(): HasValue | undefined {
-        return this.singularNullable(VCARD.hasTelephone, HasValue.wrap2)
+        return this.singularNullable(VCARD.hasTelephone, Wrapper.as(HasValue))
     }
 
     get foafName(): string | undefined {
@@ -84,7 +68,7 @@ export class Agent extends Wrapper {
     }
 
     get hasEmail(): HasValue | undefined {
-        return this.singularNullable(VCARD.hasEmail, HasValue.wrap2)
+        return this.singularNullable(VCARD.hasEmail, Wrapper.as(HasValue))
     }
 
     get knows(): Set<string> {
@@ -93,25 +77,6 @@ export class Agent extends Wrapper {
 }
 
 class HasValue extends Wrapper {
-    private constructor(node: Term, dataset: DatasetCore, factory: DataFactory) {
-        super(node, dataset, factory)
-    }
-
-    static wrap(wrapper: Wrapper): HasValue
-    static wrap(n: Term, dataset: DatasetCore, factory: DataFactory): HasValue
-    static wrap(nodeOrWrapper: Term | Wrapper, dataset?: DatasetCore, factory?: DataFactory): HasValue {
-        if (dataset !== undefined && factory !== undefined) {
-            return new HasValue(nodeOrWrapper as Term, dataset, factory)
-        } else {
-            const {term, dataset, factory} = nodeOrWrapper as Wrapper
-            return new HasValue(term, dataset, factory)
-        }
-    }
-
-    public static wrap2(wrapper: Wrapper): HasValue {
-        return HasValue.wrap(wrapper.term, wrapper.dataset, wrapper.factory)
-    }
-
     get value(): string {
         return this.hasValue ?? this.term.value
     }
