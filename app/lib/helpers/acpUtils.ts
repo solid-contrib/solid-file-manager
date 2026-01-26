@@ -177,7 +177,7 @@ async function createAcr(
   const { namedNode, blankNode } = DataFactory;
   const ds = new Store
 
-  const acr = AccessControlResource.wrap(namedNode(acrUrl), ds, DataFactory)
+  const acr = new AccessControlResource(namedNode(acrUrl), ds, DataFactory)
 
   // Add ACR type and resource
   acr.type.add(ACP.AccessControlResource.id)
@@ -189,9 +189,9 @@ async function createAcr(
   webIds.forEach((webId) => {
     accessModes.forEach((mode) => {
       // Create blank nodes for nested structure
-      const matcher = Matcher.wrap(blankNode(), ds, DataFactory)
-      const policy = Policy.wrap(blankNode(), ds, DataFactory)
-      const accessControl = AccessControl.wrap(blankNode(), ds, DataFactory)
+      const matcher = new Matcher(blankNode(), ds, DataFactory)
+      const policy = new Policy(blankNode(), ds, DataFactory)
+      const accessControl = new AccessControl(blankNode(), ds, DataFactory)
 
       // Matcher: type and agent
       matcher.type.add(ACP.Matcher.id)
@@ -273,15 +273,15 @@ async function updateAcr(
   const { namedNode, blankNode } = DataFactory;
 
   const ds = new Store
-  const acr = AccessControlResource.wrap(namedNode(acrUrl), ds, DataFactory)
+  const acr = new AccessControlResource(namedNode(acrUrl), ds, DataFactory)
 
   // Create new access controls for new WebIDs
   newWebIds.forEach((webId) => {
     const accessModes = getAccessModes(accessLevel);
     accessModes.forEach((mode) => {
-      const matcher = Matcher.wrap(blankNode(), ds, DataFactory)
-      const policy = Policy.wrap(blankNode(), ds, DataFactory)
-      const accessControl = AccessControl.wrap(blankNode(), ds, DataFactory)
+      const matcher = new Matcher(blankNode(), ds, DataFactory)
+      const policy = new Policy(blankNode(), ds, DataFactory)
+      const accessControl = new AccessControl(blankNode(), ds, DataFactory)
 
       matcher.type.add(ACP.Matcher.id)
       matcher.agent.add(webId)
@@ -418,7 +418,7 @@ export async function getResourceAccessList(resourceUrl: string): Promise<Array<
     const dataset = new Store();
     dataset.addQuads(new Parser().parse(turtle));
 
-    const acr = AccessControlResource.wrap(DataFactory.namedNode(acrUrl), dataset, DataFactory)
+    const acr = new AccessControlResource(DataFactory.namedNode(acrUrl), dataset, DataFactory)
 
     const rawModesByWebId =
       [...acr.accessControl].flatMap(ac =>

@@ -27,7 +27,7 @@ export class AcrDataset {
         const subjects = new Set([...typeSubjects, ...resourceSubjects, ...accessControlSubjects, ...memberAccessControlSubjects])
 
         for (const subject of subjects) {
-            return AccessControlResource.wrap(subject, this.#dataset, this.#factory)
+            return new AccessControlResource(subject, this.#dataset, this.#factory)
         }
     }
 }

@@ -19,7 +19,7 @@ export class ContainerDataset {
     get container(): Container | undefined {
         // Return the first container in the dataset
         for (const q of this.#dataset.match(undefined, LDP.contains)) {
-            return Container.wrap(q.subject, this.#dataset, this.#factory);
+            return new Container(q.subject, this.#dataset, this.#factory);
         }
     }
 }

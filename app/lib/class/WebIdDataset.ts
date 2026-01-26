@@ -20,7 +20,7 @@ export class WebIdDataset {
         // TODO: do the isPrimaryTopicOf route and the primaryTopic (maybe)
         // Or not because all WebIDs will have an issuer (otherwise also needs to restrict to the document URL as subject or object to realise the benefit)
         for (const q of this.#dataset.match(undefined, SOLID.oidcIssuer)) {
-            return Agent.wrap(q.subject, this.#dataset, this.#factory);
+            return new Agent(q.subject, this.#dataset, this.#factory);
         }
     }
 }
