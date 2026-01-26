@@ -47,7 +47,7 @@ export class Agent extends Wrapper {
     }
 
     get foafName(): string | undefined {
-        return this.singularNullable(FOAF.name, ValueMappings.literalToString)
+        return this.singularNullable(FOAF.fname, ValueMappings.literalToString)
     }
 
     get name(): string | null {

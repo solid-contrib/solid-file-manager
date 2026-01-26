@@ -22,7 +22,7 @@ export class DC {
 
 export class FOAF {
     static primaryTopic = DataFactory.namedNode("http://xmlns.com/foaf/0.1/primaryTopic")
-    static name = DataFactory.namedNode("http://xmlns.com/foaf/0.1/name")
+    static fname = DataFactory.namedNode("http://xmlns.com/foaf/0.1/name")
     static email = DataFactory.namedNode("http://xmlns.com/foaf/0.1/email")
     static homepage = DataFactory.namedNode("http://xmlns.com/foaf/0.1/homepage")
     static knows = DataFactory.namedNode("http://xmlns.com/foaf/0.1/knows")
