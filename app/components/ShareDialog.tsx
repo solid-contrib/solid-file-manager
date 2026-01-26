@@ -6,7 +6,7 @@ import Button from "./shared/Button";
 import UrlCombobox, { ComboboxOption } from "./shared/UrlCombobox";
 import { FileItemData } from "./FileItem";
 import { fetchUserContacts, Contact, addContactToProfile } from "../lib/helpers/contactUtils";
-import { fetchAndParseProfile, extractNameAndEmail } from "../lib/helpers/profileUtils";
+import { fetchAndParseProfile } from "../lib/helpers/profileUtils";
 import { getResourceAccessList } from "../lib/helpers/acpUtils";
 import { UserIcon, MagnifyingGlassIcon, LockClosedIcon, XMarkIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
 import LoadingSpinner from "./shared/LoadingSpinner";
@@ -122,10 +122,7 @@ export default function ShareDialog({
 
     try {
       // Fetch profile to get name and email 
-      const { store, mainSubject } = await fetchAndParseProfile(webId);
-      
-      // Extract name and email using the shared helper
-      const { name, email } = extractNameAndEmail(store, mainSubject);
+      const { name, email } = await fetchAndParseProfile(webId);
 
       setPeopleChips([
         ...peopleChips,

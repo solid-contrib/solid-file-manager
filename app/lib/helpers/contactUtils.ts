@@ -1,24 +1,12 @@
-import { NamedNode } from "n3";
-import { fetchAndParseProfile, extractNameAndEmail, getCachedProfile } from "./profileUtils";
+import { fetchAndParseProfile } from "./profileUtils";
 import { getSession, getAuthenticatedSession } from "./sessionUtils";
-import { 
-  getSolidDataset, 
-  getThing, 
-  createThing, 
-  addUrl, 
-  getUrlAll,
-  setThing, 
-  saveSolidDatasetAt,
-  UrlString 
-} from "@inrupt/solid-client";
+import { fromRdfJsDataset, saveSolidDatasetAt } from "@inrupt/solid-client";
 
 export interface Contact {
     webId: string;
     name: string | null;
     email: string | null;
 }
-
-const FOAF_KNOWS = "http://xmlns.com/foaf/0.1/knows";
 
 /**
  * Fetches contacts from the logged-in user's WebID profile using foaf:knows relationships
@@ -35,33 +23,15 @@ export async function fetchUserContacts(): Promise<Contact[]> {
     try {
         const userWebId = session.info.webId;
 
-        // Try to get cached profile first, otherwise fetch it
-        let userProfile = getCachedProfile(userWebId);
-        if (!userProfile) {
-            userProfile = await fetchAndParseProfile(userWebId);
-        }
-
-        const { store, mainSubject } = userProfile;
-
-        // Get all foaf:knows relationships
-        const knowsQuads = store.getQuads(mainSubject, new NamedNode(FOAF_KNOWS), null, null);
+        const userProfile = await fetchAndParseProfile(session.info.webId);
 
         const contacts: Contact[] = [];
 
         // For each known person, fetch their profile to get name and email
-        for (const quad of knowsQuads) {
-            if (quad.object.termType !== "NamedNode") {
-                continue;
-            }
-
-            const contactWebId = quad.object.value;
-
+        for (const contactWebId of userProfile.knows) {
             try {
                 // Fetch the contact's profile (will use cache if already fetched)
-                const { store: contactStore, mainSubject: contactSubject } = await fetchAndParseProfile(contactWebId);
-
-                // Extract name and email using the shared helper
-                const { name, email } = extractNameAndEmail(contactStore, contactSubject);
+                const { name, email } = await fetchAndParseProfile(contactWebId);
 
                 contacts.push({
                     webId: contactWebId,
@@ -100,43 +70,19 @@ export async function addContactToProfile(contactWebId: string): Promise<void> {
 
     const userWebId = session.info.webId;
     const { fetch } = getAuthenticatedSession();
-    
-    const profileUrl = userWebId.split('#')[0] as UrlString;
-    
+
+    const profileUrl = userWebId.split('#')[0];
+
     try {
         // Fetch the user's profile dataset
-        let dataset = await getSolidDataset(profileUrl, { fetch });
-        
         // Get the main subject (usually WebID or WebID#me)
-        const mainSubject = userWebId as UrlString;
-        let thing = getThing(dataset, mainSubject);
-        
-        // If thing doesn't exist, try with #me fragment
-        if (!thing) {
-            const meSubject = `${profileUrl}#me` as UrlString;
-            thing = getThing(dataset, meSubject);
-        }
-        
-        // If still doesn't exist, create a new thing
-        if (!thing) {
-            thing = createThing({ url: mainSubject });
-        }
-        
-        // Check if the contact is already in the knows list
-        const existingKnows = getUrlAll(thing, FOAF_KNOWS);
-        if (existingKnows.includes(contactWebId)) {
-            // Contact already exists, no need to add
-            return;
-        }
+        const mainSubject = await fetchAndParseProfile(profileUrl);
         
         // Add the foaf:knows relationship
-        thing = addUrl(thing, FOAF_KNOWS, contactWebId as UrlString);
-        
-        // Update the dataset
-        const updatedDataset = setThing(dataset, thing);
-        
+        mainSubject.knows.add(contactWebId);
+
         // Save the updated dataset
-        await saveSolidDatasetAt(profileUrl, updatedDataset, { fetch });
+        await saveSolidDatasetAt(profileUrl, fromRdfJsDataset(mainSubject.dataset), { fetch });
     } catch (error) {
         console.error("Failed to add contact to profile:", error);
         throw error;

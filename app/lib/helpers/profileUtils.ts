@@ -1,17 +1,17 @@
-import { Parser, Store, NamedNode } from "n3";
+import { Parser, Store, DataFactory } from "n3";
 import { getSession } from "./sessionUtils";
+import { WebIdDataset } from "@/app/lib/class/WebIdDataset";
+import type { Agent } from "@/app/lib/class/Agent";
 
 // Cache for parsed profile documents
-const profileCache = new Map<string, { store: Store; baseUrl: string; mainSubject: NamedNode }>();
+const profileCache = new Map<string, Agent>();
 
 /**
  * Fetches and parses the WebID profile document, with caching to avoid duplicate fetches
  * @param webId - The WebID to fetch
  * @returns The parsed RDF store, base URL, and main subject
  */
-export async function fetchAndParseProfile(
-  webId: string
-): Promise<{ store: Store; baseUrl: string; mainSubject: NamedNode }> {
+export async function fetchAndParseProfile(webId: string): Promise<Agent> {
   // Check cache first
   if (profileCache.has(webId)) {
     return profileCache.get(webId)!;
@@ -57,7 +57,7 @@ export async function fetchAndParseProfile(
   const store = new Store();
   const baseUrl = webId.split('#')[0];
 
-  if (contentType.includes('text/turtle') || contentType.includes('application/turtle') || 
+  if (contentType.includes('text/turtle') || contentType.includes('application/turtle') ||
       contentType.includes('text/n3') || contentType.includes('application/n3')) {
     const parser = new Parser({ baseIRI: baseUrl });
     const quads = parser.parse(content);
@@ -73,89 +73,18 @@ export async function fetchAndParseProfile(
     }
   }
 
-  // Find the main subject - try different variants
-  const FOAF_NAME = "http://xmlns.com/foaf/0.1/name";
-  const subjectVariants = [
-    new NamedNode(webId),
-    new NamedNode(baseUrl + '#me'),
-    new NamedNode('#me'),
-    new NamedNode(baseUrl + '#card'),
-  ];
+  const webIdDataset = WebIdDataset.wrap(store, DataFactory);
 
-  let mainSubject: NamedNode | null = null;
-
-  for (const subject of subjectVariants) {
-    const nameQuads = store.getQuads(subject, new NamedNode(FOAF_NAME), null, null);
-    if (nameQuads.length > 0) {
-      mainSubject = subject;
-      break;
-    }
-  }
-
-  // If still not found, try to find Person type
-  if (!mainSubject) {
-    const personType = new NamedNode('http://xmlns.com/foaf/0.1/Person');
-    const personQuads = store.getQuads(null, new NamedNode('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'), personType, null);
-    if (personQuads.length > 0 && personQuads[0].subject.termType === 'NamedNode') {
-      mainSubject = personQuads[0].subject as NamedNode;
-    }
-  }
-
-  // Fallback to WebID itself
-  if (!mainSubject) {
-    mainSubject = new NamedNode(webId);
+  const mainSubject: Agent | undefined = webIdDataset.mainSubject;
+  if (mainSubject === undefined) {
+console.log("BOB")
+      throw new Error; // TODO: Handle properly
   }
 
   // Cache the result
-  const result = { store, baseUrl, mainSubject };
-  profileCache.set(webId, result);
+  profileCache.set(webId, mainSubject);
 
-  return result;
-}
-
-/**
- * Extracts name and email from a parsed profile store
- * @param store - The RDF store containing the profile
- * @param mainSubject - The main subject node to extract data from
- * @returns Object with name and email (both can be null)
- */
-export function extractNameAndEmail(store: Store, mainSubject: NamedNode): {
-  name: string | null;
-  email: string | null;
-} {
-  const VCARD_FN = "http://www.w3.org/2006/vcard/ns#fn";
-  const FOAF_NAME = "http://xmlns.com/foaf/0.1/name";
-  const VCARD_EMAIL = "http://www.w3.org/2006/vcard/ns#email";
-
-  // Try to get name (prefer vcard:fn, then foaf:name)
-  let name: string | null = null;
-  const vcardFnQuads = store.getQuads(mainSubject, new NamedNode(VCARD_FN), null, null);
-  if (vcardFnQuads.length > 0 && vcardFnQuads[0].object.termType === "Literal") {
-    name = vcardFnQuads[0].object.value;
-  } else {
-    const foafNameQuads = store.getQuads(mainSubject, new NamedNode(FOAF_NAME), null, null);
-    if (foafNameQuads.length > 0 && foafNameQuads[0].object.termType === "Literal") {
-      name = foafNameQuads[0].object.value;
-    }
-  }
-
-  // Try to get email
-  let email: string | null = null;
-  const emailQuads = store.getQuads(mainSubject, new NamedNode(VCARD_EMAIL), null, null);
-  if (emailQuads.length > 0 && emailQuads[0].object.termType === "Literal") {
-    email = emailQuads[0].object.value;
-  }
-
-  return { name, email };
-}
-
-/**
- * Gets the cached profile for a WebID if it exists
- * @param webId - The WebID to get from cache
- * @returns The cached profile or null if not cached
- */
-export function getCachedProfile(webId: string): { store: Store; baseUrl: string; mainSubject: NamedNode } | null {
-  return profileCache.get(webId) || null;
+  return mainSubject;
 }
 
 /**
