@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Button from "./shared/Button";
 import UrlCombobox, { ComboboxOption } from "./shared/UrlCombobox";
+import GitHubLinks from "./shared/GitHubLinks";
 
 const PRESET_ISSUERS: ComboboxOption[] = [
   { label: "Solid Community", value: "https://solidcommunity.net/", secondaryLabel: "https://solidcommunity.net/" },
@@ -162,6 +163,11 @@ export default function LoginPage() {
               </Button>
             </div>
           </form>
+
+          {/* Footer links */}
+          <footer className="mt-24 flex flex-col items-center md:items-end">
+            <GitHubLinks layout="horizontal" />
+          </footer>
         </div>
       </section>
     </main>
