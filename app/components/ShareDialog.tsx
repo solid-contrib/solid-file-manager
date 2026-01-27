@@ -101,8 +101,8 @@ export default function ShareDialog({
     setWebIdInput(value);
   };
 
-  const handleAddWebId = async () => {
-    const webId = webIdInput.trim();
+  const handleAddWebId = async (webIdToAdd?: string) => {
+    const webId = (webIdToAdd || webIdInput.trim());
     if (!webId) {
       return;
     }
@@ -148,6 +148,11 @@ export default function ShareDialog({
     } finally {
       setIsAddingWebId(false);
     }
+  };
+
+  const handleSelectWebId = (option: ComboboxOption) => {
+    // Automatically add the selected WebID when clicked from dropdown
+    handleAddWebId(option.value);
   };
 
   const handleRemoveChip = (webId: string) => {
@@ -229,7 +234,7 @@ export default function ShareDialog({
   const footer = (
     <div className="flex justify-end">
       <Button onClick={handleDone} variant="primary" disabled={isSharing || peopleChips.length === 0}>
-        {isSharing ? "Sharing..." : "Done"}
+        {isSharing ? "Sharing..." : "Share"}
       </Button>
     </div>
   );
@@ -279,6 +284,7 @@ export default function ShareDialog({
           <UrlCombobox
             value={webIdInput}
             onChange={handleWebIdChange}
+            onSelect={handleSelectWebId}
             onSubmit={handleAddWebId}
             options={contactOptions}
             placeholder="Add a WebID"
