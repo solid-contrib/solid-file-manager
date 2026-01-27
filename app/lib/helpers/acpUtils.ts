@@ -48,7 +48,7 @@ async function getAcrUrl(resourceUrl: string, fetchFn: typeof fetch): Promise<st
 
     const linkHeader = response.headers.get("Link");
     if (linkHeader) {
-        // If found, converts .acl to .acr if needed, or uses the provided .acr URL if already present
+      // If found, converts .acl to .acr if needed, or uses the provided .acr URL if already present
       const aclMatch = linkHeader.match(/<([^>]+)>;\s*rel=["']acl["']/i);
       if (aclMatch && aclMatch[1]) {
         const aclUrl = aclMatch[1];
@@ -215,16 +215,16 @@ async function createAcr(
 }
 
 function write(ds: DatasetCore): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const writer = new Writer
+  return new Promise((resolve, reject) => {
+    const writer = new Writer
 
-        writer.addQuads([...ds])
+    writer.addQuads([...ds])
 
-        writer.end((error, result) => {
-            if (error) reject(error);
-            else resolve(result);
-        });
-    })
+    writer.end((error, result) => {
+      if (error) reject(error);
+      else resolve(result);
+    });
+  })
 }
 
 /**
@@ -242,33 +242,33 @@ async function updateAcr(
   accessLevel: AccessLevel
 ): Promise<void> {
   if (acrDataset.acr === undefined) {
-      throw new Error // TODO: Handle properly
+    throw new Error // TODO: Handle properly
   }
 
   const existingAgents = new Set<string>();
   try {
     if (acrDataset.acr.accessControl) {
-        for (const accessControl of acrDataset.acr.accessControl) {
-            for (const policy of accessControl.apply) {
-                for (const matcher of policy.anyOf) {
-                    for (const agent of matcher.agent) {
-                        existingAgents.add(agent)
-                    }
-                }
+      for (const accessControl of acrDataset.acr.accessControl) {
+        for (const policy of accessControl.apply) {
+          for (const matcher of policy.anyOf) {
+            for (const agent of matcher.agent) {
+              existingAgents.add(agent)
             }
+          }
         }
+      }
     }
   } catch (error) {
     console.warn("Could not parse existing ACR to extract agents:", error);
   }
-  
+
   // Filter out WebIDs that already have access
   const newWebIds = webIds.filter(webId => !existingAgents.has(webId));
   if (newWebIds.length === 0) {
     // No new WebIDs to add, return existing Turtle
     return;
   }
-  
+
   // Build new access controls
   const { namedNode, blankNode } = DataFactory;
 
@@ -312,14 +312,14 @@ export async function shareResourceWithAcp(
 
   const { fetch } = getAuthenticatedSession();
   const acrUrl = await getAcrUrl(resourceUrl, fetch);
-  
+
   // Fetch existing ACR or create new one
   let acrDataset = await fetchAcr(acrUrl, fetch);
 
   if (acrDataset) {
     await updateAcr(acrDataset, acrUrl, webIds, accessLevel);
   } else {
-      acrDataset = await createAcr(resourceUrl, acrUrl, webIds, accessLevel);
+    acrDataset = await createAcr(resourceUrl, acrUrl, webIds, accessLevel);
   }
 
   // Save ACR
@@ -347,7 +347,7 @@ export async function verifyResourceAccess(resourceUrl: string): Promise<{
 }> {
   try {
     const { fetch } = getAuthenticatedSession();
-    
+
     const headResponse = await fetch(resourceUrl, {
       method: "HEAD",
       headers: {
@@ -363,7 +363,7 @@ export async function verifyResourceAccess(resourceUrl: string): Promise<{
         const optionsResponse = await fetch(resourceUrl, {
           method: "OPTIONS",
         });
-        
+
         const allowHeader = optionsResponse.headers.get("Allow") || optionsResponse.headers.get("WAC-Allow");
         if (allowHeader) {
           canWrite = allowHeader.includes("PUT") || allowHeader.includes("PATCH") || allowHeader.includes("POST");
@@ -425,10 +425,10 @@ export async function getResourceAccessList(resourceUrl: string): Promise<Array<
         [...ac.apply].flatMap(p =>
           [...p.anyOf].flatMap(m =>
             [...m.agent].flatMap(a =>
-              ({
-                webId: a,
-                accessModes: p.allow
-              })))))
+            ({
+              webId: a,
+              accessModes: p.allow
+            })))))
 
     const grouped = rawModesByWebId.reduce(groupByWebId, new Map)
     return [...grouped].map(shape)
@@ -439,20 +439,79 @@ export async function getResourceAccessList(resourceUrl: string): Promise<Array<
 }
 
 function groupByWebId(previous: Map<string, Set<string>>, current: { webId: string, accessModes: Set<string> }) {
-    if (!previous.has(current.webId)) {
-        previous.set(current.webId, new Set)
-    }
+  if (!previous.has(current.webId)) {
+    previous.set(current.webId, new Set)
+  }
 
-    for (const mode of current.accessModes) {
-        previous.get(current.webId)!.add(mode)
-    }
+  for (const mode of current.accessModes) {
+    previous.get(current.webId)!.add(mode)
+  }
 
-    return previous
+  return previous
 }
 
 function shape(item: [string, Set<string>]) {
-    return {
-        webId: item[0],
-        accessModes: [...item[1]]
+  return {
+    webId: item[0],
+    accessModes: [...item[1]]
+  }
+}
+
+/**
+ * Removes access for a specific WebID from a resource's ACR
+ * This removes all access controls that grant access to the specified WebID
+ */
+export async function removeAccessFromResource(
+  resourceUrl: string,
+  webIdToRemove: string
+): Promise<void> {
+  const { fetch } = getAuthenticatedSession();
+  const acrUrl = await getAcrUrl(resourceUrl, fetch);
+
+  // Fetch the existing ACR
+  const response = await fetch(acrUrl, {
+    method: "GET",
+    headers: {
+      Accept: "text/turtle",
+    },
+  });
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      // No ACR exists, nothing to remove
+      return;
     }
+    throw new Error(`Failed to fetch ACR: ${response.statusText}`);
+  }
+
+  const turtle = await response.text();
+  const dataset = new Store();
+  dataset.addQuads(new Parser().parse(turtle));
+
+  const acr = new AccessControlResource(DataFactory.namedNode(acrUrl), dataset, DataFactory);
+
+  // Remove the WebID from all matchers that contain it
+  for (const accessControl of acr.accessControl) {
+    for (const policy of accessControl.apply) {
+      for (const matcher of policy.anyOf) {
+        matcher.agent.delete(webIdToRemove);
+
+      }
+    }
+  }
+
+  // Save the updated ACR
+  const updatedTurtle = await write(dataset);
+
+  const saveResponse = await fetch(acrUrl, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "text/turtle",
+    },
+    body: updatedTurtle,
+  });
+
+  if (!saveResponse.ok) {
+    throw new Error(`Failed to save ACR: ${saveResponse.statusText}`);
+  }
 }

@@ -7,8 +7,8 @@ import UrlCombobox, { ComboboxOption } from "./shared/UrlCombobox";
 import { FileItemData } from "./FileItem";
 import { fetchUserContacts, Contact, addContactToProfile } from "../lib/helpers/contactUtils";
 import { fetchAndParseProfile } from "../lib/helpers/profileUtils";
-import { getResourceAccessList } from "../lib/helpers/acpUtils";
-import { UserIcon, MagnifyingGlassIcon, LockClosedIcon, XMarkIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
+import { getResourceAccessList, removeAccessFromResource } from "../lib/helpers/acpUtils";
+import { UserIcon, MagnifyingGlassIcon, LockClosedIcon, XMarkIcon, CheckCircleIcon, TrashIcon } from "@heroicons/react/24/outline";
 import LoadingSpinner from "./shared/LoadingSpinner";
 
 export type AccessLevel = "Editor" | "Viewer";
@@ -41,6 +41,7 @@ export default function ShareDialog({
   const [isSharing, setIsSharing] = useState(false);
   const [accessList, setAccessList] = useState<Array<{ webId: string; accessModes: string[] }> | null>(null);
   const [isLoadingAccessList, setIsLoadingAccessList] = useState(false);
+  const [removingWebId, setRemovingWebId] = useState<string | null>(null);
 
   // Fetch contacts and access list when dialog opens
   useEffect(() => {
@@ -74,8 +75,27 @@ export default function ShareDialog({
       setSelectedAccessLevel("Editor");
       setPeopleChips([]);
       setAccessList(null);
+      setRemovingWebId(null);
     }
   }, [isOpen, file]);
+
+  const handleRemoveAccess = async (webIdToRemove: string) => {
+    if (!file) return;
+
+    setRemovingWebId(webIdToRemove);
+    try {
+      const resourceUrl = file.type === "folder" && !file.url.endsWith("/") ? file.url + "/" : file.url;
+      await removeAccessFromResource(resourceUrl, webIdToRemove);
+      
+      // Refresh the access list
+      const updatedList = await getResourceAccessList(resourceUrl);
+      setAccessList(updatedList);
+    } catch (error) {
+      console.error("Failed to remove access:", error);
+    } finally {
+      setRemovingWebId(null);
+    }
+  };
 
   // Convert contacts to ComboboxOptions
   const contactOptions: ComboboxOption[] = useMemo(() => {
@@ -319,19 +339,36 @@ export default function ShareDialog({
                 accessList.map((access, index) => {
                   const hasWrite = access.accessModes.some((mode) => mode.includes("Write"));
                   const accessLevel = hasWrite ? "Editor" : "Viewer";
+                  const isRemoving = removingWebId === access.webId;
                   
                   return (
                     <div
                       key={access.webId || index}
                       className="flex items-center justify-between rounded-md border border-gray-200 bg-gray-50 px-3 py-2"
                     >
-                      <div className="flex items-center gap-2">
-                        <CheckCircleIcon className="h-4 w-4 text-green-500" />
-                        <span className="text-sm text-gray-700 truncate max-w-xs">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <CheckCircleIcon className="h-4 w-4 text-green-500 shrink-0" />
+                        <span className="text-sm text-gray-700 truncate">
                           {access.webId}
                         </span>
                       </div>
-                      <span className="text-xs text-gray-500">{accessLevel}</span>
+                      <div className="flex items-center gap-2 shrink-0 ml-2">
+                        <span className="text-xs text-gray-500">{accessLevel}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveAccess(access.webId)}
+                          disabled={isRemoving}
+                          className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          aria-label={`Remove access for ${access.webId}`}
+                          title="Remove access"
+                        >
+                          {isRemoving ? (
+                            <LoadingSpinner size="sm" />
+                          ) : (
+                            <TrashIcon className="h-4 w-4" />
+                          )}
+                        </button>
+                      </div>
                     </div>
                   );
                 })
