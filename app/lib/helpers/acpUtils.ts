@@ -456,3 +456,83 @@ function shape(item: [string, Set<string>]) {
         accessModes: [...item[1]]
     }
 }
+
+/**
+ * Removes access for a specific WebID from a resource's ACR
+ * This removes all access controls that grant access to the specified WebID
+ */
+export async function removeAccessFromResource(
+  resourceUrl: string,
+  webIdToRemove: string
+): Promise<void> {
+  const { fetch } = getAuthenticatedSession();
+  const acrUrl = await getAcrUrl(resourceUrl, fetch);
+
+  // Fetch the existing ACR
+  const response = await fetch(acrUrl, {
+    method: "GET",
+    headers: {
+      Accept: "text/turtle",
+    },
+  });
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      // No ACR exists, nothing to remove
+      return;
+    }
+    throw new Error(`Failed to fetch ACR: ${response.statusText}`);
+  }
+
+  const turtle = await response.text();
+  const dataset = new Store();
+  dataset.addQuads(new Parser().parse(turtle));
+
+  const acr = new AccessControlResource(DataFactory.namedNode(acrUrl), dataset, DataFactory);
+
+  // Find all terms related to the WebID we want to remove
+  const termsToRemove = new Set<string>();
+
+  for (const accessControl of acr.accessControl) {
+    for (const policy of accessControl.apply) {
+      for (const matcher of policy.anyOf) {
+        if (matcher.agent.has(webIdToRemove)) {
+          // Mark all related terms for removal
+          termsToRemove.add(matcher.term.value);
+          termsToRemove.add(policy.term.value);
+          termsToRemove.add(accessControl.term.value);
+        }
+      }
+    }
+  }
+
+  // Remove quads where subject is one of the terms to remove
+  const quadsToRemove = [...dataset].filter(quad => 
+    termsToRemove.has(quad.subject.value)
+  );
+
+  // Also remove quads that reference these terms as objects (e.g., acp:accessControl links)
+  const referenceQuadsToRemove = [...dataset].filter(quad =>
+    termsToRemove.has(quad.object.value)
+  );
+
+  // Remove all collected quads
+  for (const quad of [...quadsToRemove, ...referenceQuadsToRemove]) {
+    dataset.removeQuad(quad);
+  }
+
+  // Save the updated ACR
+  const updatedTurtle = await write(dataset);
+  
+  const saveResponse = await fetch(acrUrl, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "text/turtle",
+    },
+    body: updatedTurtle,
+  });
+
+  if (!saveResponse.ok) {
+    throw new Error(`Failed to save ACR: ${saveResponse.statusText}`);
+  }
+}
