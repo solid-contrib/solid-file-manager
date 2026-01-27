@@ -490,35 +490,15 @@ export async function removeAccessFromResource(
 
   const acr = new AccessControlResource(DataFactory.namedNode(acrUrl), dataset, DataFactory);
 
-  // Find all terms related to the WebID we want to remove
-  const termsToRemove = new Set<string>();
-
+  // Remove the WebID from all matchers that contain it
   for (const accessControl of acr.accessControl) {
     for (const policy of accessControl.apply) {
       for (const matcher of policy.anyOf) {
         if (matcher.agent.has(webIdToRemove)) {
-          // Mark all related terms for removal
-          termsToRemove.add(matcher.term.value);
-          termsToRemove.add(policy.term.value);
-          termsToRemove.add(accessControl.term.value);
+          matcher.agent.delete(webIdToRemove);
         }
       }
     }
-  }
-
-  // Remove quads where subject is one of the terms to remove
-  const quadsToRemove = [...dataset].filter(quad => 
-    termsToRemove.has(quad.subject.value)
-  );
-
-  // Also remove quads that reference these terms as objects (e.g., acp:accessControl links)
-  const referenceQuadsToRemove = [...dataset].filter(quad =>
-    termsToRemove.has(quad.object.value)
-  );
-
-  // Remove all collected quads
-  for (const quad of [...quadsToRemove, ...referenceQuadsToRemove]) {
-    dataset.removeQuad(quad);
   }
 
   // Save the updated ACR
