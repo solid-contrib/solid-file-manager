@@ -1,33 +1,18 @@
-import type { DataFactory, DatasetCore } from "@rdfjs/types"
+import { DatasetWrapper } from "rdfjs-wrapper"
 import { AccessControlResource } from "@/app/lib/class/AccessControlResource";
-import { ACP, RDF } from "@/app/lib/class/Vocabulary"
+import { ACP } from "@/app/lib/class/Vocabulary"
 
-export class AcrDataset {
-    readonly #dataset: DatasetCore
-    readonly #factory: DataFactory
-
-    protected constructor(dataset: DatasetCore, factory: DataFactory) {
-        this.#dataset = dataset
-        this.#factory = factory
-    }
-
-    static wrap(dataset: DatasetCore, factory: DataFactory): AcrDataset {
-        return new AcrDataset(dataset, factory)
-    }
-
-    get dataset(): DatasetCore {
-        return this.#dataset
-    }
-
+export class AcrDataset extends DatasetWrapper {
     get acr(): AccessControlResource | undefined {
-        const typeSubjects = [...this.dataset.match(undefined, RDF.type, ACP.AccessControlResource)].map(q => q.subject)
-        const resourceSubjects = [...this.dataset.match(undefined, ACP.resource)].map(q => q.subject)
-        const accessControlSubjects = [...this.dataset.match(undefined, ACP.accessControl)].map(q => q.subject)
-        const memberAccessControlSubjects = [...this.dataset.match(undefined, ACP.memberAccessControl)].map(q => q.subject)
-        const subjects = new Set([...typeSubjects, ...resourceSubjects, ...accessControlSubjects, ...memberAccessControlSubjects])
+        const subjects = new Set([
+            ...this.instancesOf(AccessControlResource, ACP.AccessControlResource),
+            ...this.subjectsOf(AccessControlResource, ACP.resource),
+            ...this.subjectsOf(AccessControlResource, ACP.accessControl),
+            ...this.subjectsOf(AccessControlResource, ACP.memberAccessControl)
+        ])
 
         for (const subject of subjects) {
-            return new AccessControlResource(subject, this.#dataset, this.#factory)
+            return subject
         }
     }
 }

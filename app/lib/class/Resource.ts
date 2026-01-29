@@ -1,8 +1,8 @@
-import { TermMappings, ValueMappings, Wrapper } from "rdfjs-wrapper"
+import { TermMappings, ValueMappings, TermWrapper } from "rdfjs-wrapper"
 import { DC, POSIX, RDF, RDFS } from "@/app/lib/class/Vocabulary"
 import { extractNameFromUrl, FileType } from "@/app/lib/helpers"
 
-export class Resource extends Wrapper {
+export class Resource extends TermWrapper {
     #ianaMediaTypePattern = /^http:\/\/www\.w3\.org\/ns\/iana\/media-types\/(.+)#Resource$/;
 
     get id(): string {
