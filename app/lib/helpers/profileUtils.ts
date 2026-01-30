@@ -73,7 +73,7 @@ export async function fetchAndParseProfile(webId: string): Promise<Agent> {
     }
   }
 
-  const webIdDataset = WebIdDataset.wrap(store, DataFactory);
+  const webIdDataset = new WebIdDataset(store, DataFactory);
 
   const mainSubject: Agent | undefined = webIdDataset.mainSubject;
   if (mainSubject === undefined) {

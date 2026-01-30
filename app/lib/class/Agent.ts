@@ -1,7 +1,7 @@
-import { TermMappings, ValueMappings, Wrapper } from "rdfjs-wrapper"
+import { TermMappings, ValueMappings, TermWrapper } from "rdfjs-wrapper"
 import { FOAF, PIM, SOLID, VCARD } from "@/app/lib/class/Vocabulary"
 
-export class Agent extends Wrapper {
+export class Agent extends TermWrapper {
     get vcardFn(): string | undefined {
         return this.singularNullable(VCARD.fn, ValueMappings.literalToString)
     }
@@ -27,7 +27,7 @@ export class Agent extends Wrapper {
     }
 
     get hasTelephone(): HasValue | undefined {
-        return this.singularNullable(VCARD.hasTelephone, Wrapper.as(HasValue))
+        return this.singularNullable(VCARD.hasTelephone, TermWrapper.as(HasValue))
     }
 
     get foafName(): string | undefined {
@@ -68,7 +68,7 @@ export class Agent extends Wrapper {
     }
 
     get hasEmail(): HasValue | undefined {
-        return this.singularNullable(VCARD.hasEmail, Wrapper.as(HasValue))
+        return this.singularNullable(VCARD.hasEmail, TermWrapper.as(HasValue))
     }
 
     get knows(): Set<string> {
@@ -76,7 +76,7 @@ export class Agent extends Wrapper {
     }
 }
 
-class HasValue extends Wrapper {
+class HasValue extends TermWrapper {
     get value(): string {
         return this.hasValue ?? this.term.value
     }

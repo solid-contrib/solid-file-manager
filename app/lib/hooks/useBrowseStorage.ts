@@ -52,7 +52,7 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
         // Use @inrupt/solid-client to fetch the container dataset
         // and map it to plain object-oriented classes using rdfjs-wrapper
         const container =
-            ContainerDataset.wrap(
+            new ContainerDataset(
                 toRdfJsDataset(await getSolidDataset(url, {fetch: cacheBustingFetch})),
                 DataFactory)
                 .container

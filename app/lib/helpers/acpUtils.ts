@@ -140,7 +140,7 @@ async function fetchAcr(acrUrl: string, fetchFn: typeof fetch): Promise<AcrDatas
     dataset.addQuads(new Parser().parse(content));
 
     // Get typed AccessControlResource from the dataset
-    const acrDataset = AcrDataset.wrap(dataset, DataFactory)
+    const acrDataset = new AcrDataset(dataset, DataFactory)
 
     if (acrDataset.acr === undefined) {
       throw new Error // TODO: Handle properly
@@ -211,7 +211,7 @@ async function createAcr(
     });
   });
 
-  return AcrDataset.wrap(ds, DataFactory)
+  return new AcrDataset(ds, DataFactory)
 }
 
 function write(ds: DatasetCore): Promise<string> {
@@ -328,7 +328,7 @@ export async function shareResourceWithAcp(
     headers: {
       "Content-Type": "text/turtle",
     },
-    body: await write(acrDataset.dataset),
+    body: await write(acrDataset),
   });
 
   if (!response.ok) {
