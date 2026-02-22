@@ -1,9 +1,9 @@
-import { TermWrapper } from "rdfjs-wrapper"
+import { ObjectMapping } from "rdfjs-wrapper"
 import { Resource } from "@/app/lib/class/Resource"
 import { LDP } from "@/app/lib/class/Vocabulary"
 
 export class Container extends Resource {
     public get contains(): Set<Resource> {
-        return this.objects(LDP.contains, TermWrapper.as(Resource), TermWrapper.as(Resource))
+        return this.objects(LDP.contains, ObjectMapping.as(Resource), ObjectMapping.as(Resource))
     }
 }

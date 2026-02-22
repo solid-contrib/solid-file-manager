@@ -1,68 +1,66 @@
-import { DataFactory } from "n3"
+export const ACP = {
+    resource: "http://www.w3.org/ns/solid/acp#resource",
+    accessControl: "http://www.w3.org/ns/solid/acp#accessControl",
+    memberAccessControl: "http://www.w3.org/ns/solid/acp#memberAccessControl",
+    AccessControlResource: "http://www.w3.org/ns/solid/acp#AccessControlResource",
+    apply: "http://www.w3.org/ns/solid/acp#apply",
+    anyOf: "http://www.w3.org/ns/solid/acp#anyOf",
+    agent: "http://www.w3.org/ns/solid/acp#agent",
+    Matcher: "http://www.w3.org/ns/solid/acp#Matcher",
+    Policy: "http://www.w3.org/ns/solid/acp#Policy",
+    allow: "http://www.w3.org/ns/solid/acp#allow",
+    mode: "http://www.w3.org/ns/solid/acp#mode",
+    AccessControl: "http://www.w3.org/ns/solid/acp#AccessControl",
+} as const
 
-export class ACP {
-    static resource = DataFactory.namedNode("http://www.w3.org/ns/solid/acp#resource")
-    static accessControl = DataFactory.namedNode("http://www.w3.org/ns/solid/acp#accessControl")
-    static memberAccessControl = DataFactory.namedNode("http://www.w3.org/ns/solid/acp#memberAccessControl")
-    static AccessControlResource = DataFactory.namedNode("http://www.w3.org/ns/solid/acp#AccessControlResource")
-    static apply = DataFactory.namedNode("http://www.w3.org/ns/solid/acp#apply")
-    static anyOf = DataFactory.namedNode("http://www.w3.org/ns/solid/acp#anyOf")
-    static agent = DataFactory.namedNode("http://www.w3.org/ns/solid/acp#agent")
-    static Matcher = DataFactory.namedNode("http://www.w3.org/ns/solid/acp#Matcher")
-    static Policy = DataFactory.namedNode("http://www.w3.org/ns/solid/acp#Policy")
-    static allow = DataFactory.namedNode("http://www.w3.org/ns/solid/acp#allow")
-    static mode = DataFactory.namedNode("http://www.w3.org/ns/solid/acp#mode")
-    static AccessControl = DataFactory.namedNode("http://www.w3.org/ns/solid/acp#AccessControl")
-}
+export const DC = {
+    modified:  "http://purl.org/dc/terms/modified",
+    title:  "http://purl.org/dc/terms/title",
+} as const
 
-export class DC {
-    static modified = DataFactory.namedNode("http://purl.org/dc/terms/modified")
-    static title = DataFactory.namedNode("http://purl.org/dc/terms/title")
-}
+export const FOAF = {
+    isPrimaryTopicOf: "http://xmlns.com/foaf/0.1/isPrimaryTopicOf",
+    primaryTopic: "http://xmlns.com/foaf/0.1/primaryTopic",
+    fname: "http://xmlns.com/foaf/0.1/name",
+    email: "http://xmlns.com/foaf/0.1/email",
+    homepage: "http://xmlns.com/foaf/0.1/homepage",
+    knows: "http://xmlns.com/foaf/0.1/knows",
+} as const
 
-export class FOAF {
-    static isPrimaryTopicOf = DataFactory.namedNode("http://xmlns.com/foaf/0.1/isPrimaryTopicOf")
-    static primaryTopic = DataFactory.namedNode("http://xmlns.com/foaf/0.1/primaryTopic")
-    static fname = DataFactory.namedNode("http://xmlns.com/foaf/0.1/name")
-    static email = DataFactory.namedNode("http://xmlns.com/foaf/0.1/email")
-    static homepage = DataFactory.namedNode("http://xmlns.com/foaf/0.1/homepage")
-    static knows = DataFactory.namedNode("http://xmlns.com/foaf/0.1/knows")
-}
+export const LDP = {
+    contains:  "http://www.w3.org/ns/ldp#contains",
+} as const
 
-export class LDP {
-    static contains = DataFactory.namedNode("http://www.w3.org/ns/ldp#contains")
-}
+export const PIM = {
+    storage:  "http://www.w3.org/ns/pim/space#storage",
+} as const
 
-export class PIM {
-    static storage = DataFactory.namedNode("http://www.w3.org/ns/pim/space#storage")
-}
+export const POSIX = {
+    size:  "http://www.w3.org/ns/posix/stat#size",
+    mtime:  "http://www.w3.org/ns/posix/stat#mtime",
+} as const
 
-export class POSIX {
-    static size = DataFactory.namedNode("http://www.w3.org/ns/posix/stat#size")
-    static mtime = DataFactory.namedNode("http://www.w3.org/ns/posix/stat#mtime")
-}
+export const RDF = {
+    type: "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+} as const
 
-export class RDF {
-    static type = DataFactory.namedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
-}
+export const RDFS = {
+    label:  "http://www.w3.org/2000/01/rdf-schema#label",
+} as const
 
-export class RDFS {
-    static label = DataFactory.namedNode("http://www.w3.org/2000/01/rdf-schema#label")
-}
+export const SOLID = {
+    oidcIssuer:  "http://www.w3.org/ns/solid/terms#oidcIssuer",
+    storage:  "http://www.w3.org/ns/solid/terms#storage",
+} as const
 
-export class SOLID {
-    static oidcIssuer = DataFactory.namedNode("http://www.w3.org/ns/solid/terms#oidcIssuer")
-    static storage = DataFactory.namedNode("http://www.w3.org/ns/solid/terms#storage")
-}
-
-export class VCARD {
-    static fn = DataFactory.namedNode("http://www.w3.org/2006/vcard/ns#fn")
-    static hasEmail = DataFactory.namedNode("http://www.w3.org/2006/vcard/ns#hasEmail")
-    static hasValue = DataFactory.namedNode("http://www.w3.org/2006/vcard/ns#hasValue")
-    static hasPhoto = DataFactory.namedNode("http://www.w3.org/2006/vcard/ns#hasPhoto")
-    static hasTelephone = DataFactory.namedNode("http://www.w3.org/2006/vcard/ns#hasTelephone")
-    static title = DataFactory.namedNode("http://www.w3.org/2006/vcard/ns#title")
-    static hasUrl = DataFactory.namedNode("http://www.w3.org/2006/vcard/ns#hasUrl")
-    static organizationName = DataFactory.namedNode("http://www.w3.org/2006/vcard/ns#organization-name")
-    static role = DataFactory.namedNode("http://www.w3.org/2006/vcard/ns#organization-name")
-}
+export const VCARD = {
+    fn:  "http://www.w3.org/2006/vcard/ns#fn",
+    hasEmail:  "http://www.w3.org/2006/vcard/ns#hasEmail",
+    hasValue:  "http://www.w3.org/2006/vcard/ns#hasValue",
+    hasPhoto:  "http://www.w3.org/2006/vcard/ns#hasPhoto",
+    hasTelephone:  "http://www.w3.org/2006/vcard/ns#hasTelephone",
+    title:  "http://www.w3.org/2006/vcard/ns#title",
+    hasUrl:  "http://www.w3.org/2006/vcard/ns#hasUrl",
+    organizationName:  "http://www.w3.org/2006/vcard/ns#organization-name",
+    role:  "http://www.w3.org/2006/vcard/ns#organization-name",
+} as const
