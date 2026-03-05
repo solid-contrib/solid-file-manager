@@ -5,10 +5,10 @@ import { ACP } from "@/app/lib/class/Vocabulary"
 export class AcrDataset extends DatasetWrapper {
     get acr(): AccessControlResource | undefined {
         const subjects = new Set([
-            ...this.instancesOf(AccessControlResource, ACP.AccessControlResource),
-            ...this.subjectsOf(AccessControlResource, ACP.resource),
-            ...this.subjectsOf(AccessControlResource, ACP.accessControl),
-            ...this.subjectsOf(AccessControlResource, ACP.memberAccessControl)
+            ...this.instancesOf(ACP.AccessControlResource, AccessControlResource),
+            ...this.subjectsOf(ACP.resource, AccessControlResource),
+            ...this.subjectsOf(ACP.accessControl, AccessControlResource),
+            ...this.subjectsOf(ACP.memberAccessControl, AccessControlResource)
         ])
 
         for (const subject of subjects) {

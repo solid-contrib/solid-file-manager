@@ -1,25 +1,25 @@
-import { TermMappings, ValueMappings, TermWrapper } from "rdfjs-wrapper"
+import { TermMapping, ValueMapping, TermWrapper, ObjectMapping } from "rdfjs-wrapper"
 import { FOAF, PIM, SOLID, VCARD } from "@/app/lib/class/Vocabulary"
 
 export class Agent extends TermWrapper {
     get vcardFn(): string | undefined {
-        return this.singularNullable(VCARD.fn, ValueMappings.literalToString)
+        return this.singularNullable(VCARD.fn, ValueMapping.literalToString)
     }
 
     get vcardHasUrl(): string | undefined {
-        return this.singularNullable(VCARD.hasUrl, ValueMappings.iriToString)
+        return this.singularNullable(VCARD.hasUrl, ValueMapping.iriToString)
     }
 
     get organization(): string | null {
-        return this.singularNullable(VCARD.organizationName, ValueMappings.iriToString) ?? null
+        return this.singularNullable(VCARD.organizationName, ValueMapping.iriToString) ?? null
     }
 
     get role(): string | null {
-        return this.singularNullable(VCARD.role, ValueMappings.iriToString) ?? null
+        return this.singularNullable(VCARD.role, ValueMapping.iriToString) ?? null
     }
 
     get title(): string | null {
-        return this.singularNullable(VCARD.title, ValueMappings.literalToString) ?? null
+        return this.singularNullable(VCARD.title, ValueMapping.literalToString) ?? null
     }
 
     get phone(): string | null {
@@ -27,11 +27,11 @@ export class Agent extends TermWrapper {
     }
 
     get hasTelephone(): HasValue | undefined {
-        return this.singularNullable(VCARD.hasTelephone, TermWrapper.as(HasValue))
+        return this.singularNullable(VCARD.hasTelephone, ObjectMapping.as(HasValue))
     }
 
     get foafName(): string | undefined {
-        return this.singularNullable(FOAF.fname, ValueMappings.literalToString)
+        return this.singularNullable(FOAF.fname, ValueMapping.literalToString)
     }
 
     get name(): string | null {
@@ -44,7 +44,7 @@ export class Agent extends TermWrapper {
     }
 
     get foafHomepage(): string | undefined {
-        return this.singularNullable(FOAF.homepage, ValueMappings.literalToString)
+        return this.singularNullable(FOAF.homepage, ValueMapping.literalToString)
     }
 
     get website(): string | null {
@@ -52,15 +52,15 @@ export class Agent extends TermWrapper {
     }
 
     get photoUrl(): string | null {
-        return this.singularNullable(VCARD.hasPhoto, ValueMappings.literalToString) ?? null
+        return this.singularNullable(VCARD.hasPhoto, ValueMapping.literalToString) ?? null
     }
 
     get pimStorage(): Set<string> {
-        return this.objects(PIM.storage, ValueMappings.iriToString, TermMappings.stringToIri)
+        return this.objects(PIM.storage, ValueMapping.iriToString, TermMapping.stringToIri)
     }
 
     get solidStorage(): Set<string> {
-        return this.objects(SOLID.storage, ValueMappings.iriToString, TermMappings.stringToIri)
+        return this.objects(SOLID.storage, ValueMapping.iriToString, TermMapping.stringToIri)
     }
 
     get email(): string | null {
@@ -68,11 +68,11 @@ export class Agent extends TermWrapper {
     }
 
     get hasEmail(): HasValue | undefined {
-        return this.singularNullable(VCARD.hasEmail, TermWrapper.as(HasValue))
+        return this.singularNullable(VCARD.hasEmail, ObjectMapping.as(HasValue))
     }
 
     get knows(): Set<string> {
-        return this.objects(FOAF.knows, ValueMappings.iriToString, TermMappings.stringToIri)
+        return this.objects(FOAF.knows, ValueMapping.iriToString, TermMapping.stringToIri)
     }
 }
 
@@ -82,6 +82,6 @@ class HasValue extends TermWrapper {
     }
 
     get hasValue(): string | undefined {
-        return this.singularNullable(VCARD.hasValue, ValueMappings.iriToString)
+        return this.singularNullable(VCARD.hasValue, ValueMapping.iriToString)
     }
 }

@@ -180,7 +180,7 @@ async function createAcr(
   const acr = new AccessControlResource(namedNode(acrUrl), ds, DataFactory)
 
   // Add ACR type and resource
-  acr.type.add(ACP.AccessControlResource.id)
+  acr.type.add(ACP.AccessControlResource)
   acr.resource = resourceUrl;
 
   // Create Access Controls for each WebID and access mode
@@ -194,16 +194,16 @@ async function createAcr(
       const accessControl = new AccessControl(blankNode(), ds, DataFactory)
 
       // Matcher: type and agent
-      matcher.type.add(ACP.Matcher.id)
+      matcher.type.add(ACP.Matcher)
       matcher.agent.add(webId)
 
       // Policy: type, allow, and anyOf (matcher)
-      policy.type.add(ACP.Policy.id)
-      policy.allow.add(ACP.mode.id) // TODO: MODE
+      policy.type.add(ACP.Policy)
+      policy.allow.add(ACP.mode) // TODO: MODE
       policy.anyOf.add(matcher)
 
       // AccessControl: type and apply (policy)
-      accessControl.type.add(ACP.AccessControl.id)
+      accessControl.type.add(ACP.AccessControl)
       accessControl.apply.add(policy)
 
       // Link AccessControl to ACR
@@ -283,14 +283,14 @@ async function updateAcr(
       const policy = new Policy(blankNode(), ds, DataFactory)
       const accessControl = new AccessControl(blankNode(), ds, DataFactory)
 
-      matcher.type.add(ACP.Matcher.id)
+      matcher.type.add(ACP.Matcher)
       matcher.agent.add(webId)
 
-      policy.type.add(ACP.Policy.id)
-      policy.allow.add(ACP.mode.id) // TODO: MODE
+      policy.type.add(ACP.Policy)
+      policy.allow.add(ACP.mode) // TODO: MODE
       policy.anyOf.add(matcher)
 
-      accessControl.type.add(ACP.AccessControl.id)
+      accessControl.type.add(ACP.AccessControl)
       accessControl.apply.add(policy)
 
       acr.accessControl.add(accessControl)
