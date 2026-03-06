@@ -1,27 +1,33 @@
 "use client";
 
 import { Suspense } from "react";
-import AuthWrapper from "./components/AuthWrapper";
+import {
+  SolidLoginNavigationProviderNext,
+  AuthGuard,
+} from "solid-react-component/login/next";
 import LoadingSpinner from "./components/shared/LoadingSpinner";
 import FileManager from "./components/FileManager";
 
-// FileManagerContent uses useSearchParams, so it needs to be wrapped in Suspense
+const loadingFallback = (
+  <div className="flex min-h-screen items-center justify-center bg-white">
+    <LoadingSpinner size="md" text="Loading..." />
+  </div>
+);
+
 function FileManagerContent() {
   return <FileManager />;
 }
 
 export default function Home() {
   return (
-    <AuthWrapper>
-      <Suspense
-        fallback={
-          <div className="flex min-h-screen items-center justify-center bg-white">
-            <LoadingSpinner size="md" text="Loading..." />
-          </div>
-        }
+    <Suspense fallback={loadingFallback}>
+      <SolidLoginNavigationProviderNext
+        config={{ loginPath: "/login", homePath: "/" }}
       >
-        <FileManagerContent />
-      </Suspense>
-    </AuthWrapper>
+        <AuthGuard fallback={loadingFallback}>
+          <FileManagerContent />
+        </AuthGuard>
+      </SolidLoginNavigationProviderNext>
+    </Suspense>
   );
 }

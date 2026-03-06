@@ -23,7 +23,8 @@
     "rdfjs-wrapper": "^0.14.0",
     "react": "19.2.1",
     "react-dom": "19.2.1",
-    "react-hot-toast": "^2.6.0"
+    "react-hot-toast": "^2.6.0",
+    "solid-react-component": "^0.2.2"
   },
   "devDependencies": {
     "@solid/community-server": "^8.0.0-alpha.1",
