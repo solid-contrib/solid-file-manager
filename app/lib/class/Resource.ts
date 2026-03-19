@@ -6,7 +6,7 @@ export class Resource extends TermWrapper {
     #ianaMediaTypePattern = /^http:\/\/www\.w3\.org\/ns\/iana\/media-types\/(.+)#Resource$/;
 
     get id(): string {
-        return this.term.value
+        return this.value
     }
 
     get isContainer(): boolean {

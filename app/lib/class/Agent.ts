@@ -23,7 +23,7 @@ export class Agent extends TermWrapper {
     }
 
     get phone(): string | null {
-        return this.hasTelephone?.value ?? null
+        return this.hasTelephone?.actualValue ?? null
     }
 
     get hasTelephone(): HasValue | undefined {
@@ -35,7 +35,7 @@ export class Agent extends TermWrapper {
     }
 
     get name(): string | null {
-        return this.vcardFn ?? this.foafName ?? this.term.value.split("/").pop()?.split("#")[0] ?? null
+        return this.vcardFn ?? this.foafName ?? this.value.split("/").pop()?.split("#")[0] ?? null
     }
 
     get storageUrls(): Set<string> {
@@ -64,7 +64,7 @@ export class Agent extends TermWrapper {
     }
 
     get email(): string | null {
-        return this.hasEmail?.value ?? null
+        return this.hasEmail?.actualValue ?? null
     }
 
     get hasEmail(): HasValue | undefined {
@@ -77,8 +77,8 @@ export class Agent extends TermWrapper {
 }
 
 class HasValue extends TermWrapper {
-    get value(): string {
-        return this.hasValue ?? this.term.value
+    get actualValue(): string {
+        return this.hasValue ?? this.value
     }
 
     get hasValue(): string | undefined {
