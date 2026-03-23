@@ -17,10 +17,10 @@
     "@inrupt/solid-client": "^1.23.1",
     "@inrupt/solid-client-authn-browser": "^3.1.1",
     "@ldo/solid-react": "^1.0.0-alpha.33",
+    "@rdfjs/wrapper": "^0.32.0",
     "jszip": "^3.10.1",
     "n3": "^2.0.1",
     "next": "16.0.7",
-    "rdfjs-wrapper": "^0.29.0",
     "react": "19.2.1",
     "react-dom": "19.2.1",
     "react-hot-toast": "^2.6.0"

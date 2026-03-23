@@ -1,4 +1,4 @@
-import { DatasetWrapper } from "rdfjs-wrapper"
+import { DatasetWrapper } from "@rdfjs/wrapper"
 import { AccessControlResource } from "@/app/lib/class/AccessControlResource";
 import { ACP } from "@/app/lib/class/Vocabulary"
 

@@ -1,4 +1,4 @@
-import { TermMapping, ValueMapping, TermWrapper } from "rdfjs-wrapper"
+import { LiteralAs, NamedNodeAs, NamedNodeFrom, TermWrapper } from "@rdfjs/wrapper"
 import { DC, POSIX, RDF, RDFS } from "@/app/lib/class/Vocabulary"
 import { extractNameFromUrl, FileType } from "@/app/lib/helpers"
 
@@ -18,11 +18,11 @@ export class Resource extends TermWrapper {
     }
 
     get title(): string | undefined {
-        return this.singularNullable(DC.title, ValueMapping.literalToString)
+        return this.singularNullable(DC.title, LiteralAs.string)
     }
 
     get label(): string | undefined {
-        return this.singularNullable(RDFS.label, ValueMapping.literalToString)
+        return this.singularNullable(RDFS.label, LiteralAs.string)
     }
 
     get name(): string {
@@ -30,11 +30,11 @@ export class Resource extends TermWrapper {
     }
 
     get modified(): Date | undefined {
-        return this.singularNullable(DC.modified, ValueMapping.literalToDate)
+        return this.singularNullable(DC.modified, LiteralAs.date)
     }
 
     get mtime(): Date | undefined {
-        return this.singularNullable(POSIX.mtime, ValueMapping.literalToDate)
+        return this.singularNullable(POSIX.mtime, LiteralAs.date)
     }
 
     get lastModified(): Date | undefined {
@@ -42,11 +42,11 @@ export class Resource extends TermWrapper {
     }
 
     get size(): number | undefined {
-        return this.singularNullable(POSIX.size, ValueMapping.literalToNumber)
+        return this.singularNullable(POSIX.size, LiteralAs.number)
     }
 
     get type(): Set<string> {
-        return this.objects(RDF.type, ValueMapping.iriToString, TermMapping.stringToIri)
+        return this.objects(RDF.type, NamedNodeAs.string, NamedNodeFrom.string)
     }
 
     get mimeType(): string | undefined {
