@@ -1,4 +1,4 @@
-import { DatasetWrapper } from "rdfjs-wrapper"
+import { DatasetWrapper } from "@rdfjs/wrapper"
 import { Container } from "@/app/lib/class/Container"
 import { LDP } from "@/app/lib/class/Vocabulary"
 
