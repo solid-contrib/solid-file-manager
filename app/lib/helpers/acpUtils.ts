@@ -408,9 +408,25 @@ export interface AccessResult {
   sourceUrl?: string;
 }
 
-// Well-known URIs for public/authenticated agent classes
-const FOAF_AGENT = "http://xmlns.com/foaf/0.1/Agent";
-const ACL_AUTHENTICATED_AGENT = "http://www.w3.org/ns/auth/acl#AuthenticatedAgent";
+// Well-known URIs for public/authenticated agent classes (WAC + ACP variants)
+const PUBLIC_AGENTS = new Set([
+  "http://xmlns.com/foaf/0.1/Agent",                       // WAC: foaf:Agent
+  "http://www.w3.org/ns/solid/acp#PublicAgent",             // ACP (ESS)
+  "http://www.w3.org/ns/solid/acp/acp#PublicAgent",         // ACP alternate namespace
+]);
+const AUTHENTICATED_AGENTS = new Set([
+  "http://www.w3.org/ns/auth/acl#AuthenticatedAgent",       // WAC
+  "http://www.w3.org/ns/solid/acp#AuthenticatedAgent",      // ACP (ESS)
+  "http://www.w3.org/ns/solid/acp/acp#AuthenticatedAgent",  // ACP alternate namespace
+]);
+
+function isPublicAgent(agent: string): boolean {
+  return PUBLIC_AGENTS.has(agent);
+}
+
+function isAuthenticatedAgent(agent: string): boolean {
+  return AUTHENTICATED_AGENTS.has(agent);
+}
 
 // WAC predicates
 const WAC = {
@@ -441,16 +457,45 @@ function normalizeMode(modeUri: string): string {
 }
 
 /**
- * Discovers the ACL/ACR URL from Link headers. Returns the URL as-is from the server
- * (no .acl→.acr conversion, since that breaks WAC servers).
+ * Discovers the ACL/ACR URL from Link headers. Returns the URL as-is from the server.
+ * Does NOT guess ACP vs WAC from the URL — that is determined from the document content.
  */
-function discoverAclUrl(linkHeader: string): { url: string; isAcp: boolean } | null {
+function discoverAclUrl(linkHeader: string): string | null {
   const aclMatch = linkHeader.match(/<([^>]+)>;\s*rel=["']acl["']/i);
-  if (!aclMatch || !aclMatch[1]) return null;
+  return aclMatch ? aclMatch[1] : null;
+}
 
-  const url = aclMatch[1];
-  const isAcp = url.includes(".acr") || linkHeader.includes("http://www.w3.org/ns/solid/acp#AccessControlResource");
-  return { url, isAcp };
+/**
+ * Detects whether a parsed RDF dataset contains ACP or WAC triples.
+ */
+function detectAuthType(dataset: Store): "acp" | "wac" | "unknown" {
+  const { namedNode } = DataFactory;
+
+  // Check for ACP: look for acp:AccessControlResource type or acp:accessControl predicate
+  const acpTypeQuads = dataset.getQuads(
+    null,
+    namedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"),
+    namedNode(ACP.AccessControlResource),
+    null,
+  );
+  if (acpTypeQuads.length > 0) return "acp";
+
+  const acpControlQuads = dataset.getQuads(null, namedNode(ACP.accessControl), null, null);
+  if (acpControlQuads.length > 0) return "acp";
+
+  const acpMemberControlQuads = dataset.getQuads(null, namedNode(ACP.memberAccessControl), null, null);
+  if (acpMemberControlQuads.length > 0) return "acp";
+
+  // Check for WAC: look for acl:Authorization type
+  const wacTypeQuads = dataset.getQuads(
+    null,
+    namedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"),
+    namedNode(WAC.Authorization),
+    null,
+  );
+  if (wacTypeQuads.length > 0) return "wac";
+
+  return "unknown";
 }
 
 /**
@@ -528,12 +573,12 @@ function collectWacAgents(
     // Agent classes
     const classQuads = dataset.getObjects(authSubject, namedNode(WAC.agentClass), null);
     for (const cls of classQuads) {
-      if (cls.value === FOAF_AGENT) {
+      if (isPublicAgent(cls.value)) {
         if (!agentMap.has("PUBLIC")) {
           agentMap.set("PUBLIC", { modes: new Set(), isPublic: true, isAuthenticated: false });
         }
         for (const mode of modes) agentMap.get("PUBLIC")!.modes.add(mode);
-      } else if (cls.value === ACL_AUTHENTICATED_AGENT) {
+      } else if (isAuthenticatedAgent(cls.value)) {
         if (!agentMap.has("AUTHENTICATED")) {
           agentMap.set("AUTHENTICATED", { modes: new Set(), isPublic: false, isAuthenticated: true });
         }
@@ -571,7 +616,10 @@ export async function getResourceAccessList(resourceUrl: string): Promise<Access
 
 /**
  * Core recursive resolver. Tries to fetch the ACL/ACR for resourceUrl;
- * if it doesn't exist (404) and isInheriting=false, walks up parent containers.
+ * if it doesn't exist (404), walks up parent containers.
+ *
+ * Detection of ACP vs WAC is done by inspecting the fetched document's RDF content,
+ * NOT from the URL (ESS serves ACP content at .acl URLs).
  */
 async function resolveAccessList(
   resourceUrl: string,
@@ -588,13 +636,10 @@ async function resolveAccessList(
   });
 
   const linkHeader = headResponse.headers.get("Link") || "";
-  const discovered = discoverAclUrl(linkHeader);
-  if (!discovered) {
-    // No ACL link at all — try parent
+  const aclUrl = discoverAclUrl(linkHeader);
+  if (!aclUrl) {
     return walkUpForInherited(resourceUrl, fetchFn, depth);
   }
-
-  const { url: aclUrl, isAcp } = discovered;
 
   // Fetch the ACL/ACR document
   const response = await fetchFn(aclUrl, {
@@ -604,81 +649,136 @@ async function resolveAccessList(
 
   if (!response.ok) {
     if (response.status === 404) {
-      // No ACL exists for this resource — walk up to find inherited
       return walkUpForInherited(resourceUrl, fetchFn, depth);
     }
-    throw new Error(`Failed to fetch ${isAcp ? "ACR" : "ACL"}: ${response.statusText}`);
+    throw new Error(`Failed to fetch ACL/ACR: ${response.statusText}`);
   }
 
   const turtle = await response.text();
-
-  if (isAcp) {
-    return parseAcpForEntries(turtle, aclUrl, isInheriting);
-  }
-
-  // WAC: parse and check for direct (accessTo) or default rules
   const dataset = new Store();
   dataset.addQuads(new Parser({ baseIRI: aclUrl }).parse(turtle));
 
-  if (!isInheriting) {
-    // Try direct accessTo rules for this exact resource
-    const directEntries = collectWacAgents(dataset, "accessTo", resourceUrl, false);
-    if (directEntries.length > 0) {
-      return { entries: directEntries, sourceUrl: aclUrl };
+  // Detect ACP vs WAC from the document content
+  const authType = detectAuthType(dataset);
+
+  if (authType === "acp") {
+    // ACP: parse accessControl + memberAccessControl
+    const result = parseAcpFromDataset(dataset, aclUrl, isInheriting);
+    if (result.entries.length > 0) {
+      return result;
     }
-    // No direct rules — this ACL might only have acl:default for children.
-    // Walk up to find inherited rules for this resource.
-    return walkUpForInherited(resourceUrl, fetchFn, depth);
-  } else {
-    // We're looking for acl:default rules (inherited from parent)
-    const defaultEntries = collectWacAgents(dataset, "default", resourceUrl, true);
-    if (defaultEntries.length > 0) {
-      return { entries: defaultEntries, sourceUrl: aclUrl };
-    }
-    // Also check accessTo on the container itself — some servers set both
-    const directOnContainer = collectWacAgents(dataset, "accessTo", resourceUrl, true);
-    if (directOnContainer.length > 0) {
-      return { entries: directOnContainer, sourceUrl: aclUrl };
-    }
-    // Keep walking up
+    // Empty ACP ACR — walk up for inherited
     return walkUpForInherited(resourceUrl, fetchFn, depth);
   }
+
+  if (authType === "wac") {
+    // WAC: check for direct (accessTo) or default rules
+    if (!isInheriting) {
+      const directEntries = collectWacAgents(dataset, "accessTo", resourceUrl, false);
+      if (directEntries.length > 0) {
+        return { entries: directEntries, sourceUrl: aclUrl };
+      }
+      // No direct rules — walk up to find inherited
+      return walkUpForInherited(resourceUrl, fetchFn, depth);
+    } else {
+      // Looking for acl:default rules (inherited from parent)
+      const defaultEntries = collectWacAgents(dataset, "default", resourceUrl, true);
+      if (defaultEntries.length > 0) {
+        return { entries: defaultEntries, sourceUrl: aclUrl };
+      }
+      // Fallback: check accessTo on the container itself
+      const directOnContainer = collectWacAgents(dataset, "accessTo", resourceUrl, true);
+      if (directOnContainer.length > 0) {
+        return { entries: directOnContainer, sourceUrl: aclUrl };
+      }
+      return walkUpForInherited(resourceUrl, fetchFn, depth);
+    }
+  }
+
+  // Unknown auth type — document was fetched but contained neither ACP nor WAC triples
+  // This can happen with empty ACR documents on some servers
+  return walkUpForInherited(resourceUrl, fetchFn, depth);
 }
 
-function parseAcpForEntries(turtle: string, acrUrl: string, inherited: boolean): AccessResult {
-  const dataset = new Store();
-  dataset.addQuads(new Parser().parse(turtle));
-  const acr = new AccessControlResource(DataFactory.namedNode(acrUrl), dataset, DataFactory);
+/**
+ * Parses ACP entries from a dataset. Reads both acp:accessControl (direct)
+ * and acp:memberAccessControl (inherited by container members, used by ESS).
+ */
+function parseAcpFromDataset(dataset: Store, acrUrl: string, inherited: boolean): AccessResult {
+  const { namedNode } = DataFactory;
 
-  const rawEntries = [...acr.accessControl].flatMap(ac =>
-    [...ac.apply].flatMap(p =>
-      [...p.anyOf].flatMap(m =>
-        [...m.agent].map(a => ({
-          agent: a,
-          modes: [...p.allow].map(normalizeMode),
-        }))
-      )
-    )
-  );
+  // Collect AccessControl nodes from both predicates
+  const directControlQuads = dataset.getQuads(null, namedNode(ACP.accessControl), null, null);
+  const memberControlQuads = dataset.getQuads(null, namedNode(ACP.memberAccessControl), null, null);
+
+  type RawEntry = { agent: string; modes: string[]; inherited: boolean };
+  const rawEntries: RawEntry[] = [];
+
+  const extractFromControls = (controlQuads: ReturnType<Store["getQuads"]>, isInherited: boolean) => {
+    for (const cq of controlQuads) {
+      const controlNode = cq.object;
+
+      // Get policies via acp:apply
+      const policyQuads = dataset.getQuads(controlNode, namedNode(ACP.apply), null, null);
+      for (const pq of policyQuads) {
+        const policyNode = pq.object;
+
+        // Get allowed modes from the policy
+        const allowQuads = dataset.getQuads(policyNode, namedNode(ACP.allow), null, null);
+        const modes = allowQuads.map(aq => normalizeMode(aq.object.value));
+
+        // Get matchers via acp:anyOf
+        const matcherQuads = dataset.getQuads(policyNode, namedNode(ACP.anyOf), null, null);
+        for (const mq of matcherQuads) {
+          const matcherNode = mq.object;
+
+          // Get agents from matcher
+          const agentQuads = dataset.getQuads(matcherNode, namedNode(ACP.agent), null, null);
+          for (const aq of agentQuads) {
+            rawEntries.push({ agent: aq.object.value, modes, inherited: isInherited });
+          }
+        }
+
+        // Some ACP implementations put acp:agent directly on the policy (without matchers)
+        const directAgentQuads = dataset.getQuads(policyNode, namedNode(ACP.agent), null, null);
+        for (const aq of directAgentQuads) {
+          rawEntries.push({ agent: aq.object.value, modes, inherited: isInherited });
+        }
+      }
+    }
+  };
+
+  extractFromControls(directControlQuads, inherited);
+  extractFromControls(memberControlQuads, true); // memberAccessControl is always inherited
 
   // Group by agent
-  const grouped = new Map<string, Set<string>>();
+  const grouped = new Map<string, { modes: Set<string>; inherited: boolean }>();
   for (const entry of rawEntries) {
     if (!grouped.has(entry.agent)) {
-      grouped.set(entry.agent, new Set());
+      grouped.set(entry.agent, { modes: new Set(), inherited: entry.inherited });
     }
+    const group = grouped.get(entry.agent)!;
     for (const mode of entry.modes) {
-      grouped.get(entry.agent)!.add(mode);
+      group.modes.add(mode);
+    }
+    // If any rule is direct (not inherited), mark the whole entry as direct
+    if (!entry.inherited) {
+      group.inherited = false;
     }
   }
 
-  const entries: AccessEntry[] = [...grouped.entries()].map(([agent, modes]) => ({
-    agent,
-    modes: [...modes],
-    isPublic: agent === FOAF_AGENT,
-    isAuthenticated: agent === ACL_AUTHENTICATED_AGENT,
-    inherited,
-  }));
+  const entries: AccessEntry[] = [...grouped.entries()].map(([agent, data]) => {
+    const pub = isPublicAgent(agent);
+    const auth = isAuthenticatedAgent(agent);
+    return {
+      // Normalize special agents to canonical keys so the UI treats them uniformly
+      agent: pub ? "PUBLIC" : auth ? "AUTHENTICATED" : agent,
+      modes: [...data.modes],
+      isPublic: pub,
+      isAuthenticated: auth,
+      inherited: data.inherited,
+    };
+  });
 
   return { entries, sourceUrl: acrUrl };
 }
