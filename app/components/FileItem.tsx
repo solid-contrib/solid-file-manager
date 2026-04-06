@@ -5,26 +5,6 @@ import { getFileIcon, formatFileSize, formatDate, type FileType } from "../lib/h
 import FileItemMenu from "./FileItemMenu";
 import type { AccessEntry, AccessResult } from "./FileList";
 
-/**
- * Extracts a short readable label from a WebID URL.
- * e.g. "http://localhost:3000/alice/profile/card#me" → "alice"
- */
-function extractShortLabel(agent: string): string {
-  if (agent === "PUBLIC") return "Anyone";
-  if (agent === "AUTHENTICATED") return "Authenticated";
-  try {
-    const url = new URL(agent);
-    const segments = url.pathname.split("/").filter(Boolean);
-    if (segments.length > 0) {
-      return segments[0];
-    }
-    return url.hostname;
-  } catch {
-    const parts = agent.split(/[/#]/).filter(Boolean);
-    return parts[parts.length - 1] || agent;
-  }
-}
-
 export type { FileType };
 
 export interface FileItemData {
@@ -182,7 +162,7 @@ export default function FileItem({
       categories.push({
         key: "public",
         label: `Public: ${modes.join(", ")}`,
-        chipClass: "bg-orange-50 text-orange-800 hover:bg-orange-100 border border-orange-200",
+        chipClass: "bg-red-50 text-red-800 hover:bg-red-100 border border-red-200",
         entries: publicEntries,
         title: `Accessible by anyone on the internet\nModes: ${modes.join(", ")}`,
       });
@@ -193,33 +173,21 @@ export default function FileItem({
       categories.push({
         key: "authenticated",
         label: `Authenticated: ${modes.join(", ")}`,
-        chipClass: "bg-blue-50 text-blue-800 hover:bg-blue-100 border border-blue-200",
+        chipClass: "bg-orange-50 text-orange-800 hover:bg-orange-100 border border-orange-200",
         entries: authenticatedEntries,
         title: `Accessible by any logged-in user\nModes: ${modes.join(", ")}`,
       });
     }
 
     if (agentEntries.length > 0) {
-      // Group: if there's only 1 agent, show it directly; otherwise show count
-      if (agentEntries.length === 1) {
-        const entry = agentEntries[0];
-        const shortLabel = extractShortLabel(entry.agent);
-        categories.push({
-          key: "agents",
-          label: `${shortLabel}: ${entry.modes.join(", ")}`,
-          chipClass: "bg-purple-50 text-purple-800 hover:bg-purple-100 border border-purple-200",
-          entries: agentEntries,
-          title: `${entry.agent}\nModes: ${entry.modes.join(", ")}`,
-        });
-      } else {
-        categories.push({
-          key: "agents",
-          label: `${agentEntries.length} users shared`,
-          chipClass: "bg-purple-50 text-purple-800 hover:bg-purple-100 border border-purple-200",
-          entries: agentEntries,
-          title: agentEntries.map(e => `${e.agent}: ${e.modes.join(", ")}`).join("\n"),
-        });
-      }
+      const modes = [...new Set(agentEntries.flatMap(e => e.modes))];
+      categories.push({
+        key: "agents",
+        label: `Shared: ${modes.join(", ")}`,
+        chipClass: "bg-purple-50 text-purple-800 hover:bg-purple-100 border border-purple-200",
+        entries: agentEntries,
+        title: agentEntries.map(e => `${e.agent}: ${e.modes.join(", ")}`).join("\n"),
+      });
     }
 
     return (
