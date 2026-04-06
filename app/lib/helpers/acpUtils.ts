@@ -658,10 +658,14 @@ async function resolveAccessList(
   });
 
   if (!response.ok) {
-    if (response.status === 404) {
+    // 404: no ACL/ACR exists, walk up for inherited.
+    // 403/other: user may not have permission to read the ACL — treat as unavailable.
+    if (response.status === 404 || response.status === 403) {
       return walkUpForInherited(resourceUrl, fetchFn, depth);
     }
-    throw new Error(`Failed to fetch ACL/ACR: ${response.statusText}`);
+    // For other unexpected errors, log and return null rather than crashing the UI.
+    console.warn(`Could not fetch ACL/ACR (${response.status} ${response.statusText}) for ${aclUrl}`);
+    return null;
   }
 
   const turtle = await response.text();
