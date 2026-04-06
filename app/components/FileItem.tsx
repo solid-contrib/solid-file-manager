@@ -121,6 +121,59 @@ export default function FileItem({
 
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
 
+  type Category = { key: string; label: string; dotColor: string; chipClass: string; entries: AccessEntry[]; };
+
+  const buildCategories = (): { categories: Category[]; allInherited: boolean; someInherited: boolean } | null => {
+    if (accessResult === undefined || accessResult === "loading" || accessResult === null) return null;
+    const entries = accessResult.entries;
+    if (entries.length === 0) return { categories: [], allInherited: false, someInherited: false };
+
+    const publicEntries = entries.filter(e => e.isPublic);
+    const authenticatedEntries = entries.filter(e => e.isAuthenticated);
+    const agentEntries = entries.filter(e => !e.isPublic && !e.isAuthenticated);
+
+    const categories: Category[] = [];
+
+    if (publicEntries.length > 0) {
+      const modes = [...new Set(publicEntries.flatMap(e => e.modes))];
+      categories.push({
+        key: "public",
+        label: `Public: ${modes.join(", ")}`,
+        dotColor: "bg-red-400",
+        chipClass: "bg-red-50 text-red-800 hover:bg-red-100 border border-red-200",
+        entries: publicEntries,
+      });
+    }
+
+    if (authenticatedEntries.length > 0) {
+      const modes = [...new Set(authenticatedEntries.flatMap(e => e.modes))];
+      categories.push({
+        key: "authenticated",
+        label: `Authenticated: ${modes.join(", ")}`,
+        dotColor: "bg-orange-400",
+        chipClass: "bg-orange-50 text-orange-800 hover:bg-orange-100 border border-orange-200",
+        entries: authenticatedEntries,
+      });
+    }
+
+    if (agentEntries.length > 0) {
+      const modes = [...new Set(agentEntries.flatMap(e => e.modes))];
+      categories.push({
+        key: "agents",
+        label: `Shared: ${modes.join(", ")}`,
+        dotColor: "bg-purple-400",
+        chipClass: "bg-purple-50 text-purple-800 hover:bg-purple-100 border border-purple-200",
+        entries: agentEntries,
+      });
+    }
+
+    return {
+      categories,
+      allInherited: entries.every(e => e.inherited),
+      someInherited: entries.some(e => e.inherited),
+    };
+  };
+
   const renderPermissions = () => {
     if (accessResult === undefined) return null;
     if (accessResult === "loading") {
@@ -134,60 +187,17 @@ export default function FileItem({
       return <span className="text-xs text-gray-400" title="Failed to fetch permissions">error</span>;
     }
 
-    const entries = accessResult.entries;
+    const result = buildCategories();
+    if (!result) return null;
+    const { categories, allInherited, someInherited } = result;
 
-    if (entries.length === 0) {
+    if (categories.length === 0) {
       return (
         <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs bg-green-50 text-green-700 cursor-default"
           title="No access control rules found. Only the resource owner can access this.">
           Private
         </span>
       );
-    }
-
-    // Categorize entries
-    const publicEntries = entries.filter(e => e.isPublic);
-    const authenticatedEntries = entries.filter(e => e.isAuthenticated);
-    const agentEntries = entries.filter(e => !e.isPublic && !e.isAuthenticated);
-
-    const allInherited = entries.every(e => e.inherited);
-    const someInherited = entries.some(e => e.inherited);
-
-    // Build category chips
-    type Category = { key: string; label: string; chipClass: string; entries: AccessEntry[]; title: string };
-    const categories: Category[] = [];
-
-    if (publicEntries.length > 0) {
-      const modes = [...new Set(publicEntries.flatMap(e => e.modes))];
-      categories.push({
-        key: "public",
-        label: `Public: ${modes.join(", ")}`,
-        chipClass: "bg-red-50 text-red-800 hover:bg-red-100 border border-red-200",
-        entries: publicEntries,
-        title: `Accessible by anyone on the internet\nModes: ${modes.join(", ")}`,
-      });
-    }
-
-    if (authenticatedEntries.length > 0) {
-      const modes = [...new Set(authenticatedEntries.flatMap(e => e.modes))];
-      categories.push({
-        key: "authenticated",
-        label: `Authenticated: ${modes.join(", ")}`,
-        chipClass: "bg-orange-50 text-orange-800 hover:bg-orange-100 border border-orange-200",
-        entries: authenticatedEntries,
-        title: `Accessible by any logged-in user\nModes: ${modes.join(", ")}`,
-      });
-    }
-
-    if (agentEntries.length > 0) {
-      const modes = [...new Set(agentEntries.flatMap(e => e.modes))];
-      categories.push({
-        key: "agents",
-        label: `Shared: ${modes.join(", ")}`,
-        chipClass: "bg-purple-50 text-purple-800 hover:bg-purple-100 border border-purple-200",
-        entries: agentEntries,
-        title: agentEntries.map(e => `${e.agent}: ${e.modes.join(", ")}`).join("\n"),
-      });
     }
 
     return (
@@ -224,6 +234,65 @@ export default function FileItem({
             {allInherited ? "(inherited)" : "(partly inherited)"}
           </span>
         )}
+      </div>
+    );
+  };
+
+  const renderPermissionDots = () => {
+    if (accessResult === undefined) return null;
+    if (accessResult === "loading") {
+      return (
+        <div className="absolute bottom-1 left-1 sm:bottom-2 sm:left-2">
+          <div className="h-2.5 w-2.5 animate-spin rounded-full border-[1.5px] border-solid border-[#7B42F6] border-r-transparent" />
+        </div>
+      );
+    }
+    if (accessResult === null) return null;
+
+    const result = buildCategories();
+    if (!result) return null;
+    const { categories } = result;
+
+    if (categories.length === 0) {
+      return (
+        <div
+          className="absolute bottom-1 left-1 sm:bottom-2 sm:left-2 flex items-center"
+          onMouseEnter={() => setHoveredCategory("private")}
+          onMouseLeave={() => setHoveredCategory(null)}
+        >
+          <span className="relative inline-block h-2.5 w-2.5 rounded-full bg-green-400 cursor-default" />
+          {hoveredCategory === "private" && (
+            <div className="absolute left-0 bottom-full z-50 mb-1 w-max max-w-xs rounded border border-gray-200 bg-white px-2 py-1 shadow-lg text-xs text-gray-700">
+              Private — only the owner
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className="absolute bottom-1 left-1 sm:bottom-2 sm:left-2 flex items-center gap-0.5">
+        {categories.map((cat) => (
+          <span
+            key={cat.key}
+            className="relative inline-flex items-center"
+            onMouseEnter={() => setHoveredCategory(cat.key)}
+            onMouseLeave={() => setHoveredCategory(null)}
+          >
+            <span className={`inline-block h-2.5 w-2.5 rounded-full cursor-default ${cat.dotColor}`} />
+            {hoveredCategory === cat.key && (
+              <div className="absolute left-0 bottom-full z-50 mb-1 w-max max-w-xs rounded border border-gray-200 bg-white px-2 py-1 shadow-lg text-xs text-gray-700">
+                <div className="font-medium mb-0.5">{cat.label}</div>
+                {cat.entries.map((entry) => (
+                  <div key={entry.agent} className="break-all py-0.5">
+                    <span className="text-gray-600 select-all">{entry.rawAgent || entry.agent}</span>
+                    <span className="text-gray-400"> — {entry.modes.join(", ")}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </span>
+        ))}
       </div>
     );
   };
@@ -268,6 +337,7 @@ export default function FileItem({
         <p className="max-w-full truncate text-center text-xs font-medium text-black sm:text-sm">
           {file.name}
         </p>
+        {renderPermissionDots()}
       </section>
     );
   }

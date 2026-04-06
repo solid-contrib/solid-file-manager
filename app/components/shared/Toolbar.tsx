@@ -54,7 +54,7 @@ export default function Toolbar({
             <Squares2X2Icon className="h-4 w-4 sm:h-5 sm:w-5" />
           </Button>
         </nav>
-        {view === "list" && onTogglePermissions && (
+        {onTogglePermissions && (
           <>
             <div className="h-4 w-px bg-gray-300" />
             <button

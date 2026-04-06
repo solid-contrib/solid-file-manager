@@ -135,6 +135,7 @@ export default function FileList({
                 onShare={onFileShare}
                 isSelected={selectedFileIds.includes(file.id)}
                 onContextMenu={onFileContextMenu}
+                accessResult={showPermissions ? permissionsMap[file.url] : undefined}
               />
             ))}
           </div>
