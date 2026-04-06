@@ -389,8 +389,10 @@ export async function verifyResourceAccess(resourceUrl: string): Promise<{
 }
 
 export interface AccessEntry {
-  /** WebID URI, or special values: "PUBLIC" for anyone, "AUTHENTICATED" for any logged-in agent */
+  /** Canonical agent key: WebID URI, or "PUBLIC" / "AUTHENTICATED" for special agent classes */
   agent: string;
+  /** Original RDF URI of the agent (before normalization). Same as agent for regular WebIDs. */
+  rawAgent: string;
   /** Normalized mode names: "Read", "Write", "Append", "Control" */
   modes: string[];
   /** True if this grants access to everyone (foaf:Agent / acp public matcher) */
@@ -540,21 +542,18 @@ function collectWacAgents(
     null
   );
 
-  const agentMap = new Map<string, { modes: Set<string>; isPublic: boolean; isAuthenticated: boolean }>();
+  const agentMap = new Map<string, { rawAgent: string; modes: Set<string>; isPublic: boolean; isAuthenticated: boolean }>();
 
   for (const authSubject of authSubjects) {
     // Check if this authorization applies to our scope
     const scopeObjects = dataset.getObjects(authSubject, namedNode(scopePredicate), null);
-    // For accessTo: must reference our exact resource. For default: must reference the container.
     const applies = scopeObjects.some(o => {
       if (scope === "accessTo") {
         return o.value === targetResourceUrl;
       }
-      // For default, the object is the container itself — we accept it
       return true;
     });
     if (scopeObjects.length > 0 && !applies) continue;
-    // If no scope predicate at all, skip (don't assume it applies)
     if (scopeObjects.length === 0) continue;
 
     const modeQuads = dataset.getObjects(authSubject, namedNode(WAC.mode), null);
@@ -565,7 +564,7 @@ function collectWacAgents(
     for (const agent of agentQuads) {
       const key = agent.value;
       if (!agentMap.has(key)) {
-        agentMap.set(key, { modes: new Set(), isPublic: false, isAuthenticated: false });
+        agentMap.set(key, { rawAgent: key, modes: new Set(), isPublic: false, isAuthenticated: false });
       }
       for (const mode of modes) agentMap.get(key)!.modes.add(mode);
     }
@@ -575,12 +574,12 @@ function collectWacAgents(
     for (const cls of classQuads) {
       if (isPublicAgent(cls.value)) {
         if (!agentMap.has("PUBLIC")) {
-          agentMap.set("PUBLIC", { modes: new Set(), isPublic: true, isAuthenticated: false });
+          agentMap.set("PUBLIC", { rawAgent: cls.value, modes: new Set(), isPublic: true, isAuthenticated: false });
         }
         for (const mode of modes) agentMap.get("PUBLIC")!.modes.add(mode);
       } else if (isAuthenticatedAgent(cls.value)) {
         if (!agentMap.has("AUTHENTICATED")) {
-          agentMap.set("AUTHENTICATED", { modes: new Set(), isPublic: false, isAuthenticated: true });
+          agentMap.set("AUTHENTICATED", { rawAgent: cls.value, modes: new Set(), isPublic: false, isAuthenticated: true });
         }
         for (const mode of modes) agentMap.get("AUTHENTICATED")!.modes.add(mode);
       }
@@ -589,6 +588,7 @@ function collectWacAgents(
 
   return [...agentMap.entries()].map(([agent, data]) => ({
     agent,
+    rawAgent: data.rawAgent,
     modes: [...data.modes],
     isPublic: data.isPublic,
     isAuthenticated: data.isAuthenticated,
@@ -751,28 +751,27 @@ function parseAcpFromDataset(dataset: Store, acrUrl: string, inherited: boolean)
   extractFromControls(directControlQuads, inherited);
   extractFromControls(memberControlQuads, true); // memberAccessControl is always inherited
 
-  // Group by agent
-  const grouped = new Map<string, { modes: Set<string>; inherited: boolean }>();
+  // Group by agent URI
+  const grouped = new Map<string, { rawAgent: string; modes: Set<string>; inherited: boolean }>();
   for (const entry of rawEntries) {
     if (!grouped.has(entry.agent)) {
-      grouped.set(entry.agent, { modes: new Set(), inherited: entry.inherited });
+      grouped.set(entry.agent, { rawAgent: entry.agent, modes: new Set(), inherited: entry.inherited });
     }
     const group = grouped.get(entry.agent)!;
     for (const mode of entry.modes) {
       group.modes.add(mode);
     }
-    // If any rule is direct (not inherited), mark the whole entry as direct
     if (!entry.inherited) {
       group.inherited = false;
     }
   }
 
-  const entries: AccessEntry[] = [...grouped.entries()].map(([agent, data]) => {
-    const pub = isPublicAgent(agent);
-    const auth = isAuthenticatedAgent(agent);
+  const entries: AccessEntry[] = [...grouped.entries()].map(([, data]) => {
+    const pub = isPublicAgent(data.rawAgent);
+    const auth = isAuthenticatedAgent(data.rawAgent);
     return {
-      // Normalize special agents to canonical keys so the UI treats them uniformly
-      agent: pub ? "PUBLIC" : auth ? "AUTHENTICATED" : agent,
+      agent: pub ? "PUBLIC" : auth ? "AUTHENTICATED" : data.rawAgent,
+      rawAgent: data.rawAgent,
       modes: [...data.modes],
       isPublic: pub,
       isAuthenticated: auth,

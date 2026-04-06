@@ -139,7 +139,7 @@ export default function FileItem({
     lastTapRef.current = currentTime;
   };
 
-  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
 
   const renderPermissions = () => {
     if (accessResult === undefined) return null;
@@ -224,37 +224,30 @@ export default function FileItem({
 
     return (
       <div className="flex flex-wrap items-center gap-1">
-        {categories.map((cat) => {
-          const isExpanded = expandedCategory === cat.key;
-
-          return (
-            <span key={cat.key} className="inline-flex items-center gap-1">
-              <button
-                type="button"
-                className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs transition-colors cursor-pointer ${cat.chipClass}`}
-                title={isExpanded ? undefined : cat.title}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setExpandedCategory(isExpanded ? null : cat.key);
-                }}
-              >
-                {isExpanded ? (
-                  <span className="break-all text-left">
-                    {cat.entries.map((entry, i) => (
-                      <span key={entry.agent}>
-                        {i > 0 && ", "}
-                        {entry.isPublic ? "Anyone" : entry.isAuthenticated ? "Authenticated users" : entry.agent}
-                        : {entry.modes.join(", ")}
-                      </span>
-                    ))}
-                  </span>
-                ) : (
-                  <span>{cat.label}</span>
-                )}
-              </button>
+        {categories.map((cat) => (
+          <span
+            key={cat.key}
+            className="relative inline-flex items-center"
+            onMouseEnter={() => setHoveredCategory(cat.key)}
+            onMouseLeave={() => setHoveredCategory(null)}
+          >
+            <span
+              className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs cursor-default ${cat.chipClass}`}
+            >
+              {cat.label}
             </span>
-          );
-        })}
+            {hoveredCategory === cat.key && (
+              <div className="absolute left-0 top-full z-50 mt-1 w-max max-w-sm rounded border border-gray-200 bg-white px-2.5 py-1.5 shadow-lg text-xs text-gray-700">
+                {cat.entries.map((entry) => (
+                  <div key={entry.agent} className="break-all py-0.5">
+                    <span className="text-gray-600 select-all">{entry.rawAgent || entry.agent}</span>
+                    <span className="text-gray-400"> — {entry.modes.join(", ")}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </span>
+        ))}
         {someInherited && (
           <span
             className="text-xs text-gray-400 cursor-default"
