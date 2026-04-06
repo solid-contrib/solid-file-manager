@@ -304,12 +304,20 @@ export default function FileItem({
     );
   }
 
-  // List view
+  // List view — always use grid layout for consistent alignment
+  const hasPermissions = accessResult !== undefined;
+
   return (
     <section
-      className={`group flex cursor-pointer items-center gap-2 border-b border-gray-100 px-2 py-2 transition-colors sm:gap-4 sm:px-4 sm:py-3 ${isSelected ? "bg-[#F9F6FF]" : "bg-white hover:bg-gray-50"
-        }`}
-      style={{ touchAction: 'manipulation' }}
+      className={`group relative cursor-pointer border-b border-gray-100 px-2 py-2 transition-colors sm:px-4 sm:py-3 ${
+        hasPermissions ? "hidden sm:grid" : "grid"
+      } items-center ${isSelected ? "bg-[#F9F6FF]" : "bg-white hover:bg-gray-50"}`}
+      style={{
+        gridTemplateColumns: hasPermissions
+          ? "40px minmax(0,2fr) minmax(0,3fr) 8rem 5rem"
+          : "40px minmax(0,1fr) 8rem 5rem",
+        touchAction: "manipulation",
+      }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={handleClick}
@@ -323,35 +331,37 @@ export default function FileItem({
         onContextMenu?.(file, event);
       }}
     >
-      <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center sm:h-10 sm:w-10">
+      <div className="flex h-10 w-10 items-center justify-center">
         {getFileIcon(file.type, file.mimeType)}
       </div>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0">
         <p className="truncate text-xs font-medium text-black sm:text-sm">{file.name}</p>
       </div>
-      {accessResult !== undefined && (
-        <div className="min-w-0 flex-1 hidden sm:block">
+      {hasPermissions && (
+        <div className="min-w-0">
           {renderPermissions()}
         </div>
       )}
-      <div className="hidden flex-shrink-0 text-xs text-gray-600 sm:block sm:text-sm">
+      <div className="hidden text-xs text-gray-600 sm:block sm:text-sm">
         {file.lastModified && formatDate(file.lastModified)}
       </div>
-      <div className="hidden flex-shrink-0 text-xs text-gray-600 md:block md:text-sm">
+      <div className="hidden text-xs text-gray-600 md:block md:text-sm">
         {file.size && formatFileSize(file.size)}
       </div>
       {isHovered && (
-        <FileItemMenu
-          file={file}
-          position="right"
-          onRename={onRename}
-          onPreview={onPreview}
-          onDownload={onDownload}
-          onCopy={onCopy}
-          onMove={onMove}
-          onDelete={onDelete}
-          onShare={onShare}
-        />
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 z-10">
+          <FileItemMenu
+            file={file}
+            position="right"
+            onRename={onRename}
+            onPreview={onPreview}
+            onDownload={onDownload}
+            onCopy={onCopy}
+            onMove={onMove}
+            onDelete={onDelete}
+            onShare={onShare}
+          />
+        </div>
       )}
     </section>
   );

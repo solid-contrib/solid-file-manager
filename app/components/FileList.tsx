@@ -141,12 +141,14 @@ export default function FileList({
         ) : (
           <div className="divide-y divide-gray-100">
             {showPermissions && (
-              <div className="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-2 py-1.5 text-xs font-medium text-gray-500 sm:gap-4 sm:px-4">
-                <div className="h-8 w-8 flex-shrink-0 sm:h-10 sm:w-10" />
-                <div className="min-w-0 flex-1">Name</div>
-                <div className="min-w-0 flex-1 hidden sm:block">Permissions</div>
-                <div className="hidden flex-shrink-0 sm:block sm:w-32">Modified</div>
-                <div className="hidden flex-shrink-0 md:block md:w-20">Size</div>
+              <div className="hidden sm:grid items-center border-b border-gray-200 bg-gray-50 px-4 py-1.5 text-xs font-medium text-gray-500"
+                style={{ gridTemplateColumns: "40px minmax(0,2fr) minmax(0,3fr) 8rem 5rem" }}
+              >
+                <div />
+                <div>Name</div>
+                <div>Permissions</div>
+                <div className="hidden sm:block">Modified</div>
+                <div className="hidden md:block">Size</div>
               </div>
             )}
             {files.map((file) => (
