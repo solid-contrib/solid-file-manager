@@ -99,6 +99,7 @@ export default function FileManager() {
   const [showShareSuccessModal, setShowShareSuccessModal] = useState(false);
   const [sharedResourceUrl, setSharedResourceUrl] = useState<string>("");
   const [sharedResourceName, setSharedResourceName] = useState<string>("");
+  const [showPermissions, setShowPermissions] = useState(false);
 
   const closeContextMenu = () => setContextMenuState(null);
 
@@ -882,6 +883,8 @@ export default function FileManager() {
                   onFileShare={handleShare}
                   selectedFileIds={selectedFileIds}
                   onFileContextMenu={handleFileContextMenu}
+                  showPermissions={showPermissions}
+                  onTogglePermissions={() => setShowPermissions(prev => !prev)}
                 />
               </div>
             )}

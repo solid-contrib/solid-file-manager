@@ -7,7 +7,7 @@ import UrlCombobox, { ComboboxOption } from "./shared/UrlCombobox";
 import { FileItemData } from "./FileItem";
 import { fetchUserContacts, Contact, addContactToProfile } from "../lib/helpers/contactUtils";
 import { fetchAndParseProfile } from "../lib/helpers/profileUtils";
-import { getResourceAccessList, removeAccessFromResource } from "../lib/helpers/acpUtils";
+import { getResourceAccessList, removeAccessFromResource, type AccessResult } from "../lib/helpers/acpUtils";
 import { UserIcon, MagnifyingGlassIcon, LockClosedIcon, XMarkIcon, CheckCircleIcon, TrashIcon } from "@heroicons/react/24/outline";
 import LoadingSpinner from "./shared/LoadingSpinner";
 
@@ -39,7 +39,7 @@ export default function ShareDialog({
   const [peopleChips, setPeopleChips] = useState<PersonChip[]>([]);
   const [isAddingWebId, setIsAddingWebId] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
-  const [accessList, setAccessList] = useState<Array<{ webId: string; accessModes: string[] }> | null>(null);
+  const [accessResult, setAccessResult] = useState<AccessResult | null>(null);
   const [isLoadingAccessList, setIsLoadingAccessList] = useState(false);
   const [removingWebId, setRemovingWebId] = useState<string | null>(null);
 
@@ -61,8 +61,8 @@ export default function ShareDialog({
       setIsLoadingAccessList(true);
       const resourceUrl = file.type === "folder" && !file.url.endsWith("/") ? file.url + "/" : file.url;
       getResourceAccessList(resourceUrl)
-        .then((list) => {
-          setAccessList(list);
+        .then((result) => {
+          setAccessResult(result);
           setIsLoadingAccessList(false);
         })
         .catch((error) => {
@@ -74,7 +74,7 @@ export default function ShareDialog({
       setWebIdInput("");
       setSelectedAccessLevel("Editor");
       setPeopleChips([]);
-      setAccessList(null);
+      setAccessResult(null);
       setRemovingWebId(null);
     }
   }, [isOpen, file]);
@@ -88,8 +88,8 @@ export default function ShareDialog({
       await removeAccessFromResource(resourceUrl, webIdToRemove);
       
       // Refresh the access list
-      const updatedList = await getResourceAccessList(resourceUrl);
-      setAccessList(updatedList);
+      const updatedResult = await getResourceAccessList(resourceUrl);
+      setAccessResult(updatedResult);
     } catch (error) {
       console.error("Failed to remove access:", error);
     } finally {
@@ -212,8 +212,8 @@ export default function ShareDialog({
         // Refresh access list after sharing
         if (file) {
           const resourceUrl = file.type === "folder" && !file.url.endsWith("/") ? file.url + "/" : file.url;
-          const updatedList = await getResourceAccessList(resourceUrl);
-          setAccessList(updatedList);
+          const updatedResult = await getResourceAccessList(resourceUrl);
+          setAccessResult(updatedResult);
         }
         
         onClose();
@@ -333,7 +333,7 @@ export default function ShareDialog({
         </div>
 
         {/* People with access section */}
-        {accessList && accessList.length > 0 && (
+        {accessResult && accessResult.entries.length > 0 && (
           <div>
             <h3 className="mb-3 text-sm font-medium text-gray-700">People with access</h3>
             <div className="space-y-2">
@@ -342,30 +342,31 @@ export default function ShareDialog({
                   <LoadingSpinner />
                 </div>
               ) : (
-                accessList.map((access, index) => {
-                  const hasWrite = access.accessModes.some((mode) => mode.includes("Write"));
+                accessResult.entries.map((access, index) => {
+                  const hasWrite = access.modes.some((mode) => mode === "Write");
                   const accessLevel = hasWrite ? "Editor" : "Viewer";
-                  const isRemoving = removingWebId === access.webId;
-                  
+                  const displayLabel = access.isPublic ? "Anyone (Public)" : access.isAuthenticated ? "Authenticated users" : access.agent;
+                  const isRemoving = removingWebId === access.agent;
+
                   return (
                     <div
-                      key={access.webId || index}
+                      key={access.agent || index}
                       className="flex items-center justify-between rounded-md border border-gray-200 bg-gray-50 px-3 py-2"
                     >
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <CheckCircleIcon className="h-4 w-4 text-green-500 shrink-0" />
                         <span className="text-sm text-gray-700 truncate">
-                          {access.webId}
+                          {displayLabel}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0 ml-2">
                         <span className="text-xs text-gray-500">{accessLevel}</span>
                         <button
                           type="button"
-                          onClick={() => handleRemoveAccess(access.webId)}
+                          onClick={() => handleRemoveAccess(access.agent)}
                           disabled={isRemoving}
                           className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          aria-label={`Remove access for ${access.webId}`}
+                          aria-label={`Remove access for ${displayLabel}`}
                           title="Remove access"
                         >
                           {isRemoving ? (
