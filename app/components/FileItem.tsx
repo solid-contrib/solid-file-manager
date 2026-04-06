@@ -140,7 +140,7 @@ export default function FileItem({
         key: "public",
         label: `Public: ${modes.join(", ")}`,
         dotColor: "bg-red-400",
-        chipClass: "bg-red-50 text-red-800 hover:bg-red-100 border border-red-200",
+        chipClass: "bg-red-50 text-red-800",
         entries: publicEntries,
       });
     }
@@ -151,7 +151,7 @@ export default function FileItem({
         key: "authenticated",
         label: `Authenticated: ${modes.join(", ")}`,
         dotColor: "bg-orange-400",
-        chipClass: "bg-orange-50 text-orange-800 hover:bg-orange-100 border border-orange-200",
+        chipClass: "bg-orange-50 text-orange-800",
         entries: authenticatedEntries,
       });
     }
@@ -162,7 +162,7 @@ export default function FileItem({
         key: "agents",
         label: `Shared: ${modes.join(", ")}`,
         dotColor: "bg-purple-400",
-        chipClass: "bg-purple-50 text-purple-800 hover:bg-purple-100 border border-purple-200",
+        chipClass: "bg-purple-50 text-purple-800",
         entries: agentEntries,
       });
     }
