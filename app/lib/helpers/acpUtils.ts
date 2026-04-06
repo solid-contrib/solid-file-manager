@@ -606,8 +606,18 @@ function collectWacAgents(
  */
 export async function getResourceAccessList(resourceUrl: string): Promise<AccessResult | null> {
   try {
-    const { fetch: fetchFn } = getAuthenticatedSession();
-    return await resolveAccessList(resourceUrl, fetchFn, false);
+    const { session, fetch: fetchFn } = getAuthenticatedSession();
+    const result = await resolveAccessList(resourceUrl, fetchFn, false);
+    if (!result) return null;
+
+    // Filter out the current user's own WebID — it's standard for ACLs to include
+    // the owner with full access, but this is noise in the UI.
+    const currentWebId = session.info.webId;
+    if (currentWebId) {
+      result.entries = result.entries.filter(e => e.agent !== currentWebId);
+    }
+
+    return result;
   } catch (error) {
     console.error("Failed to get resource access list:", error);
     return null;
