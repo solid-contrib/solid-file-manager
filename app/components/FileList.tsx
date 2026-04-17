@@ -1,9 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import FileItem, { FileItemData } from "./FileItem";
 import Toolbar from "./shared/Toolbar";
 import EmptyState from "./shared/EmptyState";
+import { getResourceAccessList, type AccessEntry, type AccessResult } from "../lib/helpers/acpUtils";
+
+export type { AccessEntry, AccessResult };
+type PermissionsMap = Record<string, AccessResult | null | "loading">;
 
 interface FileListProps {
   files: FileItemData[];
@@ -19,6 +23,8 @@ interface FileListProps {
   onFileShare?: (file: FileItemData) => void;
   selectedFileIds: string[];
   onFileContextMenu?: (file: FileItemData, event: React.MouseEvent) => void;
+  showPermissions?: boolean;
+  onTogglePermissions?: () => void;
 }
 
 const VIEW_STORAGE_KEY = "solid-file-manager-view";
@@ -37,12 +43,61 @@ export default function FileList({
   onFileShare,
   selectedFileIds,
   onFileContextMenu,
+  showPermissions,
+  onTogglePermissions,
 }: FileListProps) {
   const [view, setView] = useState<"grid" | "list">(() => {
     if (typeof window === "undefined") return "list";
     const stored = localStorage.getItem(VIEW_STORAGE_KEY);
     return (stored === "grid" || stored === "list") ? stored : "list";
   });
+
+  const [permissionsState, setPermissionsState] = useState<{ path: string; map: PermissionsMap }>({ path: currentPath, map: {} });
+  const fetchedUrlsRef = useRef<Set<string>>(new Set());
+
+  // Derive the current map, resetting if path changed
+  const permissionsMap = permissionsState.path === currentPath ? permissionsState.map : {};
+
+  // Fetch permissions for all visible files when toggle is on
+  useEffect(() => {
+    fetchedUrlsRef.current = new Set();
+
+    if (!showPermissions || files.length === 0) return;
+
+    let cancelled = false;
+
+    const fetchAll = async () => {
+      const toFetch = files.filter(f => !fetchedUrlsRef.current.has(f.url));
+      if (toFetch.length === 0) return;
+
+      // Mark all as loading
+      const loadingMap: PermissionsMap = {};
+      for (const f of toFetch) {
+        loadingMap[f.url] = "loading";
+        fetchedUrlsRef.current.add(f.url);
+      }
+      if (!cancelled) setPermissionsState({ path: currentPath, map: loadingMap });
+
+      // Fetch in parallel
+      await Promise.all(
+        toFetch.map(async (file) => {
+          try {
+            const resourceUrl = file.type === "folder" && !file.url.endsWith("/")
+              ? file.url + "/"
+              : file.url;
+            const list = await getResourceAccessList(resourceUrl);
+            if (!cancelled) setPermissionsState(prev => ({ ...prev, map: { ...prev.map, [file.url]: list } }));
+          } catch {
+            if (!cancelled) setPermissionsState(prev => ({ ...prev, map: { ...prev.map, [file.url]: null } }));
+          }
+        })
+      );
+    };
+
+    fetchAll();
+
+    return () => { cancelled = true; };
+  }, [showPermissions, currentPath, files]);
 
   useEffect(() => {
     localStorage.setItem(VIEW_STORAGE_KEY, view);
@@ -54,6 +109,8 @@ export default function FileList({
         view={view}
         onViewChange={setView}
         itemCount={files.length}
+        showPermissions={showPermissions}
+        onTogglePermissions={onTogglePermissions}
       />
 
       {/* File List/Grid */}
@@ -78,11 +135,23 @@ export default function FileList({
                 onShare={onFileShare}
                 isSelected={selectedFileIds.includes(file.id)}
                 onContextMenu={onFileContextMenu}
+                accessResult={showPermissions ? permissionsMap[file.url] : undefined}
               />
             ))}
           </div>
         ) : (
           <div className="divide-y divide-gray-100">
+            {showPermissions && (
+              <div className="hidden sm:grid items-center border-b border-gray-200 bg-gray-50 px-4 py-1.5 text-xs font-medium text-gray-500"
+                style={{ gridTemplateColumns: "40px minmax(0,2fr) minmax(0,3fr) 8rem 5rem" }}
+              >
+                <div />
+                <div>Name</div>
+                <div>Permissions</div>
+                <div className="hidden sm:block">Modified</div>
+                <div className="hidden md:block">Size</div>
+              </div>
+            )}
             {files.map((file) => (
               <FileItem
                 key={file.id}
@@ -99,6 +168,7 @@ export default function FileList({
                 onShare={onFileShare}
                 isSelected={selectedFileIds.includes(file.id)}
                 onContextMenu={onFileContextMenu}
+                accessResult={showPermissions ? permissionsMap[file.url] : undefined}
               />
             ))}
           </div>
