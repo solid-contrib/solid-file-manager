@@ -58,7 +58,7 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
                 .container
 
         if (container === undefined) {
-          throw new Error() // TODO: Handle properly
+          throw new Error("Could not identify the storage container in the listing response")
         }
 
         const fileItems: FileItemData[] = [];
