@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import {
   SolidLoginNavigationProviderNext,
   AuthGuard,
-  SolidLoginPage,
 } from "solid-react-component/login/next";
+import LoginPage from "../components/LoginPage";
 
 const loadingFallback = (
   <div className="flex min-h-screen items-center justify-center bg-white">
@@ -22,15 +22,7 @@ export default function Login() {
         config={{ loginPath: "/login", homePath: "/" }}
       >
         <AuthGuard fallback={loadingFallback}>
-          <SolidLoginPage
-            onAlreadyLoggedIn={() => router.replace("/")}
-            logo="/file-manager-logo.svg"
-            logoAlt="Solid File Manager Logo"
-            title="Sign in"
-            subtitle="to continue to Solid File Manager"
-            footerGitHubUrl="https://github.com/solid/solid-file-manager"
-            footerIssuesUrl="https://github.com/solid/solid-file-manager/issues/new"
-          />
+          <LoginPage />
         </AuthGuard>
       </SolidLoginNavigationProviderNext>
     </Suspense>
