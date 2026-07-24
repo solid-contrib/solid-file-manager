@@ -6,7 +6,7 @@ import {
   SolidLoginNavigationProviderNext,
   AuthGuard,
 } from "solid-react-component/login/next";
-import LoginWithRememberedIdp from "../components/LoginWithRememberedIdp";
+import LoginPage from "../components/LoginPage";
 
 const loadingFallback = (
   <div className="flex min-h-screen items-center justify-center bg-white">
@@ -22,7 +22,7 @@ export default function Login() {
         config={{ loginPath: "/login", homePath: "/" }}
       >
         <AuthGuard fallback={loadingFallback}>
-          <LoginWithRememberedIdp />
+          <LoginPage />
         </AuthGuard>
       </SolidLoginNavigationProviderNext>
     </Suspense>

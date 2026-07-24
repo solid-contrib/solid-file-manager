@@ -5,7 +5,7 @@ import { SolidLoginPage } from "solid-react-component/login/next";
 import { getLastIdp, saveLastIdp } from "../lib/helpers/idpHistoryUtils";
 
 
-export default function LoginWithRememberedIdp() {
+export default function LoginPage() {
     const router = useRouter();
     const [mounted, setMounted] = useState(false);
     const [defaultIssuer, setDefaultIssuer] = useState("");
