@@ -752,12 +752,7 @@ export default function FileManager() {
   };
 
   const handleFileSelect = (file: FileItemData) => {
-    setSelectedFileIds((prev) => {
-      if (prev.includes(file.id)) {
-        return prev.filter((id) => id !== file.id);
-      }
-      return [...prev, file.id];
-    });
+    setSelectedFileIds([file.id])
   };
 
   const handleBreadcrumbNavigate = (path: string) => {
