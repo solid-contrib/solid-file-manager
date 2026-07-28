@@ -47,6 +47,7 @@ import {
   processDragDropItems,
   hasFiles as hasFilesInDrag,
   isUnsupportedFolderDrag,
+  ensureTrailingSlash,
 } from "../lib/helpers";
 import { shareResourceWithAcp } from "../lib/helpers/acpUtils";
 import {
@@ -774,6 +775,33 @@ export default function FileManager() {
     }
   };
 
+    // Navigate from the sidebar folder tree (storage root or subfolder).
+    const handleFolderNavigate = (folderUrl: string) => {
+      const normalizedUrl = ensureTrailingSlash(folderUrl);
+      const matchingStorage = storages.find(
+        (s) =>
+          normalizedUrl === ensureTrailingSlash(s.url) ||
+          normalizedUrl.startsWith(ensureTrailingSlash(s.url)),
+      );
+  
+      if (!matchingStorage) {
+        return;
+      }
+  
+      setSelectedStorageId(matchingStorage.id);
+      setSelectedFileIds([]);
+  
+      if (normalizedUrl === ensureTrailingSlash(matchingStorage.url)) {
+        setCurrentPath("/");
+        updateUrl(matchingStorage.url, true);
+      } else {
+        setCurrentPath(normalizedUrl);
+        updateUrl(normalizedUrl, true);
+      }
+  
+      setSidebarOpen(false);
+    };
+
   if (isLoadingStorages) {
     return (
       <AuthWrapper>
@@ -844,8 +872,9 @@ export default function FileManager() {
           <Sidebar
             isOpen={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
-            activeTab="my-storages"
             currentContainerUrl={containerUrlToBrowse}
+            storages={storages}
+            onFolderNavigate={handleFolderNavigate}
             onNewFolderClick={() => setShowNewFolderDialog(true)}
             onFileUploadClick={() => setFileUploadTrigger((prev) => prev + 1)}
             onFolderUploadClick={() => setFolderUploadTrigger((prev) => prev + 1)}
