@@ -5,7 +5,7 @@ import Modal from "./shared/Modal";
 import Button from "./shared/Button";
 import UrlCombobox, { ComboboxOption } from "./shared/UrlCombobox";
 import { FileItemData } from "./FileItem";
-import { fetchUserContacts, Contact, addContactToProfile } from "../lib/helpers/contactUtils";
+import { fetchUserContacts, Contact } from "../lib/helpers/contactUtils";
 import { fetchAndParseProfile } from "../lib/helpers/profileUtils";
 import { getResourceAccessList, removeAccessFromResource } from "../lib/helpers/acpUtils";
 import { UserIcon, MagnifyingGlassIcon, LockClosedIcon, XMarkIcon, CheckCircleIcon, TrashIcon } from "@heroicons/react/24/outline";
@@ -86,7 +86,7 @@ export default function ShareDialog({
     try {
       const resourceUrl = file.type === "folder" && !file.url.endsWith("/") ? file.url + "/" : file.url;
       await removeAccessFromResource(resourceUrl, webIdToRemove);
-      
+
       // Refresh the access list
       const updatedList = await getResourceAccessList(resourceUrl);
       setAccessList(updatedList);
@@ -186,36 +186,14 @@ export default function ShareDialog({
         // Share with all people using the selected access level
         const webIds = peopleChips.map((chip) => chip.webId);
         await onShare(webIds, selectedAccessLevel);
-        
-        // After successful sharing, add new WebIDs to contacts if they're not already there
-        const existingContactWebIds = new Set(contacts.map(c => c.webId));
-        const newWebIds = webIds.filter(webId => !existingContactWebIds.has(webId));
-        
-        for (const webId of newWebIds) {
-          try {
-            await addContactToProfile(webId);
-          } catch (error) {
-            console.warn(`Failed to add ${webId} to contacts:`, error);
-          }
-        }
-        
-        // Refresh contacts list if we added any new ones
-        if (newWebIds.length > 0) {
-          try {
-            const updatedContacts = await fetchUserContacts();
-            setContacts(updatedContacts);
-          } catch (error) {
-            console.warn("Failed to refresh contacts list:", error);
-          }
-        }
-        
+
         // Refresh access list after sharing
         if (file) {
           const resourceUrl = file.type === "folder" && !file.url.endsWith("/") ? file.url + "/" : file.url;
           const updatedList = await getResourceAccessList(resourceUrl);
           setAccessList(updatedList);
         }
-        
+
         onClose();
       } catch (error) {
         console.error("Failed to share:", error);
@@ -273,7 +251,7 @@ export default function ShareDialog({
           <label className="mb-2 block text-sm font-medium text-gray-700">
             Add a WebID
           </label>
-          
+
           {/* Chips display */}
           {peopleChips.length > 0 && (
             <div className="mb-3 flex flex-wrap gap-2">
@@ -346,7 +324,7 @@ export default function ShareDialog({
                   const hasWrite = access.accessModes.some((mode) => mode.includes("Write"));
                   const accessLevel = hasWrite ? "Editor" : "Viewer";
                   const isRemoving = removingWebId === access.webId;
-                  
+
                   return (
                     <div
                       key={access.webId || index}
