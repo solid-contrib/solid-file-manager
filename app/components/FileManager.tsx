@@ -913,7 +913,7 @@ export default function FileManager() {
             setFileToMove(null);
           }}
           file={fileToMove}
-          availableFolders={availableFolders}
+          storageFolders={storageFiles}
           currentLocationUrl={getCurrentLocationUrl()}
           onMoved={handleMoved}
         />
