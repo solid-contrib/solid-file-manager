@@ -51,11 +51,11 @@ export default function DeleteConfirmDialog({
     >
       <section className="py-4">
         <div className="flex items-start gap-3">
-          <ExclamationTriangleIcon className="h-6 w-6 text-red-600 flex-shrink-0 mt-0.5" />
+          <ExclamationTriangleIcon className="h-6 w-6 text-red-600 shrink-0 mt-0.5" />
           <div className="flex-1">
             <p className="text-sm text-gray-700 mb-2">
               Are you sure you want to delete{" "}
-              <span className="font-medium">"{file.name}"</span>?
+              <span className="font-medium">&quot;{file.name}&quot;</span>?
             </p>
             {file.type === "folder" && (
               <p className="text-sm text-gray-500">
