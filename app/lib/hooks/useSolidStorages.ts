@@ -30,35 +30,38 @@ interface UseSolidStoragesResult {
  */
 async function discoverStorageViaTraversal(
   webId: string,
-  fetchFn: typeof fetch
+  fetchFn: typeof fetch,
 ): Promise<string[]> {
   const storageUrls: string[] = [];
-  
+
   try {
     // Extract the base URL from the WebID (remove fragment)
     const url = new URL(webId);
     const baseUrl = `${url.origin}${url.pathname}`;
-    
+
     // Start from the parent directory of the WebID
-    let currentUrl = baseUrl.substring(0, baseUrl.lastIndexOf('/') + 1);
-    
+    let currentUrl = baseUrl.substring(0, baseUrl.lastIndexOf("/") + 1);
+
     // Traverse up the hierarchy
     const maxLevels = 10; // Prevent infinite loops
     let level = 0;
-    
+
     while (currentUrl && level < maxLevels) {
       try {
         // Fetch the container with content negotiation
         const response = await fetchFn(currentUrl, {
-          method: 'GET',
+          method: "GET",
           headers: {
-            'Accept': 'text/turtle, application/ld+json, */*;q=0.1',
+            Accept: "text/turtle, application/ld+json, */*;q=0.1",
           },
         });
-        
+
         if (!response.ok) {
           // Move up one level and continue
-          const parentUrl = currentUrl.substring(0, currentUrl.lastIndexOf('/', currentUrl.length - 2) + 1);
+          const parentUrl = currentUrl.substring(
+            0,
+            currentUrl.lastIndexOf("/", currentUrl.length - 2) + 1,
+          );
           if (parentUrl === currentUrl || parentUrl === `${url.origin}/`) {
             break; // Reached root
           }
@@ -66,14 +69,18 @@ async function discoverStorageViaTraversal(
           level++;
           continue;
         }
-        
-        const contentType = response.headers.get('Content-Type') || '';
+
+        const contentType = response.headers.get("Content-Type") || "";
         const content = await response.text();
-        
+
         // Parse the RDF content
         const store = new Store();
-        if (contentType.includes('text/turtle') || contentType.includes('application/turtle') ||
-            contentType.includes('text/n3') || contentType.includes('application/n3')) {
+        if (
+          contentType.includes("text/turtle") ||
+          contentType.includes("application/turtle") ||
+          contentType.includes("text/n3") ||
+          contentType.includes("application/n3")
+        ) {
           const parser = new Parser({ baseIRI: currentUrl });
           const quads = parser.parse(content);
           store.addQuads(quads);
@@ -85,7 +92,10 @@ async function discoverStorageViaTraversal(
             store.addQuads(quads);
           } catch (e) {
             // Move up one level and continue
-            const parentUrl = currentUrl.substring(0, currentUrl.lastIndexOf('/', currentUrl.length - 2) + 1);
+            const parentUrl = currentUrl.substring(
+              0,
+              currentUrl.lastIndexOf("/", currentUrl.length - 2) + 1,
+            );
             if (parentUrl === currentUrl || parentUrl === `${url.origin}/`) {
               break;
             }
@@ -94,24 +104,34 @@ async function discoverStorageViaTraversal(
             continue;
           }
         }
-        
+
         const containerNode = new NamedNode(currentUrl);
         const rdfType = new NamedNode(RDF_TYPE);
         const pimStorageType = new NamedNode(PIM_STORAGE_TYPE);
-        
+
         // Check if this container is of type pim:Storage
-        const typeQuads = store.getQuads(containerNode, rdfType, pimStorageType, null);
+        const typeQuads = store.getQuads(
+          containerNode,
+          rdfType,
+          pimStorageType,
+          null,
+        );
         const isStorage = typeQuads.length > 0;
-        
+
         if (isStorage) {
           // Ensure URL ends with /
-          const storageUrl = currentUrl.endsWith('/') ? currentUrl : currentUrl + '/';
+          const storageUrl = currentUrl.endsWith("/")
+            ? currentUrl
+            : currentUrl + "/";
           storageUrls.push(storageUrl);
           break; // Found storage, no need to continue
         }
-        
+
         // Move up one level
-        const parentUrl = currentUrl.substring(0, currentUrl.lastIndexOf('/', currentUrl.length - 2) + 1);
+        const parentUrl = currentUrl.substring(
+          0,
+          currentUrl.lastIndexOf("/", currentUrl.length - 2) + 1,
+        );
         if (parentUrl === currentUrl || parentUrl === `${url.origin}/`) {
           break; // Reached root
         }
@@ -119,7 +139,10 @@ async function discoverStorageViaTraversal(
         level++;
       } catch (error) {
         // If we can't fetch a container, try the parent
-        const parentUrl = currentUrl.substring(0, currentUrl.lastIndexOf('/', currentUrl.length - 2) + 1);
+        const parentUrl = currentUrl.substring(
+          0,
+          currentUrl.lastIndexOf("/", currentUrl.length - 2) + 1,
+        );
         if (parentUrl === currentUrl || parentUrl === `${url.origin}/`) {
           break;
         }
@@ -130,7 +153,7 @@ async function discoverStorageViaTraversal(
   } catch (error) {
     // Silent error handling
   }
-  
+
   return storageUrls;
 }
 
@@ -148,11 +171,11 @@ export function useSolidStorages(): UseSolidStoragesResult {
 
   useEffect(() => {
     let isMounted = true;
-    
+
     async function fetchStorages() {
       try {
         if (!isMounted) return;
-        
+
         setIsLoading(true);
         setError(null);
 
@@ -167,10 +190,9 @@ export function useSolidStorages(): UseSolidStoragesResult {
         // Use shared profile fetching utility (with caching)
         const mainSubject = await fetchAndParseProfile(webId);
 
-
         // Get storage roots using both pim:storage and solid:storage predicates
         const storageUrls: Set<string> = mainSubject.storageUrls;
-        console.log("URLS", storageUrls)
+        console.log("URLS", storageUrls);
 
         // Method 2: Hierarchical traversal (if no storage found via predicates)
         // Based on: https://github.com/SolidLabResearch/Bashlib/blob/80de25cbb4b3ed057f95e25bc057f1be9b00cef3/src/utils/util.ts#L73-L104
@@ -178,11 +200,17 @@ export function useSolidStorages(): UseSolidStoragesResult {
           try {
             // LDO's session object has fetch property, but TypeScript types may not include it
             // Use type assertion to access it, with fallback to regular fetch
-            const fetchFn = ('fetch' in session && typeof (session as any).fetch === 'function')
-              ? (session as any).fetch
-              : fetch;
-            const traversalStorages = await discoverStorageViaTraversal(webId, fetchFn);
-            traversalStorages.forEach(url => {
+            type SessionWithFetch = typeof session & { fetch?: typeof fetch };
+            const sessionWithFetch = session as SessionWithFetch;
+            const fetchFn =
+              typeof sessionWithFetch.fetch === "function"
+                ? sessionWithFetch.fetch.bind(sessionWithFetch)
+                : fetch;
+            const traversalStorages = await discoverStorageViaTraversal(
+              webId,
+              fetchFn,
+            );
+            traversalStorages.forEach((url) => {
               if (!storageUrls.has(url)) {
                 storageUrls.add(url);
               }
@@ -197,7 +225,7 @@ export function useSolidStorages(): UseSolidStoragesResult {
           // Extract base URL from WebID
           const webIdUrl = new URL(webId);
           const baseUrl = `${webIdUrl.protocol}//${webIdUrl.host}/`;
-          
+
           // For solidcommunity.net, storage is typically at the root
           if (webId.includes("solidcommunity.net")) {
             storageUrls.add(baseUrl);
@@ -208,18 +236,22 @@ export function useSolidStorages(): UseSolidStoragesResult {
         }
 
         // Convert to SolidStorage format
-        const discoveredStorages: SolidStorage[] = [...storageUrls].map((url) => {
-          return {
-            id: url,
-            name: url,
-            url: url,
-          };
-        });
+        const discoveredStorages: SolidStorage[] = [...storageUrls].map(
+          (url) => {
+            return {
+              id: url,
+              name: url,
+              url: url,
+            };
+          },
+        );
 
         setStorages(discoveredStorages);
       } catch (err) {
         const errorMessage =
-          err instanceof Error ? err : new Error("Failed to fetch storage roots");
+          err instanceof Error
+            ? err
+            : new Error("Failed to fetch storage roots");
         setError(errorMessage);
         setStorages([]);
       } finally {
@@ -232,7 +264,7 @@ export function useSolidStorages(): UseSolidStoragesResult {
     } else {
       setIsLoading(false);
     }
-    
+
     return () => {
       isMounted = false;
     };
