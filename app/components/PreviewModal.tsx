@@ -7,6 +7,7 @@ import { getFile, UrlString } from "@inrupt/solid-client";
 import { getAuthenticatedSession } from "../lib/helpers";
 import { FileItemData } from "./FileItem";
 import LoadingSpinner from "./shared/LoadingSpinner";
+import { getHttpStatus } from "../lib/helpers";
 
 interface PreviewModalProps {
   isOpen: boolean;
@@ -67,9 +68,8 @@ export default function PreviewModal({
           fileBlob = await getFile(file.url as UrlString, { fetch: fetchFn });
           // Get the content-type from the blob's type property (set from HTTP response header)
           actualMimeType = fileBlob.type ? fileBlob.type.split(";")[0].trim() : "";
-        } catch (getFileError: any) {
-   
-          const statusCode = getFileError?.response?.status;
+        } catch (getFileError: unknown) {
+          const statusCode = getHttpStatus(getFileError);
           const errorMessage = getFileError instanceof Error ? getFileError.message : String(getFileError);
           
           if (statusCode === 501 || 
@@ -94,7 +94,7 @@ export default function PreviewModal({
               try {
                 fileBlob = await response.blob();
                 actualMimeType = contentType.split(";")[0].trim();
-              } catch (blobError) {
+              } catch {
                 setFileType("other");
                 setIsLoading(false);
                 return;

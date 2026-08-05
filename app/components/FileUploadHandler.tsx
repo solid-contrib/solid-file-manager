@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, type InputHTMLAttributes } from "react";
 import toast from "react-hot-toast";
 import {
   getAuthenticatedSession,
@@ -9,6 +9,9 @@ import {
   FolderUploadFile,
 } from "../lib/helpers";
 
+type FileWithRelativePath = File & {
+  webkitRelativePath?: string;
+}
 interface FileUploadHandlerProps {
   currentContainerUrl: string | null;
   onUploadComplete?: () => void;
@@ -50,7 +53,7 @@ export default function FileUploadHandler({
     let fetchFn: typeof fetch;
     try {
       ({ fetch: fetchFn } = getAuthenticatedSession());
-    } catch (error) {
+    } catch {
       toast.error("Not authenticated");
       e.target.value = "";
       return;
@@ -103,7 +106,7 @@ export default function FileUploadHandler({
     let fetchFn: typeof fetch;
     try {
       ({ fetch: fetchFn } = getAuthenticatedSession());
-    } catch (error) {
+    } catch {
       toast.error("Not authenticated");
       e.target.value = "";
       return;
@@ -112,7 +115,7 @@ export default function FileUploadHandler({
     const folderFiles: FolderUploadFile[] = Array.from(files)
       .map((file) => ({
         file,
-        relativePath: (file as any).webkitRelativePath || file.name,
+        relativePath: (file as FileWithRelativePath).webkitRelativePath || file.name,
       }))
       .filter((item) => item.relativePath && item.relativePath.length > 0);
 
@@ -163,7 +166,7 @@ export default function FileUploadHandler({
       <input
         ref={folderInputRef}
         type="file"
-        {...({ webkitdirectory: "" } as any)}
+        {...({ webkitdirectory: "" } as InputHTMLAttributes<HTMLInputElement>)}
         multiple
         className="hidden"
         onChange={handleFolderChange}
