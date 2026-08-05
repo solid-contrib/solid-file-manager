@@ -24,7 +24,7 @@
     "react": "19.2.1",
     "react-dom": "19.2.1",
     "react-hot-toast": "^2.6.0",
-    "solid-react-component": "^0.2.2"
+    "solid-react-component": "^0.2.8"
   },
   "devDependencies": {
     "@solid/community-server": "^8.0.0-alpha.1",
