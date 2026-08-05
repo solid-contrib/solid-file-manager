@@ -94,7 +94,7 @@ export default function PreviewModal({
               try {
                 fileBlob = await response.blob();
                 actualMimeType = contentType.split(";")[0].trim();
-              } catch (blobError) {
+              } catch {
                 setFileType("other");
                 setIsLoading(false);
                 return;

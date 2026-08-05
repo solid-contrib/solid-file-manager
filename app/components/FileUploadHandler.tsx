@@ -53,7 +53,7 @@ export default function FileUploadHandler({
     let fetchFn: typeof fetch;
     try {
       ({ fetch: fetchFn } = getAuthenticatedSession());
-    } catch (error) {
+    } catch {
       toast.error("Not authenticated");
       e.target.value = "";
       return;
@@ -106,7 +106,7 @@ export default function FileUploadHandler({
     let fetchFn: typeof fetch;
     try {
       ({ fetch: fetchFn } = getAuthenticatedSession());
-    } catch (error) {
+    } catch {
       toast.error("Not authenticated");
       e.target.value = "";
       return;
