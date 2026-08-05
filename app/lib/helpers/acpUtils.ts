@@ -214,7 +214,7 @@ async function createAcr(
 
       // Policy: type, allow, and anyOf (matcher)
       policy.type.add(ACP.Policy);
-      policy.allow.add(`http://www.w3.org/ns/auth/acl#${mode}`);
+      policy.allow.add(ACP.mode);
       policy.anyOf.add(matcher);
 
       // AccessControl: type and apply (policy)
