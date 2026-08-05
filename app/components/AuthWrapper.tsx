@@ -12,15 +12,15 @@ interface AuthWrapperProps {
 // Check if there's any indication of a session in storage
 function hasSessionInStorage(): boolean {
   if (typeof window === "undefined") return false;
-  
+
   try {
     const keys = Object.keys(localStorage);
-    // Look for keys that might indicate a session exists
-    return keys.some(key => 
-      key.includes("solidClientAuthn") || 
-      key.includes("solid-auth") ||
-      key.includes("oidc") ||
-      key.includes("session")
+    return keys.some(
+      (key) =>
+        key.includes("solidClientAuthn") ||
+        key.includes("solid-auth") ||
+        key.includes("oidc") ||
+        key.includes("session"),
     );
   } catch {
     return false;
@@ -32,81 +32,93 @@ function AuthWrapperContent({ children }: AuthWrapperProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const [isCheckingSession, setIsCheckingSession] = useState(true);
-  const [hasSessionIndicator, setHasSessionIndicator] = useState(() => hasSessionInStorage());
+  const [sessionCheckComplete, setSessionCheckComplete] = useState(false);
+  const [oauthWaitExpired, setOauthWaitExpired] = useState(false);
+  const [hasSessionIndicator] = useState(() => hasSessionInStorage());
   const wasLoggedInRef = useRef(false);
 
-  if (session.isLoggedIn) {
-    wasLoggedInRef.current = true;
-  }
-
-  // Check if we're in the middle of an OAuth callback
   const isOAuthCallback = searchParams.has("code") || searchParams.has("state");
   const isLoginPage = pathname === "/login";
-
- 
   const hasSessionData = !!(session.webId || session.sessionId || session.clientAppId);
 
   useEffect(() => {
-    // If we're in an OAuth callback, keep checking until session is established
-    // Don't redirect until session is confirmed
-    if (isOAuthCallback) {
-      setIsCheckingSession(true);
-      
-      if (session.isLoggedIn) {
-        setIsCheckingSession(false);
-        // Redirect to home after successful OAuth (remove OAuth params from URL)
-        const redirectTimer = setTimeout(() => {
-          if (typeof window !== "undefined") {
-            window.location.href = "/";
-          }
-        }, 200);
-        return () => clearTimeout(redirectTimer);
-      } else {
-        // Session not yet established, keep waiting
-        // Set a timeout to prevent infinite waiting (max 10 seconds)
-        const maxWaitTimer = setTimeout(() => {
-          setIsCheckingSession(false);
-        }, 10000);
-        return () => clearTimeout(maxWaitTimer);
-      }
-    }
-
-   
     if (session.isLoggedIn) {
-      setIsCheckingSession(false);
-      if (isLoginPage) {
-        router.replace("/");
-      }
+      wasLoggedInRef.current = true;
+    }
+  }, [session.isLoggedIn]);
+
+  useEffect(() => {
+    if (!isOAuthCallback) {
       return;
     }
 
-  
+    if (session.isLoggedIn) {
+      const redirectTimer = setTimeout(() => {
+        if (typeof window !== "undefined") {
+          window.location.href = "/";
+        }
+      }, 200);
+      return () => clearTimeout(redirectTimer);
+    }
+
+    const maxWaitTimer = setTimeout(() => {
+      setOauthWaitExpired(true);
+      setSessionCheckComplete(true);
+    }, 10000);
+    return () => clearTimeout(maxWaitTimer);
+  }, [isOAuthCallback, session.isLoggedIn]);
+
+  useEffect(() => {
+    if (isOAuthCallback) {
+      return;
+    }
+
+    if (session.isLoggedIn) {
+      const timer = setTimeout(() => {
+        setSessionCheckComplete(true);
+        if (isLoginPage) {
+          router.replace("/");
+        }
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+
     if (wasLoggedInRef.current && !session.isLoggedIn) {
-      setIsCheckingSession(false);
-      if (!isLoginPage) {
-        router.replace("/login");
-      }
-      return;
+      const timer = setTimeout(() => {
+        setSessionCheckComplete(true);
+        if (!isLoginPage) {
+          router.replace("/login");
+        }
+      }, 0);
+      return () => clearTimeout(timer);
     }
 
-    // If we have session data (webId, sessionId, etc.) but isLoggedIn is false,
-    // the session is likely being restored - wait longer
-    // Otherwise, if no session data and no storage indicator, show login quickly
     const shouldWaitForRestore = hasSessionData || hasSessionIndicator;
     const checkTimer = setTimeout(() => {
-      setIsCheckingSession(false);
+      setSessionCheckComplete(true);
 
-      if (!session.isLoggedIn && !isLoginPage && !isOAuthCallback) {
+      if (!session.isLoggedIn && !isLoginPage) {
         router.replace("/login");
       }
     }, shouldWaitForRestore ? 2000 : 200);
 
     return () => clearTimeout(checkTimer);
-  }, [session.isLoggedIn, session.webId, session.sessionId, isOAuthCallback, hasSessionIndicator, hasSessionData, isLoginPage, router]);
+  }, [
+    session.isLoggedIn,
+    session.webId,
+    session.sessionId,
+    isOAuthCallback,
+    hasSessionIndicator,
+    hasSessionData,
+    isLoginPage,
+    router,
+  ]);
 
- 
-  if (isCheckingSession || isOAuthCallback) {
+  const showLoading =
+    (isOAuthCallback && !session.isLoggedIn && !oauthWaitExpired) ||
+    !sessionCheckComplete;
+
+  if (showLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-white">
         <LoadingSpinner size="md" text="Loading..." />
@@ -114,31 +126,16 @@ function AuthWrapperContent({ children }: AuthWrapperProps) {
     );
   }
 
-  // If OAuth callback is on login page, we're still processing - show loading
-  // This handles the case where OAuth redirects back to /login
-  if (isOAuthCallback && isLoginPage) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-white">
-        <LoadingSpinner size="md" text="Loading..." />
-      </div>
-    );
-  }
-
-  // If not authenticated and not on login page, redirect will happen in useEffect
-  // If authenticated and on login page, redirect will happen in useEffect
-  // For now, just show children (or nothing if redirecting)
   if (!session.isLoggedIn && !isLoginPage) {
-    return null; // Redirecting to login
+    return null;
   }
 
   if (session.isLoggedIn && isLoginPage) {
-    return null; // Redirecting to home
+    return null;
   }
 
-  // User is authenticated and on correct page, show the app
   return <>{children}</>;
 }
-
 
 export default function AuthWrapper({ children }: AuthWrapperProps) {
   return (
