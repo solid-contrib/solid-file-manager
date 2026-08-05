@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import { useSolidAuth } from "@ldo/solid-react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import LoadingSpinner from "./shared/LoadingSpinner";
@@ -34,7 +34,11 @@ function AuthWrapperContent({ children }: AuthWrapperProps) {
   const pathname = usePathname();
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [hasSessionIndicator, setHasSessionIndicator] = useState(() => hasSessionInStorage());
-  const [wasLoggedIn, setWasLoggedIn] = useState(false);
+  const wasLoggedInRef = useRef(false);
+
+  if (session.isLoggedIn) {
+    wasLoggedInRef.current = true;
+  }
 
   // Check if we're in the middle of an OAuth callback
   const isOAuthCallback = searchParams.has("code") || searchParams.has("state");
@@ -44,10 +48,6 @@ function AuthWrapperContent({ children }: AuthWrapperProps) {
   const hasSessionData = !!(session.webId || session.sessionId || session.clientAppId);
 
   useEffect(() => {
-    if (session.isLoggedIn) {
-      setWasLoggedIn(true);
-    }
-
     // If we're in an OAuth callback, keep checking until session is established
     // Don't redirect until session is confirmed
     if (isOAuthCallback) {
@@ -82,7 +82,7 @@ function AuthWrapperContent({ children }: AuthWrapperProps) {
     }
 
   
-    if (wasLoggedIn && !session.isLoggedIn) {
+    if (wasLoggedInRef.current && !session.isLoggedIn) {
       setIsCheckingSession(false);
       if (!isLoginPage) {
         router.replace("/login");
@@ -103,7 +103,7 @@ function AuthWrapperContent({ children }: AuthWrapperProps) {
     }, shouldWaitForRestore ? 2000 : 200);
 
     return () => clearTimeout(checkTimer);
-  }, [session.isLoggedIn, session.webId, session.sessionId, isOAuthCallback, hasSessionIndicator, hasSessionData, wasLoggedIn, isLoginPage, router]);
+  }, [session.isLoggedIn, session.webId, session.sessionId, isOAuthCallback, hasSessionIndicator, hasSessionData, isLoginPage, router]);
 
  
   if (isCheckingSession || isOAuthCallback) {

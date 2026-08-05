@@ -1,19 +1,21 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { SolidLoginPage } from "solid-react-component/login/next";
 import { getLastIdp, saveLastIdp } from "../lib/helpers/idpHistoryUtils";
 
+function subscribeNoop() {
+    return () => { };
+}
 
 export default function LoginPage() {
     const router = useRouter();
-    const [mounted, setMounted] = useState(false);
-    const [defaultIssuer, setDefaultIssuer] = useState("");
-
-    useEffect(() => {
-        setDefaultIssuer(getLastIdp());
-        setMounted(true);
-    }, []);
+    const isClient = useSyncExternalStore(subscribeNoop, () => true, () => false);
+    const defaultIssuer = useSyncExternalStore(
+        subscribeNoop,
+        () => getLastIdp(),
+        () => "",
+    );
 
     const handleSubmit = (event: React.FormEvent<HTMLDivElement>) => {
         const input = event.currentTarget.querySelector("input");
@@ -22,9 +24,8 @@ export default function LoginPage() {
         }
     };
 
-    // Render only after localStorage is read, so defaultIssuer is applied on
-    // SolidLoginPage's initial mount (it reads defaultIssuer only once).
-    if (!mounted) return null;
+    // Client-only render so SolidLoginPage reads defaultIssuer on first mount.
+    if (!isClient) return null;
 
     return (
         <div onSubmit={handleSubmit}>
@@ -40,5 +41,4 @@ export default function LoginPage() {
             />
         </div>
     )
-
 }
