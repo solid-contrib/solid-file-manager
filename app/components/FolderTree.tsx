@@ -166,15 +166,6 @@ export default function FolderTree({
                             </li>
                         )}
 
-                        {!isLoading && !hasError && children.length === 0 && (
-                            <li
-                                className="px-2 py-1 text-xs text-gray-500"
-                                style={{ paddingLeft: `${(depth + 1) * 12 + 8}px` }}
-                            >
-                                No folders
-                            </li>
-                        )}
-
                         {!isLoading && !hasError && children.map((child) => renderNode(child, depth + 1))}
                     </ul>
                 )}

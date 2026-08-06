@@ -15,8 +15,10 @@ export async function fetchContainerListing(
     DataFactory,
   ).container;
 
+  // Empty containers have no ldp:contains, so there is no container subject to match.
+  // Treat that as an empty listing (not an error).
   if (container === undefined) {
-    throw new Error("Container not found");
+    return [];
   }
 
   const fileItems: FileItemData[] = [];
