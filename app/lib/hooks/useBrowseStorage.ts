@@ -6,6 +6,7 @@ import { getSolidDataset, toRdfJsDataset } from "@inrupt/solid-client";
 import { FileItemData } from "../../components/FileItem";
 import { ContainerDataset } from "../class/ContainerDataset";
 import { DataFactory } from "n3";
+import { loadContainerListing } from "../cache";
 
 interface UseBrowseStorageResult {
   files: FileItemData[];
@@ -13,10 +14,78 @@ interface UseBrowseStorageResult {
   error: Error | null;
 }
 
+async function fetchContainerListing(
+  url: string,
+  fetchFn: typeof fetch,
+): Promise<FileItemData[]> {
+  const container = new ContainerDataset(
+    toRdfJsDataset(await getSolidDataset(url, { fetch: fetchFn })),
+    DataFactory,
+  ).container;
+
+  if (container === undefined) {
+    throw new Error("Container not found");
+  }
+
+  const fileItems: FileItemData[] = [];
+
+  for (const item of container.contains) {
+    try {
+      let mimeType = item.mimeType;
+
+      // For non-folder filed, only fetch content-type if not already in the RDF metadata
+      if (!item.isContainer && !mimeType) {
+        try {
+          const headResponse = await fetchFn(item.id, {
+            method: "HEAD",
+            headers: {
+              Accept: "*/*",
+            },
+          });
+
+          if (headResponse.ok) {
+            const contentType = headResponse.headers.get("Content-Type");
+            if (contentType) {
+              mimeType = contentType.split(";")[0].trim();
+            }
+          }
+        } catch (err) {
+          console.debug(`Could not fetch content-type for ${item}:`, err);
+        }
+      }
+
+      fileItems.push({
+        id: item.id,
+        name: item.name,
+        type: item.fileType,
+        url: item.id,
+        lastModified: item.lastModified,
+        size: item.size,
+        mimeType,
+      });
+    } catch (err) {
+      console.error(`Failed to process item ${item}:`, err);
+    }
+  }
+
+  // sort by folder first then in alphabetical order using the name
+  fileItems.sort((a, b) => {
+    if (a.type === "folder" && b.type !== "folder") return -1;
+    if (a.type !== "folder" && b.type === "folder") return 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  return fileItems;
+}
+
 /**
  * Hook to browse/list the contents of a Solid storage container
+ * Uses the shared container cache so the sidebar can reuse the same listing
  */
-export function useBrowseStorage(containerUrl: string | null, refreshKey?: number): UseBrowseStorageResult {
+export function useBrowseStorage(
+  containerUrl: string | null,
+  refreshKey?: number,
+): UseBrowseStorageResult {
   const [files, setFiles] = useState<FileItemData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -29,6 +98,7 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
     }
 
     const url = containerUrl;
+    const forceRefresh = refreshKey !== undefined && refreshKey > 0;
 
     async function browseContainer() {
       try {
@@ -37,82 +107,35 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
 
         const { fetch: fetchFn } = getAuthenticatedSession();
 
-        // This is a cache-busting fetch wrapper for when refreshKey is provided
-        // This ensures we get fresh data after uploads/deletes
-        const cacheBustingFetch = refreshKey !== undefined && refreshKey > 0
+        // After mutations, bypass HTTP cache as well as the in-memory listing cache
+        const requestFetch = forceRefresh
           ? (input: RequestInfo | URL, init?: RequestInit) => {
-            const headers = new Headers(init?.headers);
-            // Adding cache-control headers to bypass browser/server cache
-            headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-            headers.set('Pragma', 'no-cache');
-            return fetchFn(input, { ...init, headers, cache: 'no-store' });
-          }
+              const headers = new Headers(init?.headers);
+              headers.set(
+                "Cache-Control",
+                "no-cache, no-store, must-revalidate",
+              );
+              headers.set("Pragma", "no-cache");
+              return fetchFn(input, {
+                ...init,
+                headers,
+                cache: "no-store",
+              });
+            }
           : fetchFn;
 
-        // Use @inrupt/solid-client to fetch the container dataset
-        // and map it to plain object-oriented classes using rdfjs-wrapper
-        const container =
-            new ContainerDataset(
-                toRdfJsDataset(await getSolidDataset(url, {fetch: cacheBustingFetch})),
-                DataFactory)
-                .container
-
-        if (container === undefined) {
-          throw new Error() // TODO: Handle properly
-        }
-
-        const fileItems: FileItemData[] = [];
-
-        for (const item of container.contains) {
-          try {
-            let mimeType = item.mimeType;
-
-            // For non-folder files, only fetch content-type if not already found in RDF metadata
-            if (!item.isContainer && !mimeType) {
-              try {
-                const headResponse = await cacheBustingFetch(item.id, {
-                  method: "HEAD",
-                  headers: {
-                    Accept: "*/*",
-                  },
-                });
-                
-                if (headResponse.ok) {
-                  const contentType = headResponse.headers.get("Content-Type");
-                  if (contentType) {
-                    // Extract just the MIME type (remove charset, etc.)
-                    mimeType = contentType.split(";")[0].trim();
-                  }
-                }
-              } catch (err) {
-                console.debug(`Could not fetch content-type for ${item}:`, err);
-              }
-            }
-
-            fileItems.push({
-              id: item.id,
-              name: item.name,
-              type: item.fileType,
-              url: item.id,
-              lastModified: item.lastModified,
-              size: item.size,
-              mimeType,
-            });
-          } catch (err) {
-            console.error(`Failed to process item ${item}:`, err);
-          }
-        }
-        // sort by folder first then in alphabetical order using the name
-        fileItems.sort((a, b) => {
-          if (a.type === "folder" && b.type !== "folder") return -1;
-          if (a.type !== "folder" && b.type === "folder") return 1;
-          return a.name.localeCompare(b.name);
-        });
+        const fileItems = await loadContainerListing(
+          url,
+          () => fetchContainerListing(url, requestFetch),
+          { force: forceRefresh },
+        );
 
         setFiles(fileItems);
       } catch (err) {
         const errorMessage =
-          err instanceof Error ? err : new Error("Failed to browse storage container");
+          err instanceof Error
+            ? err
+            : new Error("Failed to browse storage container");
         setError(errorMessage);
         setFiles([]);
       } finally {
@@ -121,8 +144,7 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
     }
 
     browseContainer();
-  }, [containerUrl, refreshKey]); // refreshKey triggers re-fetch when it changes
+  }, [containerUrl, refreshKey]); 
 
   return { files, isLoading, error };
 }
-
