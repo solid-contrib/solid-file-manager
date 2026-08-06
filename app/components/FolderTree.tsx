@@ -3,7 +3,8 @@
 import { useCallback, useMemo, useState } from "react";
 import { ChevronRightIcon, ChevronDownIcon, FolderIcon } from "@heroicons/react/24/outline";
 import { SolidStorage } from "../lib/hooks/useSolidStorages";
-import { fetchFolderChildren, FolderTreeChild, folderUrlsEqual, ensureTrailingSlash, getAuthenticatedSession } from "../lib/helpers";
+import { FolderTreeChild, folderUrlsEqual, ensureTrailingSlash, getAuthenticatedSession, fetchContainerListing, foldersFromListing } from "../lib/helpers";
+import { getContainerListing, loadContainerListing } from "../lib/cache";
 
 interface FolderTreeProps {
     storages: SolidStorage[];
@@ -26,9 +27,18 @@ export default function FolderTree({
         currentFolderUrl ? ensureTrailingSlash(currentFolderUrl) : null
     ), [currentFolderUrl]);
 
-    // Fetch child folders for one container and store them in the cache.
+    // Load child folders via the shared container cache (same data as main browse).
     const loadChildren = useCallback(async (folderUrl: string) => {
         const normalizedUrl = ensureTrailingSlash(folderUrl);
+
+        const cached = getContainerListing(normalizedUrl);
+        if (cached) {
+            setChildrenByUrl((prev) => ({
+                ...prev,
+                [normalizedUrl]: foldersFromListing(cached),
+            }));
+            return;
+        }
 
         if (childrenByUrl[normalizedUrl]) {
             return;
@@ -49,10 +59,17 @@ export default function FolderTree({
 
         try {
             const { fetch } = getAuthenticatedSession();
-            const children = await fetchFolderChildren(normalizedUrl, fetch);
-            setChildrenByUrl((prev) => ({ ...prev, [normalizedUrl]: children }));
+            const listing = await loadContainerListing(
+                normalizedUrl,
+                () => fetchContainerListing(normalizedUrl, fetch),
+            );
+            setChildrenByUrl((prev) => ({
+                ...prev,
+                [normalizedUrl]: foldersFromListing(listing),
+            }));
         } catch (error) {
-            const message = error instanceof Error ? error.message : "Failed to load folders";
+            const message =
+                error instanceof Error ? error.message : "Failed to load folders";
             setErrorByUrl((prev) => ({ ...prev, [normalizedUrl]: message }));
         } finally {
             setLoadingUrls((prev) => {
