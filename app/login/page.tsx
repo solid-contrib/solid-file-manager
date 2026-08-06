@@ -1,31 +1,22 @@
 "use client";
 
-import { Suspense } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import {
-  SolidLoginNavigationProviderNext,
-  AuthGuard,
-} from "solid-react-component/login/next";
 import LoginPage from "../components/LoginPage";
-
-const loadingFallback = (
-  <div className="flex min-h-screen items-center justify-center bg-white">
-    <span>Loading...</span>
-  </div>
-);
+import FullPageLoader from "../components/shared/FullPageLoader";
+import { useSolidAuth } from "../lib/hooks/useSolidAuth";
 
 export default function Login() {
   const router = useRouter();
-  return (
-    <Suspense fallback={loadingFallback}>
-      <SolidLoginNavigationProviderNext
-        config={{ loginPath: "/login", homePath: "/" }}
-      >
-        <AuthGuard fallback={loadingFallback}>
-          <LoginPage />
-        </AuthGuard>
-      </SolidLoginNavigationProviderNext>
-    </Suspense>
-  );
-}
+  const { status } = useSolidAuth();
 
+  useEffect(() => {
+    if (status === "authenticated") router.replace("/");
+  }, [status, router]);
+
+  // Hold the form back until we know there is no session to restore, so a
+  // returning user is not shown a sign-in form on their way through.
+  if (status !== "anonymous") return <FullPageLoader />;
+
+  return <LoginPage />;
+}
