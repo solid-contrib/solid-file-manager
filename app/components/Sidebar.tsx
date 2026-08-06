@@ -11,7 +11,6 @@ interface SidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
   activeTab?: string;
-  currentContainerUrl?: string | null;
   onNewFolderClick?: () => void;
   onFileUploadClick?: () => void;
   onFolderUploadClick?: () => void;
@@ -21,7 +20,6 @@ export default function Sidebar({
   isOpen = true,
   onClose,
   activeTab = "my-storages",
-  currentContainerUrl,
   onNewFolderClick,
   onFileUploadClick,
   onFolderUploadClick,
@@ -79,7 +77,6 @@ export default function Sidebar({
           </div>
 
           <NewMenuButton
-            currentContainerUrl={currentContainerUrl || null}
             onNewFolderClick={onNewFolderClick}
             onFileUploadClick={onFileUploadClick}
             onFolderUploadClick={onFolderUploadClick}

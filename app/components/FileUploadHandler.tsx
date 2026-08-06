@@ -1,17 +1,15 @@
 "use client";
 
-import { useRef, useEffect, type InputHTMLAttributes } from "react";
+import { getAuthFetch } from "../lib/auth/manager";
+
+import { useRef, useEffect } from "react";
 import toast from "react-hot-toast";
 import {
-  getAuthenticatedSession,
   uploadFilesToContainer,
   uploadFolderFilesToContainer,
   FolderUploadFile,
 } from "../lib/helpers";
 
-type FileWithRelativePath = File & {
-  webkitRelativePath?: string;
-}
 interface FileUploadHandlerProps {
   currentContainerUrl: string | null;
   onUploadComplete?: () => void;
@@ -52,8 +50,9 @@ export default function FileUploadHandler({
 
     let fetchFn: typeof fetch;
     try {
-      ({ fetch: fetchFn } = getAuthenticatedSession());
-    } catch {
+      fetchFn = getAuthFetch();
+    } catch (error) {
+      console.error("No authenticated fetch available", error);
       toast.error("Not authenticated");
       e.target.value = "";
       return;
@@ -105,8 +104,9 @@ export default function FileUploadHandler({
 
     let fetchFn: typeof fetch;
     try {
-      ({ fetch: fetchFn } = getAuthenticatedSession());
-    } catch {
+      fetchFn = getAuthFetch();
+    } catch (error) {
+      console.error("No authenticated fetch available", error);
       toast.error("Not authenticated");
       e.target.value = "";
       return;
@@ -115,7 +115,7 @@ export default function FileUploadHandler({
     const folderFiles: FolderUploadFile[] = Array.from(files)
       .map((file) => ({
         file,
-        relativePath: (file as FileWithRelativePath).webkitRelativePath || file.name,
+        relativePath: file.webkitRelativePath || file.name,
       }))
       .filter((item) => item.relativePath && item.relativePath.length > 0);
 
@@ -166,7 +166,7 @@ export default function FileUploadHandler({
       <input
         ref={folderInputRef}
         type="file"
-        {...({ webkitdirectory: "" } as InputHTMLAttributes<HTMLInputElement>)}
+        webkitdirectory=""
         multiple
         className="hidden"
         onChange={handleFolderChange}

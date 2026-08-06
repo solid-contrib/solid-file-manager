@@ -6,7 +6,7 @@ import Button from "./shared/Button";
 import Input from "./shared/Input";
 import { createContainerAt, getSolidDataset, UrlString } from "@inrupt/solid-client";
 import toast from "react-hot-toast";
-import { getAuthenticatedSession } from "../lib/helpers";
+import { getAuthFetch } from "../lib/auth/manager";
 
 interface NewFolderDialogProps {
   isOpen: boolean;
@@ -53,7 +53,7 @@ export default function NewFolderDialog({
     setIsCreating(true);
 
     try {
-      const { fetch: fetchFn } = getAuthenticatedSession();
+      const fetchFn = getAuthFetch();
 
       // Ensure the current container exists
       await getSolidDataset(currentContainerUrl, { fetch: fetchFn });

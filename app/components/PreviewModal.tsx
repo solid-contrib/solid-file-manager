@@ -1,10 +1,13 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- these render remote pod URLs, so
+   next/image would need every possible pod host in remotePatterns */
+
 import { useState, useEffect, useRef } from "react";
 import Modal from "./shared/Modal";
 import Button from "./shared/Button";
 import { getFile, UrlString } from "@inrupt/solid-client";
-import { getAuthenticatedSession } from "../lib/helpers";
+import { getAuthFetch } from "../lib/auth/manager";
 import { FileItemData } from "./FileItem";
 import LoadingSpinner from "./shared/LoadingSpinner";
 import { getHttpStatus } from "../lib/helpers";
@@ -58,7 +61,7 @@ export default function PreviewModal({
       setError(null);
 
       try {
-        const { fetch: fetchFn } = getAuthenticatedSession();
+        const fetchFn = getAuthFetch();
         
 
         let fileBlob: Blob;

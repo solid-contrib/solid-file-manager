@@ -1,5 +1,7 @@
 "use client";
 
+import { getAuthFetch } from "../lib/auth/manager";
+
 import { useState, useEffect, useRef, useCallback } from "react";
 import toast from "react-hot-toast";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -14,7 +16,6 @@ import {
   EyeIcon,
   ShareIcon,
 } from "@heroicons/react/24/outline";
-import AuthWrapper from "./AuthWrapper";
 import Header from "./Header";
 import Sidebar from "./Sidebar";
 import Breadcrumb from "./Breadcrumb";
@@ -30,11 +31,11 @@ import FileUploadHandler from "./FileUploadHandler";
 import ContextMenu, { ContextMenuAction } from "./ContextMenu";
 import { FileItemData } from "./FileItem";
 import LoadingSpinner from "./shared/LoadingSpinner";
+import FullPageLoader from "./shared/FullPageLoader";
 import ErrorDisplay from "./shared/ErrorDisplay";
 import { useSolidStorages, useBrowseStorage } from "../lib/hooks";
 import {
   buildBreadcrumbItems,
-  getAuthenticatedSession,
   copyFileResource,
   copyFolderResource,
   downloadFile,
@@ -43,7 +44,6 @@ import {
   deleteFolderResource,
   uploadFilesToContainer,
   uploadFolderFilesToContainer,
-  FolderUploadFile,
   processDragDropItems,
   hasFiles as hasFilesInDrag,
   isUnsupportedFolderDrag,
@@ -172,10 +172,14 @@ export default function FileManager() {
         setSelectedStorageId(matchingStorage.id);
         setCurrentPath(urlParam === matchingStorage.url ? "/" : urlParam);
 
+        // Sync the address bar without navigating. 
         if (typeof window !== "undefined") {
           const params = new URLSearchParams();
           params.set("url", safeEncodeUrl(urlParam));
-          router.replace(`/?${params.toString()}`, { scroll: false });
+          const search = `?${params.toString()}`;
+          if (window.location.search !== search) {
+            window.history.replaceState(null, "", `/${search}`);
+          }
         }
 
         setIsInitialized(true);
@@ -186,7 +190,7 @@ export default function FileManager() {
     }
 
     setIsInitialized(true);
-  }, [searchParams, storages, isLoadingStorages, isInitialized, router]);
+  }, [searchParams, storages, isLoadingStorages, isInitialized]);
 
   useEffect(() => {
     return () => {
@@ -325,7 +329,7 @@ export default function FileManager() {
 
     const toastId = toast.loading(`Copying "${file.name}"...`);
     try {
-      const { fetch: fetchFn } = getAuthenticatedSession();
+      const fetchFn = getAuthFetch();
       if (file.type === "folder") {
         await copyFolderResource(file, fetchFn);
       } else {
@@ -372,7 +376,7 @@ export default function FileManager() {
     );
 
     try {
-      const { fetch: fetchFn } = getAuthenticatedSession();
+      const fetchFn = getAuthFetch();
 
       if (fileToDelete.type === "folder") {
         await deleteFolderResource(fileToDelete.url, fetchFn);
@@ -415,7 +419,7 @@ export default function FileManager() {
     );
 
     try {
-      const { fetch: fetchFn } = getAuthenticatedSession();
+      const fetchFn = getAuthFetch();
 
       if (file.type === "folder") {
         await downloadFolderAsZip(file.url, file.name, fetchFn);
@@ -509,8 +513,9 @@ export default function FileManager() {
 
     let fetchFn: typeof fetch;
     try {
-      ({ fetch: fetchFn } = getAuthenticatedSession());
+      fetchFn = getAuthFetch();
     } catch (error) {
+      console.error("No authenticated fetch available", error);
       toast.error("Not authenticated");
       return;
     }
@@ -775,205 +780,188 @@ export default function FileManager() {
   };
 
   if (isLoadingStorages) {
-    return (
-      <AuthWrapper>
-        <div className="flex min-h-screen items-center justify-center bg-white">
-          <LoadingSpinner size="md" text="Loading your Solid storages..." />
-        </div>
-      </AuthWrapper>
-    );
+    return <FullPageLoader text="Loading your Solid storages..." />;
   }
 
   const isBrowsing = selectedStorageId && isLoadingFiles;
 
   if (storagesError) {
     return (
-      <AuthWrapper>
-        <ErrorDisplay
-          title="Failed to Load Storages"
-          message={storagesError.message || "Unable to discover your Solid storage roots. Please try again."}
-          onRetry={() => window.location.reload()}
-        />
-      </AuthWrapper>
+      <ErrorDisplay
+        title="Failed to Load Storages"
+        message={storagesError.message || "Unable to discover your Solid storage roots. Please try again."}
+        onRetry={() => window.location.reload()}
+      />
     );
   }
 
   if (browseError && selectedStorageId) {
     return (
-      <AuthWrapper>
-        <ErrorDisplay
-          title="Failed to Load Container Contents"
-          message={browseError.message || "Unable to browse the storage container. Please try again."}
-          onRetry={() => {
-            setCurrentPath("/");
-          }}
-        />
-      </AuthWrapper>
+      <ErrorDisplay
+        title="Failed to Load Container Contents"
+        message={browseError.message || "Unable to browse the storage container. Please try again."}
+        onRetry={() => {
+          setCurrentPath("/");
+        }}
+      />
     );
   }
 
   if (storages.length === 0) {
     return (
-      <AuthWrapper>
-        <div className="flex min-h-screen items-center justify-center bg-white">
-          <div className="text-center">
-            <h2 className="mb-2 text-xl font-semibold text-black">No Storages Found</h2>
-            <p className="text-gray-600">
-              Unable to discover any Solid storage roots from your WebID profile.
-            </p>
-          </div>
+      <div className="flex min-h-screen items-center justify-center bg-white">
+        <div className="text-center">
+          <h2 className="mb-2 text-xl font-semibold text-black">No Storages Found</h2>
+          <p className="text-gray-600">
+            Unable to discover any Solid storage roots from your WebID profile.
+          </p>
         </div>
-      </AuthWrapper>
+      </div>
     );
   }
 
   return (
-    <AuthWrapper>
-      <div
-        className="flex h-screen flex-col overflow-hidden bg-white"
-        onDragEnter={handleDragEnter}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        <Header
-          onMenuClick={() => setSidebarOpen(true)}
-          sidebarOpen={sidebarOpen}
+    <div
+      className="flex h-screen flex-col overflow-hidden bg-white"
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      <Header
+        onMenuClick={() => setSidebarOpen(true)}
+      />
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          activeTab="my-storages"
+          onNewFolderClick={() => setShowNewFolderDialog(true)}
+          onFileUploadClick={() => setFileUploadTrigger((prev) => prev + 1)}
+          onFolderUploadClick={() => setFolderUploadTrigger((prev) => prev + 1)}
         />
-        <div className="flex flex-1 overflow-hidden">
-          <Sidebar
-            isOpen={sidebarOpen}
-            onClose={() => setSidebarOpen(false)}
-            activeTab="my-storages"
-            currentContainerUrl={containerUrlToBrowse}
-            onNewFolderClick={() => setShowNewFolderDialog(true)}
-            onFileUploadClick={() => setFileUploadTrigger((prev) => prev + 1)}
-            onFolderUploadClick={() => setFolderUploadTrigger((prev) => prev + 1)}
-          />
-          <main
-            className="flex flex-1 flex-col overflow-hidden"
-            onContextMenu={handleBlankContextMenu}
-          >
-            <div className="flex-shrink-0">
-              <Breadcrumb items={breadcrumbItems} onNavigate={handleBreadcrumbNavigate} />
-            </div>
-            {isBrowsing ? (
-              <div className="flex flex-1 items-center justify-center">
-                    <LoadingSpinner size="md" text="Loading folder contents..." />
-              </div>
-            ) : (
-              <div className="flex-1 min-h-0 overflow-hidden">
-                <FileList
-                  files={displayFiles}
-                  currentPath={currentPath}
-                  onFileSelect={handleFileSelect}
-                  onFileDoubleClick={handleFileDoubleClick}
-                  onFileRename={handleRename}
-                  onFilePreview={handlePreview}
-                  onFileCopy={handleCopy}
-                  onFileMove={handleMove}
-                  onFileDownload={handleDownload}
-                  onFileDelete={handleDelete}
-                  onFileShare={handleShare}
-                  selectedFileIds={selectedFileIds}
-                  onFileContextMenu={handleFileContextMenu}
-                />
-              </div>
-            )}
-          </main>
-        </div>
-        
-        <NewFolderDialog
-          isOpen={showNewFolderDialog}
-          onClose={() => setShowNewFolderDialog(false)}
-          currentContainerUrl={containerUrlToBrowse}
-          onFolderCreated={handleFolderCreated}
-        />
-        <RenameDialog
-          isOpen={showRenameDialog}
-          onClose={() => {
-            setShowRenameDialog(false);
-            setFileToRename(null);
-          }}
-          file={fileToRename}
-          onRenamed={handleRenamed}
-        />
-        <PreviewModal
-          isOpen={showPreviewModal}
-          onClose={() => {
-            setShowPreviewModal(false);
-            setFileToPreview(null);
-          }}
-          file={fileToPreview}
-        />
-        <MoveDialog
-          isOpen={showMoveDialog}
-          onClose={() => {
-            setShowMoveDialog(false);
-            setFileToMove(null);
-          }}
-          file={fileToMove}
-          availableFolders={availableFolders}
-          currentLocationUrl={getCurrentLocationUrl()}
-          onMoved={handleMoved}
-        />
-        <DeleteConfirmDialog
-          isOpen={showDeleteDialog}
-          onClose={() => {
-            setShowDeleteDialog(false);
-            setFileToDelete(null);
-          }}
-          file={fileToDelete}
-          onConfirm={handleDeleteConfirm}
-          isDeleting={isDeleting}
-        />
-        <ShareDialog
-          isOpen={showShareDialog}
-          onClose={() => {
-            setShowShareDialog(false);
-            setFileToShare(null);
-          }}
-          file={fileToShare}
-          onShare={handleShareConfirm}
-        />
-        <ShareSuccessModal
-          isOpen={showShareSuccessModal}
-          onClose={() => setShowShareSuccessModal(false)}
-          resourceUrl={sharedResourceUrl}
-          resourceName={sharedResourceName}
-          onOpenInApp={(url) => {
-            updateUrl(url, true);
-          }}
-        />
-        {isDragActive && (
-          <div className="pointer-events-none fixed inset-0 z-40 flex flex-col items-center justify-center bg-purple-500/10">
-            <div className="rounded-2xl border border-purple-400 bg-white/90 px-8 py-6 text-center shadow-lg">
-              <p className="text-lg font-semibold text-purple-700">Drop files or folders to upload</p>
-              <p className="text-sm text-purple-600 mt-2">
-                They will be uploaded to the current folder
-              </p>
-            </div>
+        <main
+          className="flex flex-1 flex-col overflow-hidden"
+          onContextMenu={handleBlankContextMenu}
+        >
+          <div className="flex-shrink-0">
+            <Breadcrumb items={breadcrumbItems} onNavigate={handleBreadcrumbNavigate} />
           </div>
-        )}
-        <FileUploadHandler
-          currentContainerUrl={containerUrlToBrowse}
-          onUploadComplete={handleFileUploaded}
-          triggerUpload={fileUploadTrigger}
-          triggerFolderUpload={folderUploadTrigger}
-        />
-
-        {contextMenuState && (
-          <ContextMenu
-            position={contextMenuState.position}
-            actions={
-              contextMenuState.type === "new"
-                ? newContextMenuActions
-                : getFileContextMenuActions(contextMenuState.file)
-            }
-            onClose={closeContextMenu}
-          />
-        )}
+          {isBrowsing ? (
+            <div className="flex flex-1 items-center justify-center">
+                  <LoadingSpinner size="md" text="Loading folder contents..." />
+            </div>
+          ) : (
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <FileList
+                files={displayFiles}
+                onFileSelect={handleFileSelect}
+                onFileDoubleClick={handleFileDoubleClick}
+                onFileRename={handleRename}
+                onFilePreview={handlePreview}
+                onFileCopy={handleCopy}
+                onFileMove={handleMove}
+                onFileDownload={handleDownload}
+                onFileDelete={handleDelete}
+                onFileShare={handleShare}
+                selectedFileIds={selectedFileIds}
+                onFileContextMenu={handleFileContextMenu}
+              />
+            </div>
+          )}
+        </main>
       </div>
-    </AuthWrapper>
+      
+      <NewFolderDialog
+        currentContainerUrl={containerUrlToBrowse}
+        isOpen={showNewFolderDialog}
+        onClose={() => setShowNewFolderDialog(false)}
+        onFolderCreated={handleFolderCreated}
+      />
+      <RenameDialog
+        isOpen={showRenameDialog}
+        onClose={() => {
+          setShowRenameDialog(false);
+          setFileToRename(null);
+        }}
+        file={fileToRename}
+        onRenamed={handleRenamed}
+      />
+      <PreviewModal
+        isOpen={showPreviewModal}
+        onClose={() => {
+          setShowPreviewModal(false);
+          setFileToPreview(null);
+        }}
+        file={fileToPreview}
+      />
+      <MoveDialog
+        isOpen={showMoveDialog}
+        onClose={() => {
+          setShowMoveDialog(false);
+          setFileToMove(null);
+        }}
+        file={fileToMove}
+        availableFolders={availableFolders}
+        currentLocationUrl={getCurrentLocationUrl()}
+        onMoved={handleMoved}
+      />
+      <DeleteConfirmDialog
+        isOpen={showDeleteDialog}
+        onClose={() => {
+          setShowDeleteDialog(false);
+          setFileToDelete(null);
+        }}
+        file={fileToDelete}
+        onConfirm={handleDeleteConfirm}
+        isDeleting={isDeleting}
+      />
+      <ShareDialog
+        isOpen={showShareDialog}
+        onClose={() => {
+          setShowShareDialog(false);
+          setFileToShare(null);
+        }}
+        file={fileToShare}
+        onShare={handleShareConfirm}
+      />
+      <ShareSuccessModal
+        isOpen={showShareSuccessModal}
+        onClose={() => setShowShareSuccessModal(false)}
+        resourceUrl={sharedResourceUrl}
+        resourceName={sharedResourceName}
+        onOpenInApp={(url) => {
+          updateUrl(url, true);
+        }}
+      />
+      {isDragActive && (
+        <div className="pointer-events-none fixed inset-0 z-40 flex flex-col items-center justify-center bg-purple-500/10">
+          <div className="rounded-2xl border border-purple-400 bg-white/90 px-8 py-6 text-center shadow-lg">
+            <p className="text-lg font-semibold text-purple-700">Drop files or folders to upload</p>
+            <p className="text-sm text-purple-600 mt-2">
+              They will be uploaded to the current folder
+            </p>
+          </div>
+        </div>
+      )}
+      <FileUploadHandler
+        currentContainerUrl={containerUrlToBrowse}
+        onUploadComplete={handleFileUploaded}
+        triggerUpload={fileUploadTrigger}
+        triggerFolderUpload={folderUploadTrigger}
+      />
+
+      {contextMenuState && (
+        <ContextMenu
+          position={contextMenuState.position}
+          actions={
+            contextMenuState.type === "new"
+              ? newContextMenuActions
+              : getFileContextMenuActions(contextMenuState.file)
+          }
+          onClose={closeContextMenu}
+        />
+      )}
+    </div>
   );
 }

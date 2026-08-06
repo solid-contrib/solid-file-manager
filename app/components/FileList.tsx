@@ -7,7 +7,6 @@ import EmptyState from "./shared/EmptyState";
 
 interface FileListProps {
   files: FileItemData[];
-  currentPath: string;
   onFileSelect: (file: FileItemData) => void;
   onFileDoubleClick: (file: FileItemData) => void;
   onFileRename?: (file: FileItemData) => void;
@@ -25,7 +24,6 @@ const VIEW_STORAGE_KEY = "solid-file-manager-view";
 
 export default function FileList({
   files,
-  currentPath,
   onFileSelect,
   onFileDoubleClick,
   onFileRename,
