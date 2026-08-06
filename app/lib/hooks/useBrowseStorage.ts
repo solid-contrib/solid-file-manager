@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAuthenticatedSession } from "../helpers";
+import { getAuthFetch } from "../auth/manager";
 import { getSolidDataset, toRdfJsDataset } from "@inrupt/solid-client";
 import { FileItemData } from "../../components/FileItem";
 import { ContainerDataset } from "../class/ContainerDataset";
@@ -35,7 +35,7 @@ export function useBrowseStorage(containerUrl: string | null, refreshKey?: numbe
         setIsLoading(true);
         setError(null);
 
-        const { fetch: fetchFn } = getAuthenticatedSession();
+        const fetchFn = getAuthFetch();
 
         // This is a cache-busting fetch wrapper for when refreshKey is provided
         // This ensures we get fresh data after uploads/deletes

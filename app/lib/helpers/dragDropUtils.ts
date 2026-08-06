@@ -2,6 +2,14 @@
 import { FolderUploadFile } from "./uploadUtils";
 
 // Type definitions for File System Access API
+/**
+ * The File System Access API's addition to DataTransferItem, which lib.dom does
+ * not declare yet. It is what makes a dropped folder readable.
+ */
+type FileSystemAccessItem = DataTransferItem & {
+  getAsFileSystemHandle?: () => Promise<FileSystemHandle | null>;
+};
+
 interface FileSystemHandle {
   readonly kind: "file" | "directory";
   readonly name: string;
@@ -16,14 +24,6 @@ interface FileSystemDirectoryHandle extends FileSystemHandle {
   readonly kind: "directory";
   values(): AsyncIterableIterator<FileSystemHandle>;
 }
-
-type DataTransferItemWithHandle = DataTransferItem & {
-  getAsFileSystemHandle?: () => Promise<FileSystemHandle | null>;
-};
-
-type FileWithRelativePath = File & {
-  webkitRelativePath?: string;
-};
 
 // Helper function to recursively read directory contents using File System Access API
 async function readDirectoryRecursive(
@@ -75,11 +75,10 @@ export async function processDragDropItems(
   let hasDirectories = false;
 
   for (const item of items) {
-    const itemWithHandle = item as DataTransferItemWithHandle;
-    // Check if File System Access API is available
-    if (itemWithHandle.getAsFileSystemHandle) {
+    const handleSource = item as FileSystemAccessItem;
+    if (handleSource.getAsFileSystemHandle) {
       try {
-        const handle = await itemWithHandle.getAsFileSystemHandle();
+        const handle = await handleSource.getAsFileSystemHandle();
         if (handle && handle.kind === "directory") {
           hasDirectories = true;
           // Recursively read directory contents
@@ -108,7 +107,7 @@ export async function processDragDropItems(
 
       // First pass: collect all relative paths and identify folder names
       Array.from(dataTransferFiles).forEach((file) => {
-        const relativePath = (file as FileWithRelativePath).webkitRelativePath || "";
+        const relativePath = file.webkitRelativePath || "";
         if (relativePath) {
           allRelativePaths.add(relativePath);
           // If path contains "/", extract the folder name (first part)
@@ -123,7 +122,7 @@ export async function processDragDropItems(
 
       // Second pass: categorize files
       Array.from(dataTransferFiles).forEach((file) => {
-        const relativePath = (file as FileWithRelativePath).webkitRelativePath || "";
+        const relativePath = file.webkitRelativePath || "";
         if (relativePath && relativePath.includes("/")) {
           // File inside a folder
           folderFiles.push({ file, relativePath });
@@ -173,7 +172,7 @@ export function isUnsupportedFolderDrag(event: React.DragEvent<HTMLElement>): bo
   const allRelativePaths = new Set<string>();
   
   Array.from(dataTransferFiles).forEach((file) => {
-    const relativePath = (file as FileWithRelativePath).webkitRelativePath || "";
+    const relativePath = file.webkitRelativePath || "";
     if (relativePath) {
       allRelativePaths.add(relativePath);
     }
@@ -183,7 +182,7 @@ export function isUnsupportedFolderDrag(event: React.DragEvent<HTMLElement>): bo
   return (
     dataTransferFiles.length === 1 &&
     allRelativePaths.size === 0 &&
-    !(dataTransferFiles[0] as FileWithRelativePath).webkitRelativePath
+    !dataTransferFiles[0].webkitRelativePath
   );
 }
 

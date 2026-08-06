@@ -1,6 +1,7 @@
 import { LiteralAs, NamedNodeAs, NamedNodeFrom, OptionalFrom, SetFrom, TermAs, TermWrapper } from "@rdfjs/wrapper"
 import { FOAF, PIM, SOLID, VCARD } from "@/app/lib/class/Vocabulary"
 
+// TODO: Migrate this to the objects library
 export class Agent extends TermWrapper {
     get vcardFn(): string | undefined {
         return OptionalFrom.subjectPredicate(this, VCARD.fn, LiteralAs.string)
@@ -61,6 +62,11 @@ export class Agent extends TermWrapper {
 
     get solidStorage(): Set<string> {
         return SetFrom.subjectPredicate(this, SOLID.storage, NamedNodeAs.string, NamedNodeFrom.string)
+    }
+
+    // A profile may name several; the login page asks which one to use.
+    get oidcIssuers(): Set<string> {
+        return SetFrom.subjectPredicate(this, SOLID.oidcIssuer, NamedNodeAs.string, NamedNodeFrom.string)
     }
 
     get email(): string | null {

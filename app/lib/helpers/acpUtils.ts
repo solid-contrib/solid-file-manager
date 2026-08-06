@@ -8,7 +8,7 @@
  * N3.js: for creating/updating ACRs
  */
 
-import { getAuthenticatedSession } from "./sessionUtils";
+import { getAuthFetch } from "../auth/manager";
 import { AcrDataset } from "@/app/lib/class/AcrDataset";
 import type { DatasetCore } from "@rdfjs/types";
 import { AccessControlResource } from "@/app/lib/class/AccessControlResource";
@@ -325,7 +325,7 @@ export async function shareResourceWithAcp(
     return;
   }
 
-  const { fetch } = getAuthenticatedSession();
+  const fetch = getAuthFetch();
   const acrUrl = await getAcrUrl(resourceUrl, fetch);
 
   // Fetch existing ACR or create new one
@@ -361,7 +361,7 @@ export async function verifyResourceAccess(resourceUrl: string): Promise<{
   error?: string;
 }> {
   try {
-    const { fetch } = getAuthenticatedSession();
+    const fetch = getAuthFetch();
 
     const headResponse = await fetch(resourceUrl, {
       method: "HEAD",
@@ -421,7 +421,7 @@ export async function getResourceAccessList(
   accessModes: string[];
 }> | null> {
   try {
-    const { fetch } = getAuthenticatedSession();
+    const fetch = getAuthFetch();
     const acrUrl = await getAcrUrl(resourceUrl, fetch);
 
     const response = await fetch(acrUrl, {
@@ -498,7 +498,7 @@ export async function removeAccessFromResource(
   resourceUrl: string,
   webIdToRemove: string,
 ): Promise<void> {
-  const { fetch } = getAuthenticatedSession();
+  const fetch = getAuthFetch();
   const acrUrl = await getAcrUrl(resourceUrl, fetch);
 
   // Fetch the existing ACR

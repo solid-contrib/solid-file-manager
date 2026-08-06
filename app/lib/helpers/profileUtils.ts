@@ -1,5 +1,5 @@
 import { Parser, Store, DataFactory } from "n3";
-import { getSession } from "./sessionUtils";
+import { getAuthFetch } from "../auth/manager";
 import { WebIdDataset } from "@/app/lib/class/WebIdDataset";
 import type { Agent } from "@/app/lib/class/Agent";
 
@@ -17,8 +17,7 @@ export async function fetchAndParseProfile(webId: string): Promise<Agent> {
     return profileCache.get(webId)!;
   }
 
-  const session = getSession();
-  const fetchFn = session.fetch || fetch;
+  const fetchFn = getAuthFetch();
 
   // Try different Accept headers to get the profile
   const acceptHeaders = [
@@ -44,7 +43,8 @@ export async function fetchAndParseProfile(webId: string): Promise<Agent> {
         content = await response.text();
         break;
       }
-    } catch (err) {
+    } catch {
+      // This Accept header did not work; try the next one.
       continue;
     }
   }
@@ -68,8 +68,10 @@ export async function fetchAndParseProfile(webId: string): Promise<Agent> {
       const parser = new Parser({ baseIRI: baseUrl });
       const quads = parser.parse(content);
       store.addQuads(quads);
-    } catch (e) {
-      // Silent error handling
+    } catch (error) {
+      // Genuinely JSON-LD, which we cannot parse. The store stays empty and the
+      // missing-subject check below reports it.
+      console.warn(`Could not parse ${webId} as Turtle`, error);
     }
   }
 
@@ -77,8 +79,9 @@ export async function fetchAndParseProfile(webId: string): Promise<Agent> {
 
   const mainSubject: Agent | undefined = webIdDataset.mainSubject;
   if (mainSubject === undefined) {
-console.log("BOB")
-      throw new Error; // TODO: Handle properly
+    // mainSubject is located by its solid:oidcIssuer, so a profile without one
+    // reads as empty here even when it parsed fine.
+    throw new Error(`No WebID subject with an oidcIssuer found in ${webId}`);
   }
 
   // Cache the result
