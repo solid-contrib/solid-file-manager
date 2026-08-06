@@ -9,22 +9,20 @@
     "build:next": "next build",
     "start": "next start",
     "start:dev": "concurrently \"npm run start:css\" \"npm run dev\"",
-    "start:css": "npx @solid/community-server --port 3000 --loggingLevel info --config .cssconfig.json --rootFilePath data/ --seedConfig seed-config.json",
+    "start:css": "npx @solid/community-server --port ${CSS_PORT:-3000} --loggingLevel info --config .cssconfig.json --rootFilePath data/ --seedConfig seed-config.json",
     "lint": "eslint"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
     "@inrupt/solid-client": "^1.23.1",
-    "@inrupt/solid-client-authn-browser": "^3.1.1",
-    "@ldo/solid-react": "^1.0.0-alpha.33",
     "@rdfjs/wrapper": "^0.33.0",
+    "@solid/reactive-authentication": "github:PreciousOritsedere/reactive-authentication",
     "jszip": "^3.10.1",
     "n3": "^2.0.1",
     "next": "16.0.7",
     "react": "19.2.1",
     "react-dom": "19.2.1",
-    "react-hot-toast": "^2.6.0",
-    "solid-react-component": "^0.2.8"
+    "react-hot-toast": "^2.6.0"
   },
   "devDependencies": {
     "@solid/community-server": "^8.0.0-alpha.1",

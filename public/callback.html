@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Authorization Code callback</title>
+  </head>
+  <body>
+     <p>Completing sign-in&hellip;</p>
+    <script>
+      // The authorization server redirects here inside a popup opened by
+      // <authorization-code-flow>. The full URL carries the authorization code
+      // and state; the opener validates them and closes this window.
+      if (window.opener) {
+        // Restrict the target origin so the code is never exposed elsewhere.
+        window.opener.postMessage(location.href, location.origin);
+      } else {
+        document.body.textContent =
+          "This page is part of the sign-in flow and cannot be opened directly.";
+      }
+    </script>
+  </body>
+</html>
