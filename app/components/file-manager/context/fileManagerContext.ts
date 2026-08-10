@@ -6,6 +6,7 @@ import type { AccessLevel } from "../../ShareDialog";
 import type { SolidStorage } from "@/app/lib/hooks";
 import type { FileAction } from "../types/fileActions";
 import type { ShareOperationResult } from "../hooks/useFileOperations";
+import type { BreadcrumbItem } from "@/app/lib/helpers";
 
 /** Navigation slice */
 export interface FileManagerNavigationContextValue {
@@ -13,9 +14,7 @@ export interface FileManagerNavigationContextValue {
   selectedStorageId: string | null;
   currentPath: string;
   containerUrlToBrowse: string | null;
-  breadcrumbItems: ReturnType<
-    typeof import("@/app/lib/helpers").buildBreadcrumbItems
-  >;
+  breadcrumbItems: BreadcrumbItem[];
   navigateToBreadcrumb: (path: string) => void;
   navigateToFolder: (folderUrl: string) => void;
   navigateToFile: (file: FileItemData) => void;
