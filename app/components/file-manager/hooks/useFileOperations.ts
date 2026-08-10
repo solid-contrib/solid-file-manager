@@ -58,8 +58,8 @@ export interface FileOperationDialogHandlers {
 }
 
 export interface UseFileOperationsOptions {
-  OnRefresh: () => void;
-  OnAfterDelete?: (fileId: string) => void;
+  onRefresh: () => void;
+  onAfterDelete?: (fileId: string) => void;
   dialogHandlers: FileOperationDialogHandlers;
 }
 
@@ -82,8 +82,8 @@ export interface UseFileOperationsResult {
 }
 
 export function useFileOperations({
-  OnRefresh,
-  OnAfterDelete,
+  onRefresh,
+  onAfterDelete,
   dialogHandlers,
 }: UseFileOperationsOptions): UseFileOperationsResult {
   const [isDeleting, setIsDeleting] = useState(false);
@@ -112,10 +112,10 @@ export function useFileOperations({
       );
 
       if (result !== null) {
-        OnRefresh();
+        onRefresh();
       }
     },
-    [OnRefresh],
+    [onRefresh],
   );
 
   const downloadFileResource = useCallback(async (file: FileItemData) => {
@@ -169,12 +169,12 @@ export function useFileOperations({
         return;
       }
 
-      OnAfterDelete?.(file.id);
+      onAfterDelete?.(file.id);
       setTimeout(() => {
-        OnRefresh();
+        onRefresh();
       }, 1000);
     },
-    [OnAfterDelete, OnRefresh],
+    [onAfterDelete, onRefresh],
   );
 
   const confirmShare = useCallback(
