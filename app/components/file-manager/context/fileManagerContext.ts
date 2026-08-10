@@ -29,6 +29,7 @@ export interface FileManagerBrowseContextValue {
   availableFolders: FileItemData[];
   getCurrentLocationUrl: () => string;
   refresh: () => void;
+  triggerDelayedRefresh: () => void;
 }
 
 /** Selection slice */
