@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import type { FileItemData } from "../FileItem";
 import type { SolidStorage } from "@/app/lib/hooks";
 import {
