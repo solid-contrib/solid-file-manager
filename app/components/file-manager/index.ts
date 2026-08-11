@@ -12,3 +12,5 @@ export type {
   FileOperationDialogHandlers,
   ShareOperationResult,
 } from "./hooks/useFileOperations";
+export { useFileManagerNavigation as useFileNavigationHook } from "./hooks/useFileManagerNavigation";
+export { useContainerBrowse } from "./hooks/useContainerBrowse";
