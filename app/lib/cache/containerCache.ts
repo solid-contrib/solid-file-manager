@@ -7,8 +7,11 @@ type CacheEntry = {
   items: ContainerListing;
 };
 
+type CacheListener = () => void;
+
 const listings = new Map<string, CacheEntry>();
 const inflight = new Map<string, Promise<ContainerListing>>();
+const listeners = new Set<CacheListener>();
 
 function cacheKey(containerUrl: string): string {
   return ensureTrailingSlash(containerUrl);
@@ -29,17 +32,31 @@ export function setContainerListing(
   listings.set(cacheKey(containerUrl), { items });
 }
 
+/** Subscribe to cache invalidation (e.g. FolderTree local mirror). */
+export function subscribeContainerCache(listener: CacheListener): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+function notifyCacheListeners(): void {
+  listeners.forEach((listener) => listener());
+}
+
 /** Drop one container from the cache (and any in-flight fetch for it). */
 export function invalidateContainerListing(containerUrl: string): void {
   const key = cacheKey(containerUrl);
   listings.delete(key);
   inflight.delete(key);
+  notifyCacheListeners();
 }
 
 /** Clear all cached listing (e.g on logout)  */
 export function clearContainerCache(): void {
   listings.clear();
   inflight.clear();
+  notifyCacheListeners();
 }
 
 /**
