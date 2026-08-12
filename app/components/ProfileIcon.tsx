@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { useSolidAuth } from "@ldo/solid-react";
 import { useUserProfile, useClickOutside } from "../lib/hooks";
+import { clearContainerCache } from "../lib/cache";
 import { UserCircleIcon, ArrowRightStartOnRectangleIcon, PhoneIcon, BuildingOfficeIcon, BriefcaseIcon, GlobeAltIcon, ClipboardIcon } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
 
@@ -26,6 +27,7 @@ export default function ProfileIcon() {
   const handleLogout = async () => {
     try {
       await logout();
+      clearContainerCache();
       // Redirect to login page after logout
       window.location.href = "/login";
     } catch (error) {
