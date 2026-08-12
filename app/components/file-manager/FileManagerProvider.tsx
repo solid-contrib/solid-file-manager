@@ -1,45 +1,41 @@
 "use client";
 
 import { useMemo, type ReactNode } from "react";
-import type { FileItemData } from "../FileItem";
 import type { SolidStorage } from "@/app/lib/hooks";
 import {
     FileManagerActionsContext,
     FileManagerBrowseContext,
+    FileManagerDialogsContext,
     FileManagerNavigationContext,
+    FileManagerSelectionContext,
     type FileManagerActionsContextValue,
     type FileManagerBrowseContextValue,
     type FileManagerNavigationContextValue,
+    type FileManagerSelectionContextValue,
 } from "./context/fileManagerContext";
-import { useFileOperations, type FileOperationDialogHandlers } from "./hooks/useFileOperations";
+import { useFileOperations } from "./hooks/useFileOperations";
 import { useFileManagerNavigation } from "./hooks/useFileManagerNavigation";
 import { useContainerBrowse } from "./hooks/useContainerBrowse";
+import { useFileDialogs } from "./hooks/useFileDialogs";
+import { useFileSelection } from "./hooks/useFileSelection";
 
 export interface FileManagerProviderProps {
     children: ReactNode;
     storages: SolidStorage[];
-    dialogHandlers: FileOperationDialogHandlers;
-    onClearSelection?: () => void;
-    onAfterDelete?: (fileId: string) => void;
-    onOpenFile?: (file: FileItemData) => void;
-    onFolderNavigated?: () => void;
 }
 
-/** Feature-scoped provider for the file manager */
+/** Feature-scoped provider for the file manager. */
 export default function FileManagerProvider({
     children,
     storages,
-    dialogHandlers,
-    onClearSelection,
-    onAfterDelete,
-    onOpenFile,
-    onFolderNavigated,
 }: FileManagerProviderProps) {
+    const dialogs = useFileDialogs();
+    const selection = useFileSelection();
+
     const navigation = useFileManagerNavigation({
         storages,
-        onClearSelection,
-        onOpenFile,
-        onFolderNavigated,
+        onClearSelection: selection.clearSelection,
+        onOpenFile: dialogs.dialogHandlers.openPreviewDialog,
     });
 
     const browse = useContainerBrowse({
@@ -56,8 +52,8 @@ export default function FileManagerProvider({
         confirmShare,
     } = useFileOperations({
         onRefresh: browse.refresh,
-        onAfterDelete,
-        dialogHandlers
+        onAfterDelete: selection.removeFromSelection,
+        dialogHandlers: dialogs.dialogHandlers,
     });
 
     const navigationValue: FileManagerNavigationContextValue = useMemo(
@@ -65,6 +61,7 @@ export default function FileManagerProvider({
             storages,
             selectedStorageId: navigation.selectedStorageId,
             currentPath: navigation.currentPath,
+            setCurrentPath: navigation.setCurrentPath,
             containerUrlToBrowse: navigation.containerUrlToBrowse,
             breadcrumbItems: navigation.breadcrumbItems,
             navigateToBreadcrumb: navigation.navigateToBreadcrumb,
@@ -88,6 +85,16 @@ export default function FileManagerProvider({
         [browse],
     );
 
+    const selectionValue: FileManagerSelectionContextValue = useMemo(
+        () => ({
+            selectedFileIds: selection.selectedFileIds,
+            selectFile: selection.selectFile,
+            clearSelection: selection.clearSelection,
+            removeFromSelection: selection.removeFromSelection,
+        }),
+        [selection],
+    );
+
     const actionsValue: FileManagerActionsContextValue = useMemo(
         () => ({
             isDeleting,
@@ -101,9 +108,13 @@ export default function FileManagerProvider({
     return (
         <FileManagerNavigationContext.Provider value={navigationValue}>
             <FileManagerBrowseContext.Provider value={browseValue}>
-                <FileManagerActionsContext.Provider value={actionsValue}>
-                    {children}
-                </FileManagerActionsContext.Provider>
+                <FileManagerSelectionContext.Provider value={selectionValue}>
+                    <FileManagerDialogsContext.Provider value={dialogs}>
+                        <FileManagerActionsContext.Provider value={actionsValue}>
+                            {children}
+                        </FileManagerActionsContext.Provider>
+                    </FileManagerDialogsContext.Provider>
+                </FileManagerSelectionContext.Provider>
             </FileManagerBrowseContext.Provider>
         </FileManagerNavigationContext.Provider>
     );

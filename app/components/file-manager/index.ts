@@ -6,6 +6,7 @@ export {
   useFileManagerBrowse,
   useFileManagerSelection,
   useFileManagerActions,
+  useFileManagerDialogs,
 } from "./context/fileManagerContext";
 export { useFileOperations } from "./hooks/useFileOperations";
 export type {

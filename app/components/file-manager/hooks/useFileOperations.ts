@@ -73,7 +73,7 @@ export interface UseFileOperationsResult {
   dispatchFileAction: (action: FileAction) => void;
   copyFile: (file: FileItemData) => Promise<void>;
   downloadFile: (file: FileItemData) => Promise<void>;
-  confirmDelete: (file: FileItemData) => Promise<void>;
+  confirmDelete: (file: FileItemData) => Promise<boolean>;
   confirmShare: (
     file: FileItemData,
     webIds: string[],
@@ -143,8 +143,9 @@ export function useFileOperations({
     );
   }, []);
 
+  /** Deletes a resource; returns true on success so callers can close dialogs. */
   const confirmDelete = useCallback(
-    async (file: FileItemData) => {
+    async (file: FileItemData): Promise<boolean> => {
       setIsDeleting(true);
 
       const result = await runWithToast(
@@ -166,13 +167,14 @@ export function useFileOperations({
       setIsDeleting(false);
 
       if (result === null) {
-        return;
+        return false;
       }
 
       onAfterDelete?.(file.id);
       setTimeout(() => {
         onRefresh();
       }, 1000);
+      return true;
     },
     [onAfterDelete, onRefresh],
   );
