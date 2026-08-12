@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FileItemData } from "../../FileItem";
 import { useBrowseStorage, type SolidStorage } from "@/app/lib/hooks";
+import { invalidateContainerListing } from "@/app/lib/cache";
 
 /** Inputs from navigation: which container to list and how to derive related URLs. */
 export interface UseContainerBrowseOptions {
@@ -21,6 +22,7 @@ export interface UseContainerBrowseResult {
   getCurrentLocationUrl: () => string;
   refresh: () => void;
   triggerDelayedRefresh: () => void;
+  invalidateContainers: (urls: Array<string | null | undefined>) => void;
 }
 
 /**
@@ -51,14 +53,17 @@ export function useContainerBrowse({
     };
   }, []);
 
-  /** Immediately bump refreshKey so useBrowseStorage reloads the listing. */
+  /** Drop cache for the current container, then force the main list to refetch. */
   const refresh = useCallback(() => {
+    if (containerUrlToBrowse) {
+      invalidateContainerListing(containerUrlToBrowse);
+    }
     setRefreshKey((prev) => prev + 1);
-  }, []);
+  }, [containerUrlToBrowse]);
 
   /**
    * Debounced refresh after mutations (upload/create/delete).
-   * Waits 1s for the server, and collapses rapid calls into one refresh.
+   * Invalidates shared cache so that FolderTree does not keep stale children.
    */
   const triggerDelayedRefresh = useCallback(() => {
     if (!containerUrlToBrowse) {
@@ -69,11 +74,29 @@ export function useContainerBrowse({
       clearTimeout(refreshTimeoutRef.current);
     }
 
+    // Invalidate immediately so any concurrent tree read misses cache
+    invalidateContainerListing(containerUrlToBrowse);
+
     refreshTimeoutRef.current = setTimeout(() => {
       setRefreshKey((prev) => prev + 1);
       refreshTimeoutRef.current = null;
     }, 1000);
   }, [containerUrlToBrowse]);
+
+  /**
+   * Invalidate specific container URLs in the shared cache.
+   * Used when a mutation affects folders other than the current one (e.g. move destination).
+   */
+  const invalidateContainers = useCallback(
+    (urls: Array<string | null | undefined>) => {
+      for (const url of urls) {
+        if (url) {
+          invalidateContainerListing(url);
+        }
+      }
+    },
+    [],
+  );
 
   // Storages shaped as FileItemData so the root view can reuse FileList.
   const storageFiles: FileItemData[] = useMemo(
@@ -122,5 +145,6 @@ export function useContainerBrowse({
     getCurrentLocationUrl,
     refresh,
     triggerDelayedRefresh,
+    invalidateContainers,
   };
 }
