@@ -81,6 +81,7 @@ export default function FileManagerProvider({
             getCurrentLocationUrl: browse.getCurrentLocationUrl,
             refresh: browse.refresh,
             triggerDelayedRefresh: browse.triggerDelayedRefresh,
+            invalidateContainers: browse.invalidateContainers,
         }),
         [browse],
     );

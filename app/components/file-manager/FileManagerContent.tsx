@@ -71,6 +71,7 @@ export default function FileManagerContent() {
         getCurrentLocationUrl,
         refresh,
         triggerDelayedRefresh,
+        invalidateContainers,
     } = useFileManagerBrowse();
 
     const {
@@ -522,7 +523,10 @@ export default function FileManagerContent() {
                 file={fileToMove}
                 availableFolders={availableFolders}
                 currentLocationUrl={getCurrentLocationUrl()}
-                onMoved={refresh}
+                onMoved={(destinationUrl) => {
+                    invalidateContainers([destinationUrl]);
+                    refresh(); // invalidates + refreshes current (source) folder
+                }}
             />
             <DeleteConfirmDialog
                 isOpen={showDeleteDialog}

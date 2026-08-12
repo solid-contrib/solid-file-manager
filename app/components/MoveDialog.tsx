@@ -6,9 +6,9 @@ import Button from "./shared/Button";
 import { getSolidDataset, getContainedResourceUrlAll, UrlString } from "@inrupt/solid-client";
 import toast from "react-hot-toast";
 import { FileItemData } from "./FileItem";
-import { 
-  moveFileResource, 
-  getAuthenticatedSession, 
+import {
+  moveFileResource,
+  getAuthenticatedSession,
   decodeResourceNameFromUrl,
   ensureTrailingSlash,
 } from "../lib/helpers";
@@ -21,7 +21,7 @@ interface MoveDialogProps {
   file: FileItemData | null;
   availableFolders: FileItemData[];
   currentLocationUrl: string;
-  onMoved?: () => void;
+  onMoved?: (destinationUrl: string) => void;
 }
 
 export default function MoveDialog({
@@ -57,7 +57,7 @@ export default function MoveDialog({
           if (resourceUrl.endsWith("/")) {
             // It's a folder
             const folderName = decodeResourceNameFromUrl(resourceUrl);
-            
+
             folders.push({
               id: resourceUrl,
               name: folderName,
@@ -127,13 +127,13 @@ export default function MoveDialog({
     try {
       const { fetch: fetchFn } = getAuthenticatedSession();
       await moveFileResource(file, selectedFolderUrl, fetchFn);
-      
+
       toast.success(`Moved "${file.name}"`);
       onClose();
-      
+
       // Notify parent to refresh
       if (onMoved) {
-        onMoved();
+        onMoved(selectedFolderUrl);
       }
     } catch (error) {
       console.error("Failed to move file:", error);
@@ -195,16 +195,16 @@ export default function MoveDialog({
           <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-md border border-gray-200">
             <FolderIcon className="h-5 w-5 text-gray-500" />
             <span className="text-sm text-gray-900">
-              {currentLocationUrl 
-                ? availableFolders.find(f => f.url === currentLocationUrl)?.name || 
-                  (() => {
-                    try {
-                      const url = new URL(currentLocationUrl);
-                      return url.pathname.split("/").filter(Boolean).pop() || currentLocationUrl;
-                    } catch {
-                      return currentLocationUrl;
-                    }
-                  })()
+              {currentLocationUrl
+                ? availableFolders.find(f => f.url === currentLocationUrl)?.name ||
+                (() => {
+                  try {
+                    const url = new URL(currentLocationUrl);
+                    return url.pathname.split("/").filter(Boolean).pop() || currentLocationUrl;
+                  } catch {
+                    return currentLocationUrl;
+                  }
+                })()
                 : "My Storages"}
             </span>
           </div>
@@ -230,11 +230,10 @@ export default function MoveDialog({
                   key={folder.id}
                   type="button"
                   onClick={() => setSelectedFolderUrl(folder.url)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors ${
-                    selectedFolderUrl === folder.url
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors ${selectedFolderUrl === folder.url
                       ? "bg-[#F3EDFF] border-l-4 border-[#7B42F6]"
                       : "border-l-4 border-transparent"
-                  }`}
+                    }`}
                 >
                   <FolderIcon className="h-5 w-5 text-gray-500 flex-shrink-0" />
                   <span className="text-sm text-gray-900 truncate">{folder.name}</span>
