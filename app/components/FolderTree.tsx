@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ChevronRightIcon, ChevronDownIcon, FolderIcon } from "@heroicons/react/24/outline";
 import { SolidStorage } from "../lib/hooks/useSolidStorages";
 import { FolderTreeChild, folderUrlsEqual, ensureTrailingSlash, getAuthenticatedSession, fetchContainerListing, foldersFromListing } from "../lib/helpers";
@@ -39,6 +39,9 @@ export default function FolderTree({
         }
         return next;
     }, [cacheVersion, expandedUrls])
+
+    const expandedUrlsRef = useRef(expandedUrls);
+    expandedUrlsRef.current = expandedUrls;
 
     // Keep the current folder URL in one shape so highlight checks stay reliable.
     const normalizedCurrentFolderUrl = useMemo(() => (
@@ -83,7 +86,19 @@ export default function FolderTree({
                 return next;
             });
         }
-    }, [childrenByUrl]);
+    }, []);
+
+
+    // After cache invalidation, refetch any expanded folder that no longer has a listing.
+    useEffect(() => {
+        return subscribeContainerCache(() => {
+            for (const url of expandedUrlsRef.current) {
+                if (!getContainerListing(url)) {
+                    void loadChildren(url)
+                }
+            }
+        })
+    }, [loadChildren])
 
     // Open or close a folder branch. Fetch children only when opening.
     const toggleExpand = useCallback(async (folderUrl: string) => {
