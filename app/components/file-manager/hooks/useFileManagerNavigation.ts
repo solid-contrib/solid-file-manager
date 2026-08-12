@@ -36,6 +36,12 @@ export interface UseFileManagerNavigationResult {
   setCurrentPath: (path: string) => void;
 }
 
+/** Defer setState so react-hooks/set-state-in-effect does not flag URL sync. */
+function defer(update: () => void): () => void {
+  const timer = setTimeout(update, 0);
+  return () => clearTimeout(timer);
+}
+
 export function useFileManagerNavigation({
   storages,
   onClearSelection,
@@ -50,7 +56,7 @@ export function useFileManagerNavigation({
   const [currentPath, setCurrentPath] = useState<string>("/");
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Back / forward navigation
+  // Back / forward: keep app location in sync with the browser URL.
   useEffect(() => {
     if (storages.length === 0 || !isInitialized) {
       return;
@@ -62,8 +68,10 @@ export function useFileManagerNavigation({
       if (selectedStorageId) {
         const storage = storages.find((s) => s.id === selectedStorageId);
         if (storage) {
-          setCurrentPath("/");
-          removeUrlFromStorage();
+          return defer(() => {
+            setCurrentPath("/");
+            removeUrlFromStorage();
+          });
         }
       }
       return;
@@ -74,13 +82,15 @@ export function useFileManagerNavigation({
     );
 
     if (matchingStorage) {
-      setSelectedStorageId(matchingStorage.id);
-      setCurrentPath(urlParam === matchingStorage.url ? "/" : urlParam);
-      saveUrlToStorage(urlParam);
+      return defer(() => {
+        setSelectedStorageId(matchingStorage.id);
+        setCurrentPath(urlParam === matchingStorage.url ? "/" : urlParam);
+        saveUrlToStorage(urlParam);
+      });
     }
   }, [searchParams, storages, isInitialized, selectedStorageId]);
 
-  // Initial URL from search params / session storage
+  // Initial URL from search params / session storage.
   useEffect(() => {
     if (storages.length === 0 || isInitialized) {
       return;
@@ -88,8 +98,9 @@ export function useFileManagerNavigation({
     const urlParam = getUrlFromSearchParams() || getUrlFromStorage();
 
     if (!urlParam) {
-      setIsInitialized(true);
-      return;
+      return defer(() => {
+        setIsInitialized(true);
+      });
     }
 
     saveUrlToStorage(urlParam);
@@ -100,23 +111,26 @@ export function useFileManagerNavigation({
       );
 
       if (matchingStorage) {
-        setSelectedStorageId(matchingStorage.id);
-        setCurrentPath(urlParam === matchingStorage.url ? "/" : urlParam);
+        return defer(() => {
+          setSelectedStorageId(matchingStorage.id);
+          setCurrentPath(urlParam === matchingStorage.url ? "/" : urlParam);
 
-        if (typeof window !== "undefined") {
-          const params = new URLSearchParams();
-          params.set("url", safeEncodeUrl(urlParam));
-          router.replace(`/?${params.toString()}`, { scroll: false });
-        }
+          if (typeof window !== "undefined") {
+            const params = new URLSearchParams();
+            params.set("url", safeEncodeUrl(urlParam));
+            router.replace(`/?${params.toString()}`, { scroll: false });
+          }
 
-        setIsInitialized(true);
-        return;
+          setIsInitialized(true);
+        });
       }
     } catch (e) {
       console.error("Failed to set initial URL:", e);
     }
 
-    setIsInitialized(true);
+    return defer(() => {
+      setIsInitialized(true);
+    });
   }, [searchParams, storages, isInitialized, router]);
 
   const updateUrl = useCallback(

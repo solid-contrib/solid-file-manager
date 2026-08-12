@@ -15,12 +15,12 @@ export function extractNameFromUrl(url: string): string {
     
     try {
       name = decodeURIComponent(name);
-    } catch (e) {
+    } catch {
       // Keep original name if decoding fails
     }
     
     return name;
-  } catch (e) {
+  } catch {
     // If URL parsing fails, try to extract from the string directly
     const parts = url.split("/").filter(Boolean);
     const lastPart = parts[parts.length - 1] || url;
@@ -41,7 +41,7 @@ export function extractNameFromUrl(url: string): string {
 export function resolveUrl(url: string, baseUrl: string): string {
   try {
     return new URL(url, baseUrl).href;
-  } catch (e) {
+  } catch {
     return url;
   }
 }

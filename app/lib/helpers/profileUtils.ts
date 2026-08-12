@@ -44,7 +44,7 @@ export async function fetchAndParseProfile(webId: string): Promise<Agent> {
         content = await response.text();
         break;
       }
-    } catch (err) {
+    } catch {
       continue;
     }
   }
@@ -68,7 +68,7 @@ export async function fetchAndParseProfile(webId: string): Promise<Agent> {
       const parser = new Parser({ baseIRI: baseUrl });
       const quads = parser.parse(content);
       store.addQuads(quads);
-    } catch (e) {
+    } catch {
       // Silent error handling
     }
   }

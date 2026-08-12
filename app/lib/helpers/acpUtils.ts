@@ -119,7 +119,7 @@ export async function detectServerAuthMethod(
     }
 
     return "unknown";
-  } catch (error) {
+  } catch {
     return "unknown";
   }
 }
@@ -202,7 +202,7 @@ async function createAcr(
   const accessModes = getAccessModes(accessLevel);
 
   webIds.forEach((webId) => {
-    accessModes.forEach((mode) => {
+    accessModes.forEach(() => {
       // Create blank nodes for nested structure
       const matcher = new Matcher(blankNode(), ds, DataFactory);
       const policy = new Policy(blankNode(), ds, DataFactory);
@@ -293,7 +293,7 @@ async function updateAcr(
   // Create new access controls for new WebIDs
   newWebIds.forEach((webId) => {
     const accessModes = getAccessModes(accessLevel);
-    accessModes.forEach((mode) => {
+    accessModes.forEach(() => {
       const matcher = new Matcher(blankNode(), ds, DataFactory);
       const policy = new Policy(blankNode(), ds, DataFactory);
       const accessControl = new AccessControl(blankNode(), ds, DataFactory);

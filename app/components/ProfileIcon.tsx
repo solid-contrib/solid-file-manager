@@ -79,6 +79,8 @@ export default function ProfileIcon() {
         aria-expanded={showDropdown}
       >
         {profile?.photoUrl ? (
+          // Solid profile photos are often cross-origin; next/image is not suitable here
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={profile.photoUrl}
             alt={profile.name || "Profile"}

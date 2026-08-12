@@ -25,7 +25,6 @@ const VIEW_STORAGE_KEY = "solid-file-manager-view";
 
 export default function FileList({
   files,
-  currentPath,
   onFileSelect,
   onFileDoubleClick,
   onFileRename,

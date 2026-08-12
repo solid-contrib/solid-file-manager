@@ -13,7 +13,6 @@ interface NewMenuButtonProps {
 }
 
 export default function NewMenuButton({
-  currentContainerUrl,
   onNewFolderClick,
   onFileUploadClick,
   onFolderUploadClick,
