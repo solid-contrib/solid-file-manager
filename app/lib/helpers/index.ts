@@ -15,3 +15,4 @@ export * from "./urlStateUtils";
 export * from "./dragDropUtils";
 export * from "./contactUtils";
 export * from "./folderPickerUtils";
+export * from "./httpErrorUtils";

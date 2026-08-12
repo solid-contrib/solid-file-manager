@@ -1,6 +1,10 @@
 // This helper file handles uploading files and folders to Solid containers.
-import { createContainerAt, overwriteFile, UrlString } from "@inrupt/solid-client";
-import { ensureTrailingSlash, sanitizeResourceName } from ".";
+import {
+  createContainerAt,
+  overwriteFile,
+  UrlString,
+} from "@inrupt/solid-client";
+import { ensureTrailingSlash, getHttpStatus, sanitizeResourceName } from ".";
 import toast from "react-hot-toast";
 
 export interface FolderUploadFile {
@@ -16,7 +20,7 @@ export interface UploadResult {
 export async function uploadFilesToContainer(
   files: File[],
   currentContainerUrl: string,
-  fetchFn: typeof fetch
+  fetchFn: typeof fetch,
 ): Promise<UploadResult> {
   const uploadPromises: Promise<void>[] = [];
   const uploadedFiles: string[] = [];
@@ -50,7 +54,7 @@ export async function uploadFilesToContainer(
 export async function uploadFolderFilesToContainer(
   folderFiles: FolderUploadFile[],
   currentContainerUrl: string,
-  fetchFn: typeof fetch
+  fetchFn: typeof fetch,
 ): Promise<UploadResult> {
   const uploadedFiles: string[] = [];
   const failedFiles: string[] = [];
@@ -79,7 +83,7 @@ export async function uploadFolderFilesToContainer(
     const baseFolderUrl = ensureTrailingSlash(
       currentContainerUrl.endsWith("/")
         ? `${currentContainerUrl}${encodeURIComponent(folderName)}`
-        : `${currentContainerUrl}/${encodeURIComponent(folderName)}`
+        : `${currentContainerUrl}/${encodeURIComponent(folderName)}`,
     );
 
     await ensureFolderExists(baseFolderUrl, fetchFn, createdFolders);
@@ -117,7 +121,7 @@ export async function uploadFolderFilesToContainer(
 async function ensureFolderExists(
   folderUrl: string,
   fetchFn: typeof fetch,
-  createdFolders: Set<string>
+  createdFolders: Set<string>,
 ): Promise<void> {
   if (createdFolders.has(folderUrl)) {
     return;
@@ -125,22 +129,25 @@ async function ensureFolderExists(
 
   try {
     await createContainerAt(folderUrl as UrlString, { fetch: fetchFn });
-  } catch (error: any) {
-    const statusCode = error?.response?.status;
+  } catch (error: unknown) {
+    const statusCode = getHttpStatus(error);
     const errorMessage = error instanceof Error ? error.message : String(error);
-    
-    if (statusCode === 409 || 
-        errorMessage.includes("409") || 
-        errorMessage.includes("Conflict") ||
-        errorMessage.includes("already exists")) {
+
+    if (
+      statusCode === 409 ||
+      errorMessage.includes("409") ||
+      errorMessage.includes("Conflict") ||
+      errorMessage.includes("already exists")
+    ) {
       // Folder already exists - show toast once
       if (!createdFolders.has(folderUrl + "_notified")) {
         try {
           const urlObj = new URL(folderUrl);
           const pathSegments = urlObj.pathname.split("/").filter(Boolean);
-          const folderName = pathSegments.length > 0 
-            ? decodeURIComponent(pathSegments[pathSegments.length - 1])
-            : folderUrl;
+          const folderName =
+            pathSegments.length > 0
+              ? decodeURIComponent(pathSegments[pathSegments.length - 1])
+              : folderUrl;
           toast(`Folder "${folderName}" already exists`);
         } catch {
           // Skip toast if URL parsing fails
@@ -149,7 +156,7 @@ async function ensureFolderExists(
       }
       return;
     }
-    
+
     console.warn(`Failed to create folder ${folderUrl}:`, {
       statusCode,
       error: errorMessage,
@@ -163,4 +170,3 @@ function sanitizeFilename(name: string): string {
   const sanitized = sanitizeResourceName(name);
   return sanitized || "Untitled";
 }
-

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import Button from "./shared/Button";
 import {
   EllipsisVerticalIcon,
@@ -49,22 +49,30 @@ export default function FileItemMenu({
     refs: [menuRef, menuButtonRef],
   });
 
-  useEffect(() => {
-    if (showMenu && menuButtonRef.current) {
+  const toggleMenu = (event: React.MouseEvent) => {
+    event.stopPropagation();
+
+    if (showMenu) {
+      setShowMenu(false);
+      return;
+    }
+
+    if (menuButtonRef.current) {
       const buttonRect = menuButtonRef.current.getBoundingClientRect();
       const viewportHeight = window.innerHeight;
       const spaceBelow = viewportHeight - buttonRect.bottom;
       const spaceAbove = buttonRect.top;
-      const estimatedMenuHeight = 250; // Approximate height of the menu
+      const estimatedMenuHeight = 250;
 
-      // If there's not enough space below but enough space above, show menu above
       if (spaceBelow < estimatedMenuHeight && spaceAbove > estimatedMenuHeight) {
         setMenuPosition("top");
       } else {
         setMenuPosition("bottom");
       }
     }
-  }, [showMenu]);
+
+    setShowMenu(true);
+  }
 
   const handleAction = (action: ((file: FileItemData) => void) | undefined) => {
     if (action) {
@@ -77,14 +85,14 @@ export default function FileItemMenu({
     // Only show Preview for files, not folders
     ...(file.type === "file"
       ? [
-          {
-            label: "Preview",
-            icon: EyeIcon,
-            action: onPreview,
-            className: "text-gray-700 hover:bg-gray-100 border-b border-gray-100",
-            iconClassName: "text-gray-500",
-          },
-        ]
+        {
+          label: "Preview",
+          icon: EyeIcon,
+          action: onPreview,
+          className: "text-gray-700 hover:bg-gray-100 border-b border-gray-100",
+          iconClassName: "text-gray-500",
+        },
+      ]
       : []),
     {
       label: "Rename",
@@ -117,14 +125,14 @@ export default function FileItemMenu({
     // Only show Move for files, not folders
     ...(file.type === "file"
       ? [
-          {
-            label: "Move",
-            icon: ArrowRightCircleIcon,
-            action: onMove,
-            className: "text-gray-700 hover:bg-gray-100 border-b border-gray-100",
-            iconClassName: "text-gray-500",
-          },
-        ]
+        {
+          label: "Move",
+          icon: ArrowRightCircleIcon,
+          action: onMove,
+          className: "text-gray-700 hover:bg-gray-100 border-b border-gray-100",
+          iconClassName: "text-gray-500",
+        },
+      ]
       : []),
     {
       label: "Delete",
@@ -141,10 +149,7 @@ export default function FileItemMenu({
       variant="icon"
       aria-label="More options"
       aria-expanded={showMenu}
-      onClick={(e) => {
-        e.stopPropagation();
-        setShowMenu(!showMenu);
-      }}
+      onClick={toggleMenu}
       className={position === "top-right" ? "bg-white/90 hover:bg-white shadow-sm" : ""}
     >
       <EllipsisVerticalIcon className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -154,9 +159,8 @@ export default function FileItemMenu({
   const dropdownMenu = showMenu && (
     <div
       ref={menuRef}
-      className={`absolute ${position === "top-right" ? "right-0" : "right-0"} ${
-        menuPosition === "top" ? "bottom-full mb-1" : "top-full mt-1"
-      } z-[100] w-48 rounded-lg bg-white border border-gray-200 shadow-lg overflow-hidden`}
+      className={`absolute ${position === "top-right" ? "right-0" : "right-0"} ${menuPosition === "top" ? "bottom-full mb-1" : "top-full mt-1"
+        } z-[100] w-48 rounded-lg bg-white border border-gray-200 shadow-lg overflow-hidden`}
       role="menu"
       onClick={(e) => e.stopPropagation()}
     >
@@ -171,9 +175,8 @@ export default function FileItemMenu({
               e.stopPropagation();
               handleAction(item.action);
             }}
-            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors cursor-pointer ${
-              isLast ? item.className : `${item.className} border-b border-gray-100`
-            }`}
+            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors cursor-pointer ${isLast ? item.className : `${item.className} border-b border-gray-100`
+              }`}
             role="menuitem"
           >
             <Icon className={`h-5 w-5 ${item.iconClassName}`} />
