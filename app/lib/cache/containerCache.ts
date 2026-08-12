@@ -9,12 +9,18 @@ type CacheEntry = {
 
 type CacheListener = () => void;
 
+let cacheVersion = 0;
 const listings = new Map<string, CacheEntry>();
 const inflight = new Map<string, Promise<ContainerListing>>();
 const listeners = new Set<CacheListener>();
 
 function cacheKey(containerUrl: string): string {
   return ensureTrailingSlash(containerUrl);
+}
+
+function notifyCacheListeners(): void {
+  cacheVersion += 1;
+  listeners.forEach((listener) => listener());
 }
 
 /** Returns a cached listing, or undefined on miss. */
@@ -30,6 +36,7 @@ export function setContainerListing(
   items: ContainerListing,
 ): void {
   listings.set(cacheKey(containerUrl), { items });
+  notifyCacheListeners();
 }
 
 /** Subscribe to cache invalidation (e.g. FolderTree local mirror). */
@@ -40,8 +47,8 @@ export function subscribeContainerCache(listener: CacheListener): () => void {
   };
 }
 
-function notifyCacheListeners(): void {
-  listeners.forEach((listener) => listener());
+export function getContainerCacheVersion(): number {
+  return cacheVersion;
 }
 
 /** Drop one container from the cache (and any in-flight fetch for it). */
@@ -89,6 +96,7 @@ export async function loadContainerListing(
   const request = loader()
     .then((items) => {
       listings.set(key, { items });
+      notifyCacheListeners();
       return items;
     })
     .finally(() => {

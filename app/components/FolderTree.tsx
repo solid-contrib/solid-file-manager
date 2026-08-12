@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ChevronRightIcon, ChevronDownIcon, FolderIcon } from "@heroicons/react/24/outline";
 import { SolidStorage } from "../lib/hooks/useSolidStorages";
 import { FolderTreeChild, folderUrlsEqual, ensureTrailingSlash, getAuthenticatedSession, fetchContainerListing, foldersFromListing } from "../lib/helpers";
-import { getContainerListing, loadContainerListing } from "../lib/cache";
+import { getContainerListing, loadContainerListing, subscribeContainerCache, getContainerCacheVersion } from "../lib/cache";
 
 interface FolderTreeProps {
     storages: SolidStorage[];
@@ -18,9 +18,27 @@ export default function FolderTree({
     onNavigate
 }: FolderTreeProps) {
     const [expandedUrls, setExpandedUrls] = useState<Set<string>>(new Set());
-    const [childrenByUrl, setChildrenByUrl] = useState<Record<string, FolderTreeChild[]>>({});
     const [loadingUrls, setLoadingUrls] = useState<Set<string>>(new Set());
     const [errorByUrl, setErrorByUrl] = useState<Record<string, string>>({});
+
+    const cacheVersion = useSyncExternalStore(
+        subscribeContainerCache,
+        getContainerCacheVersion,
+        getContainerCacheVersion,
+    )
+
+    // Children come from the shared cache, not a local copy.
+    // cacheVersion makes this recompute when listings are written or invalidated.
+    const childrenByUrl = useMemo(() => {
+        const next: Record<string, FolderTreeChild[]> = {};
+        for (const url of expandedUrls) {
+            const cached = getContainerListing(url);
+            if (cached) {
+                next[url] = foldersFromListing(cached);
+            }
+        }
+        return next;
+    }, [cacheVersion, expandedUrls])
 
     // Keep the current folder URL in one shape so highlight checks stay reliable.
     const normalizedCurrentFolderUrl = useMemo(() => (
@@ -31,16 +49,7 @@ export default function FolderTree({
     const loadChildren = useCallback(async (folderUrl: string) => {
         const normalizedUrl = ensureTrailingSlash(folderUrl);
 
-        const cached = getContainerListing(normalizedUrl);
-        if (cached) {
-            setChildrenByUrl((prev) => ({
-                ...prev,
-                [normalizedUrl]: foldersFromListing(cached),
-            }));
-            return;
-        }
-
-        if (childrenByUrl[normalizedUrl]) {
+        if (getContainerListing(normalizedUrl)) {
             return;
         }
 
@@ -59,14 +68,10 @@ export default function FolderTree({
 
         try {
             const { fetch } = getAuthenticatedSession();
-            const listing = await loadContainerListing(
+            await loadContainerListing(
                 normalizedUrl,
                 () => fetchContainerListing(normalizedUrl, fetch),
             );
-            setChildrenByUrl((prev) => ({
-                ...prev,
-                [normalizedUrl]: foldersFromListing(listing),
-            }));
         } catch (error) {
             const message =
                 error instanceof Error ? error.message : "Failed to load folders";
