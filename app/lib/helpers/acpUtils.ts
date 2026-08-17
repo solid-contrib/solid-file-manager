@@ -9,13 +9,15 @@
  */
 
 import { getAuthenticatedSession } from "./sessionUtils";
-import { AcrDataset } from "@/app/lib/class/AcrDataset";
 import type { DatasetCore } from "@rdfjs/types";
-import { AccessControlResource } from "@/app/lib/class/AccessControlResource";
+import {
+  AcrDataset,
+  AccessControlResource,
+  AccessControl,
+  Matcher,
+  Policy,
+} from "@solid/object/acp";
 import { ACP } from "@/app/lib/class/Vocabulary";
-import { Matcher } from "@/app/lib/class/Matcher";
-import { Policy } from "@/app/lib/class/Policy";
-import { AccessControl } from "@/app/lib/class/AccessControl";
 import { DataFactory, Parser, Store, Writer } from "n3";
 import { getHttpStatus } from "./httpErrorUtils";
 
