@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { getAuthenticatedSession } from "../helpers";
 import { getSolidDataset, toRdfJsDataset } from "@inrupt/solid-client";
 import { FileItemData } from "../../components/FileItem";
-import { ContainerDataset } from "../class/ContainerDataset";
+import { ContainerDataset } from "@solid/object/solid";
 import { DataFactory } from "n3";
 
 interface UseBrowseStorageResult {
