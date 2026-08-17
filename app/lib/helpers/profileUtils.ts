@@ -1,7 +1,6 @@
 import { Parser, Store, DataFactory } from "n3";
 import { getSession } from "./sessionUtils";
-import { WebIdDataset } from "@/app/lib/class/WebIdDataset";
-import type { Agent } from "@/app/lib/class/Agent";
+import { WebIdDataset, type Agent } from "@solid/object/webid";
 
 // Cache for parsed profile documents
 const profileCache = new Map<string, Agent>();
