@@ -1,5 +1,7 @@
 "use client";
 
+import { getAuthFetch } from "../lib/auth/manager";
+
 import { useState, useEffect, useRef } from "react";
 import Modal from "./shared/Modal";
 import Button from "./shared/Button";
@@ -7,7 +9,7 @@ import Input from "./shared/Input";
 import { UrlString, getFile, overwriteFile, deleteFile, createContainerAt } from "@inrupt/solid-client";
 import toast from "react-hot-toast";
 import { FileItemData } from "./FileItem";
-import { getAuthenticatedSession, sanitizeResourceName, getParentContainerUrl, ensureTrailingSlash, copyFolderContents, deleteFolderResource } from "../lib/helpers";
+import { sanitizeResourceName, getParentContainerUrl, ensureTrailingSlash, copyFolderContents, deleteFolderResource } from "../lib/helpers";
 
 interface RenameDialogProps {
   isOpen: boolean;
@@ -56,7 +58,7 @@ export default function RenameDialog({
     setIsRenaming(true);
 
     try {
-      const { fetch: fetchFn } = getAuthenticatedSession();
+      const fetchFn = getAuthFetch();
       const sanitizedName = sanitizeResourceName(newName.trim());
       const parentUrl = getParentContainerUrl(file.url);
       const parentWithSlash = ensureTrailingSlash(parentUrl);

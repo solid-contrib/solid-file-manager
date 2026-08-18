@@ -32,18 +32,6 @@ export default function ShareSuccessModal({
         }
     };
 
-    // Safely extract origin from URL
-    const getServerOrigin = () => {
-        if (!resourceUrl) return "";
-        try {
-            return new URL(resourceUrl).origin;
-        } catch {
-            return "";
-        }
-    };
-
-    const serverOrigin = getServerOrigin();
-
     return (
         <Modal
             isOpen={isOpen}

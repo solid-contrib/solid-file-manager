@@ -1,33 +1,17 @@
 "use client";
 
 import { Suspense } from "react";
-import {
-  SolidLoginNavigationProviderNext,
-  AuthGuard,
-} from "solid-react-component/login/next";
-import LoadingSpinner from "./components/shared/LoadingSpinner";
+import AuthWrapper from "./components/AuthWrapper";
 import FileManager from "./components/FileManager";
-
-const loadingFallback = (
-  <div className="flex min-h-screen items-center justify-center bg-white">
-    <LoadingSpinner size="md" text="Loading..." />
-  </div>
-);
-
-function FileManagerContent() {
-  return <FileManager />;
-}
+import FullPageLoader from "./components/shared/FullPageLoader";
 
 export default function Home() {
+  // FileManager reads search params, which needs a Suspense boundary above it.
   return (
-    <Suspense fallback={loadingFallback}>
-      <SolidLoginNavigationProviderNext
-        config={{ loginPath: "/login", homePath: "/" }}
-      >
-        <AuthGuard fallback={loadingFallback}>
-          <FileManagerContent />
-        </AuthGuard>
-      </SolidLoginNavigationProviderNext>
+    <Suspense fallback={<FullPageLoader />}>
+      <AuthWrapper>
+        <FileManager />
+      </AuthWrapper>
     </Suspense>
   );
 }

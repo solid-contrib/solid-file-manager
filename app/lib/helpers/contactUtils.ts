@@ -1,5 +1,7 @@
 import { fetchAndParseProfile } from "./profileUtils";
-import { getSession } from "./sessionUtils";
+import { getAuthFetch, getCurrentSession } from "../auth/manager";
+import { fromRdfJsDataset, saveSolidDatasetAt } from "@inrupt/solid-client";
+
 
 export interface Contact {
     webId: string;
@@ -13,16 +15,19 @@ export interface Contact {
  * @returns Array of contacts with their WebID, name, and email
  */
 export async function fetchUserContacts(): Promise<Contact[]> {
-    const session = getSession();
+    const session = getCurrentSession();
 
-    if (!session.info.isLoggedIn || !session.info.webId) {
+    if (!session) {
         return [];
     }
 
     try {
-        const userWebId = session.info.webId;
+        const userWebId = session.webId;
+        if (!userWebId) {
+            return [];
+        }
 
-        const userProfile = await fetchAndParseProfile(session.info.webId);
+        const userProfile = await fetchAndParseProfile(userWebId);
 
         const contacts: Contact[] = [];
 
@@ -52,5 +57,41 @@ export async function fetchUserContacts(): Promise<Contact[]> {
     } catch (error) {
         console.error("Failed to fetch user contacts:", error);
         return [];
+    }
+}
+
+/**
+ * Adds a contact (WebID) to the user's profile using foaf:knows relationship
+ * @param contactWebId - The WebID of the contact to add
+ * @returns Promise that resolves when the contact is added
+ */
+export async function addContactToProfile(contactWebId: string): Promise<void> {
+    const session = getCurrentSession();
+
+    if (!session) {
+        throw new Error("User is not logged in");
+    }
+
+    const userWebId = session.webId;
+    if (!userWebId) {
+        throw new Error("User WebID is not available");
+    }
+    const fetch = getAuthFetch();
+
+    const profileUrl = userWebId.split('#')[0];
+
+    try {
+        // Fetch the user's profile dataset
+        // Get the main subject (usually WebID or WebID#me)
+        const mainSubject = await fetchAndParseProfile(profileUrl);
+        
+        // Add the foaf:knows relationship
+        mainSubject.knows.add(contactWebId);
+
+        // Save the updated dataset
+        await saveSolidDatasetAt(profileUrl, fromRdfJsDataset(mainSubject.dataset), { fetch });
+    } catch (error) {
+        console.error("Failed to add contact to profile:", error);
+        throw error;
     }
 }

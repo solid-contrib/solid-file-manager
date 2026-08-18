@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSolidAuth } from "@ldo/solid-react";
 import { Parser, Store, NamedNode } from "n3";
+import { allowOrigin, getAuthFetch } from "../auth/manager";
 import { fetchAndParseProfile } from "../helpers/profileUtils";
+import { useSolidAuth } from "./useSolidAuth";
 
 // Storage predicates and types
 const PIM_STORAGE_TYPE = "http://www.w3.org/ns/pim/space#Storage";
@@ -90,12 +91,9 @@ async function discoverStorageViaTraversal(
             const parser = new Parser({ baseIRI: currentUrl });
             const quads = parser.parse(content);
             store.addQuads(quads);
-          } catch (e) {
-            // Move up one level and continue
-            const parentUrl = currentUrl.substring(
-              0,
-              currentUrl.lastIndexOf("/", currentUrl.length - 2) + 1,
-            );
+          } catch {
+            // Not RDF we can read. Move up one level and continue.
+            const parentUrl = currentUrl.substring(0, currentUrl.lastIndexOf('/', currentUrl.length - 2) + 1);
             if (parentUrl === currentUrl || parentUrl === `${url.origin}/`) {
               break;
             }
@@ -137,7 +135,7 @@ async function discoverStorageViaTraversal(
         }
         currentUrl = parentUrl;
         level++;
-      } catch (error) {
+      } catch {
         // If we can't fetch a container, try the parent
         const parentUrl = currentUrl.substring(
           0,
@@ -151,7 +149,7 @@ async function discoverStorageViaTraversal(
       }
     }
   } catch (error) {
-    // Silent error handling
+    console.warn("Could not traverse the WebID hierarchy for a storage root", error);
   }
 
   return storageUrls;
@@ -165,6 +163,7 @@ async function discoverStorageViaTraversal(
  */
 export function useSolidStorages(): UseSolidStoragesResult {
   const { session } = useSolidAuth();
+  const { isLoggedIn, webId } = session;
   const [storages, setStorages] = useState<SolidStorage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -180,60 +179,40 @@ export function useSolidStorages(): UseSolidStoragesResult {
         setError(null);
 
         // Wait for authentication to complete
-        if (!session.isLoggedIn || !session.webId) {
+        if (!isLoggedIn || !webId) {
           setIsLoading(false);
           return;
         }
-
-        const webId = session.webId;
 
         // Use shared profile fetching utility (with caching)
         const mainSubject = await fetchAndParseProfile(webId);
 
         // Get storage roots using both pim:storage and solid:storage predicates
         const storageUrls: Set<string> = mainSubject.storageUrls;
-        console.log("URLS", storageUrls);
 
         // Method 2: Hierarchical traversal (if no storage found via predicates)
         // Based on: https://github.com/SolidLabResearch/Bashlib/blob/80de25cbb4b3ed057f95e25bc057f1be9b00cef3/src/utils/util.ts#L73-L104
         if (storageUrls.size === 0) {
           try {
-            // LDO's session object has fetch property, but TypeScript types may not include it
-            // Use type assertion to access it, with fallback to regular fetch
-            type SessionWithFetch = typeof session & { fetch?: typeof fetch };
-            const sessionWithFetch = session as SessionWithFetch;
-            const fetchFn =
-              typeof sessionWithFetch.fetch === "function"
-                ? sessionWithFetch.fetch.bind(sessionWithFetch)
-                : fetch;
-            const traversalStorages = await discoverStorageViaTraversal(
-              webId,
-              fetchFn,
-            );
-            traversalStorages.forEach((url) => {
+            const traversalStorages = await discoverStorageViaTraversal(webId, getAuthFetch());
+            traversalStorages.forEach(url => {
               if (!storageUrls.has(url)) {
                 storageUrls.add(url);
               }
             });
           } catch (err) {
-            // Silent error handling
+            console.warn("Storage traversal from the WebID failed", err);
           }
         }
 
-        // If still no storage found, try to infer from WebID
+        // Last resort: assume the pod is at the root of the WebID's own origin.
         if (storageUrls.size === 0) {
-          // Extract base URL from WebID
-          const webIdUrl = new URL(webId);
-          const baseUrl = `${webIdUrl.protocol}//${webIdUrl.host}/`;
-
-          // For solidcommunity.net, storage is typically at the root
-          if (webId.includes("solidcommunity.net")) {
-            storageUrls.add(baseUrl);
-          } else {
-            // For other providers, try common patterns
-            storageUrls.add(baseUrl);
-          }
+          storageUrls.add(new URL(webId).origin + "/");
         }
+
+        // A pod usually lives on a different origin from the WebID, so it has
+        // to be vouched for before anything will authenticate against it.
+        storageUrls.forEach((url) => allowOrigin(url));
 
         // Convert to SolidStorage format
         const discoveredStorages: SolidStorage[] = [...storageUrls].map(
@@ -259,7 +238,7 @@ export function useSolidStorages(): UseSolidStoragesResult {
       }
     }
 
-    if (session.isLoggedIn && session.webId) {
+    if (isLoggedIn && webId) {
       fetchStorages();
     } else {
       setIsLoading(false);
@@ -268,7 +247,7 @@ export function useSolidStorages(): UseSolidStoragesResult {
     return () => {
       isMounted = false;
     };
-  }, [session.isLoggedIn, session.webId]);
+  }, [isLoggedIn, webId]);
 
   return { storages, isLoading, error };
 }

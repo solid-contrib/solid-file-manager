@@ -1,5 +1,7 @@
 "use client";
 
+import { getAuthFetch } from "../lib/auth/manager";
+
 import { useState, useEffect } from "react";
 import Modal from "./shared/Modal";
 import Button from "./shared/Button";
@@ -8,7 +10,6 @@ import toast from "react-hot-toast";
 import { FileItemData } from "./FileItem";
 import { 
   moveFileResource, 
-  getAuthenticatedSession, 
   decodeResourceNameFromUrl,
   ensureTrailingSlash,
 } from "../lib/helpers";
@@ -94,7 +95,7 @@ export default function MoveDialog({
       if (fileStorage) {
         const loadFolders = async () => {
           try {
-            const { fetch: fetchFn } = getAuthenticatedSession();
+            const fetchFn = getAuthFetch();
             const folders = await fetchAllFolders(fileStorage.url, fetchFn);
             // Include the storage root itself
             setAllFolders([fileStorage, ...folders]);
@@ -125,7 +126,7 @@ export default function MoveDialog({
     setIsMoving(true);
 
     try {
-      const { fetch: fetchFn } = getAuthenticatedSession();
+      const fetchFn = getAuthFetch();
       await moveFileResource(file, selectedFolderUrl, fetchFn);
       
       toast.success(`Moved "${file.name}"`);

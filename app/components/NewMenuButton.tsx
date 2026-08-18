@@ -6,14 +6,12 @@ import { useClickOutside } from "../lib/hooks";
 import Button from "./shared/Button";
 
 interface NewMenuButtonProps {
-  currentContainerUrl: string | null;
   onNewFolderClick?: () => void;
   onFileUploadClick?: () => void;
   onFolderUploadClick?: () => void;
 }
 
 export default function NewMenuButton({
-  currentContainerUrl,
   onNewFolderClick,
   onFileUploadClick,
   onFolderUploadClick,

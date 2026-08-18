@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSolidAuth } from "@ldo/solid-react";
 import { fetchAndParseProfile } from "../helpers/profileUtils";
+import { useSolidAuth } from "./useSolidAuth";
 
 export interface UserProfile {
   name: string | null;
@@ -26,6 +26,7 @@ interface UseUserProfileResult {
  */
 export function useUserProfile(): UseUserProfileResult {
   const { session } = useSolidAuth();
+  const { isLoggedIn, webId } = session;
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -37,12 +38,10 @@ export function useUserProfile(): UseUserProfileResult {
         setError(null);
 
         // Wait for authentication to complete
-        if (!session.isLoggedIn || !session.webId) {
+        if (!isLoggedIn || !webId) {
           setIsLoading(false);
           return;
         }
-
-        const webId = session.webId;
 
         // Use shared profile fetching utility (with caching)
         const { name, email, photoUrl, phone, organization, role, title, website } = await fetchAndParseProfile(webId);
@@ -70,7 +69,7 @@ export function useUserProfile(): UseUserProfileResult {
     }
 
     fetchProfile();
-  }, []);
+  }, [isLoggedIn, webId]);
 
   return { profile, isLoading, error };
 }

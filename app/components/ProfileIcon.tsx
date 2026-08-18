@@ -1,8 +1,10 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- these render remote pod URLs, so
+   next/image would need every possible pod host in remotePatterns */
+
 import { useState, useRef } from "react";
-import { useSolidAuth } from "@ldo/solid-react";
-import { useUserProfile, useClickOutside } from "../lib/hooks";
+import { useSolidAuth, useUserProfile, useClickOutside } from "../lib/hooks";
 import { UserCircleIcon, ArrowRightStartOnRectangleIcon, PhoneIcon, BuildingOfficeIcon, BriefcaseIcon, GlobeAltIcon, ClipboardIcon } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
 
@@ -26,8 +28,6 @@ export default function ProfileIcon() {
   const handleLogout = async () => {
     try {
       await logout();
-      // Redirect to login page after logout
-      window.location.href = "/login";
     } catch (error) {
       console.error("Logout failed:", error);
       toast.error("Failed to sign out");

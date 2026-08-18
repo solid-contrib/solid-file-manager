@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Toaster from "./components/shared/Toaster";
-import LdoProvider from "./components/providers/LdoProvider";
+import SolidAuthProvider from "./components/providers/SolidAuthProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,10 +34,10 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <LdoProvider>
+        <SolidAuthProvider>
           {children}
           <Toaster />
-        </LdoProvider>
+        </SolidAuthProvider>
       </body>
     </html>
   );

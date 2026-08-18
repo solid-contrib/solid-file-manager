@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import Button from "./shared/Button";
 import Input from "./shared/Input";
 import ProfileIcon from "./ProfileIcon";
 import {
@@ -12,10 +11,9 @@ import {
 
 interface HeaderProps {
   onMenuClick?: () => void;
-  sidebarOpen?: boolean;
 }
 
-export default function Header({ onMenuClick, sidebarOpen = false }: HeaderProps) {
+export default function Header({ onMenuClick }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState("");
 
   return (
