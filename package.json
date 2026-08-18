@@ -17,7 +17,6 @@
     "@inrupt/solid-client": "^1.23.1",
     "@inrupt/solid-client-authn-browser": "^3.1.1",
     "@ldo/solid-react": "^1.0.0-alpha.33",
-    "@rdfjs/wrapper": "^0.33.0",
     "@solid/object": "^0.8.0",
     "jszip": "^3.10.1",
     "n3": "^2.0.1",
