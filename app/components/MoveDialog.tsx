@@ -1,25 +1,29 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Modal from "./shared/Modal";
 import Button from "./shared/Button";
-import { getSolidDataset, getContainedResourceUrlAll, UrlString } from "@inrupt/solid-client";
 import toast from "react-hot-toast";
 import { FileItemData } from "./FileItem";
-import { 
-  moveFileResource, 
-  getAuthenticatedSession, 
-  decodeResourceNameFromUrl,
+import {
+  moveFileResource,
+  getAuthenticatedSession,
   ensureTrailingSlash,
+  fetchFolderChildren,
+  FolderPickerChild,
 } from "../lib/helpers";
-import { FolderIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
-import LoadingSpinner from "./shared/LoadingSpinner";
+import {
+  FolderIcon,
+  ExclamationTriangleIcon,
+  ChevronRightIcon,
+  ChevronDownIcon,
+} from "@heroicons/react/24/outline";
 
 interface MoveDialogProps {
   isOpen: boolean;
   onClose: () => void;
   file: FileItemData | null;
-  availableFolders: FileItemData[];
+  storageFolders: FileItemData[];
   currentLocationUrl: string;
   onMoved?: () => void;
 }
@@ -28,93 +32,96 @@ export default function MoveDialog({
   isOpen,
   onClose,
   file,
-  availableFolders,
+  storageFolders,
   currentLocationUrl,
   onMoved,
 }: MoveDialogProps) {
   const [selectedFolderUrl, setSelectedFolderUrl] = useState<string | null>(null);
   const [isMoving, setIsMoving] = useState(false);
-  const [isLoadingFolders, setIsLoadingFolders] = useState(false);
-  const [allFolders, setAllFolders] = useState<FileItemData[]>([]);
+  const [expandedUrls, setExpandedUrls] = useState<Set<string>>(new Set());
+  const [childrenByUrl, setChildrenByUrl] = useState<Record<string, FolderPickerChild[]>>({});
+  const [loadingUrls, setLoadingUrls] = useState<Set<string>>(new Set());
+  const [errorByUrl, setErrorByUrl] = useState<Record<string, string>>({});
 
-  // Recursively fetch all folders from a storage
-  const fetchAllFolders = async (containerUrl: string, fetchFn: typeof fetch): Promise<FileItemData[]> => {
-    const folders: FileItemData[] = [];
-    const visited = new Set<string>();
+  // Reset picker state when the dialog opens. No network on open.
+  useEffect(() => {
+    if (!isOpen || !file) {
+      return;
+    }
+    setSelectedFolderUrl(null);
+    setIsMoving(false);
+    setExpandedUrls(new Set());
+    setChildrenByUrl({});
+    setLoadingUrls(new Set());
+    setErrorByUrl({});
+  }, [isOpen, file]);
 
-    const traverse = async (url: string): Promise<void> => {
-      const normalizedUrl = ensureTrailingSlash(url);
-      if (visited.has(normalizedUrl)) {
+  // Fetch one level of child folders and cache them.
+  const loadChildren = useCallback(
+    async (folderUrl: string) => {
+      const normalizedUrl = ensureTrailingSlash(folderUrl);
+
+      if (childrenByUrl[normalizedUrl]) {
         return;
       }
-      visited.add(normalizedUrl);
+
+      setLoadingUrls((prev) => {
+        const next = new Set(prev);
+        next.add(normalizedUrl);
+        return next;
+      });
+
+      setErrorByUrl((prev) => {
+        if (!(normalizedUrl in prev)) return prev;
+        const next = { ...prev };
+        delete next[normalizedUrl];
+        return next;
+      });
 
       try {
-        const dataset = await getSolidDataset(normalizedUrl as UrlString, { fetch: fetchFn });
-        const containedResources = getContainedResourceUrlAll(dataset);
-
-        for (const resourceUrl of containedResources) {
-          if (resourceUrl.endsWith("/")) {
-            // It's a folder
-            const folderName = decodeResourceNameFromUrl(resourceUrl);
-            
-            folders.push({
-              id: resourceUrl,
-              name: folderName,
-              type: "folder",
-              url: resourceUrl,
-            });
-
-            // Recursively traverse subfolders
-            await traverse(resourceUrl);
-          }
-        }
+        const { fetch: fetchFn } = getAuthenticatedSession();
+        const children = await fetchFolderChildren(normalizedUrl, fetchFn);
+        setChildrenByUrl((prev) => ({ ...prev, [normalizedUrl]: children }));
       } catch (error) {
-        // Skip folders we can't access
-        console.warn(`Could not access folder ${url}:`, error);
+        const message =
+          error instanceof Error ? error.message : "Failed to load folders";
+        setErrorByUrl((prev) => ({ ...prev, [normalizedUrl]: message }));
+      } finally {
+        setLoadingUrls((prev) => {
+          const next = new Set(prev);
+          next.delete(normalizedUrl);
+          return next;
+        });
       }
-    };
+    },
+    [childrenByUrl],
+  );
 
-    await traverse(containerUrl);
-    return folders;
-  };
+  // Open or close a branch. Fetch children only when opening.
+  const toggleExpand = useCallback(
+    async (folderUrl: string) => {
+      const normalizedUrl = ensureTrailingSlash(folderUrl);
+      const isExpanded = expandedUrls.has(normalizedUrl);
 
-  useEffect(() => {
-    if (isOpen && file) {
-      setSelectedFolderUrl(null);
-      setIsMoving(false);
-      setIsLoadingFolders(true);
-      setAllFolders([]);
-
-      // Find the storage root for this file
-      const fileStorage = availableFolders.find(
-        (folder) => folder.type === "folder" && file.url.startsWith(folder.url)
-      );
-
-      if (fileStorage) {
-        const loadFolders = async () => {
-          try {
-            const { fetch: fetchFn } = getAuthenticatedSession();
-            const folders = await fetchAllFolders(fileStorage.url, fetchFn);
-            // Include the storage root itself
-            setAllFolders([fileStorage, ...folders]);
-          } catch (error) {
-            console.error("Failed to load folders:", error);
-            // Fallback to availableFolders if recursive fetch fails
-            setAllFolders(availableFolders.filter(f => f.type === "folder"));
-          } finally {
-            setIsLoadingFolders(false);
-          }
-        };
-
-        loadFolders();
-      } else {
-        // Fallback to availableFolders if we can't find the storage
-        setAllFolders(availableFolders.filter(f => f.type === "folder"));
-        setIsLoadingFolders(false);
+      if (isExpanded) {
+        setExpandedUrls((prev) => {
+          const next = new Set(prev);
+          next.delete(normalizedUrl);
+          return next;
+        });
+        return;
       }
-    }
-  }, [isOpen, file, availableFolders]);
+
+      setExpandedUrls((prev) => {
+        const next = new Set(prev);
+        next.add(normalizedUrl);
+        return next;
+      });
+
+      await loadChildren(normalizedUrl);
+    },
+    [expandedUrls, loadChildren],
+  );
 
   const handleMove = async () => {
     if (!file || !selectedFolderUrl) {
@@ -127,11 +134,10 @@ export default function MoveDialog({
     try {
       const { fetch: fetchFn } = getAuthenticatedSession();
       await moveFileResource(file, selectedFolderUrl, fetchFn);
-      
+
       toast.success(`Moved "${file.name}"`);
       onClose();
-      
-      // Notify parent to refresh
+
       if (onMoved) {
         onMoved();
       }
@@ -140,7 +146,7 @@ export default function MoveDialog({
       toast.error(
         error instanceof Error
           ? `Failed to move: ${error.message}`
-          : "Failed to move file"
+          : "Failed to move file",
       );
     } finally {
       setIsMoving(false);
@@ -153,12 +159,117 @@ export default function MoveDialog({
     }
   };
 
+  // Render one folder row and its children when expanded.
+  const renderNode = (node: FolderPickerChild, depth: number) => {
+    const nodeUrl = ensureTrailingSlash(node.url);
+    const currentUrl = currentLocationUrl
+      ? ensureTrailingSlash(currentLocationUrl)
+      : "";
+    const isCurrentLocation = currentUrl !== "" && nodeUrl === currentUrl;
+    const isExpanded = expandedUrls.has(nodeUrl);
+    const isLoading = loadingUrls.has(nodeUrl);
+    const children = childrenByUrl[nodeUrl] || [];
+    const hasError = Boolean(errorByUrl[nodeUrl]);
+    const isSelected = selectedFolderUrl === nodeUrl;
+
+    return (
+      <li key={nodeUrl}>
+        <div
+          className={`flex items-center gap-1 border-l-4 px-2 py-2 text-sm ${isSelected
+              ? "border-[#7B42F6] bg-[#F3EDFF]"
+              : "border-transparent hover:bg-gray-50"
+            }`}
+          style={{ paddingLeft: `${depth * 12 + 8}px` }}
+        >
+          <button
+            type="button"
+            onClick={() => void toggleExpand(nodeUrl)}
+            className="rounded p-0.5 hover:bg-gray-200"
+            aria-label={isExpanded ? `Collapse ${node.name}` : `Expand ${node.name}`}
+            aria-expanded={isExpanded}
+          >
+            {isExpanded ? (
+              <ChevronDownIcon className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <ChevronRightIcon className="h-4 w-4" aria-hidden="true" />
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (!isCurrentLocation) {
+                setSelectedFolderUrl(nodeUrl);
+              }
+            }}
+            disabled={isCurrentLocation}
+            className={`flex min-w-0 flex-1 items-center gap-2 text-left ${isCurrentLocation ? "cursor-not-allowed opacity-50" : ""
+              }`}
+            title={
+              isCurrentLocation
+                ? "File is already in this folder"
+                : node.name
+            }
+          >
+            <FolderIcon className="h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />
+            <span className="truncate text-gray-900">{node.name}</span>
+          </button>
+        </div>
+
+        {isExpanded && (
+          <ul>
+            {isLoading && (
+              <li
+                className="px-2 py-1 text-xs text-gray-500"
+                style={{ paddingLeft: `${(depth + 1) * 12 + 8}px` }}
+              >
+                Loading...
+              </li>
+            )}
+
+            {!isLoading && hasError && (
+              <li
+                className="px-2 py-1 text-xs text-red-600"
+                style={{ paddingLeft: `${(depth + 1) * 12 + 8}px` }}
+              >
+                Failed to load folders
+              </li>
+            )}
+
+            {!isLoading && !hasError && children.length === 0 && (
+              <li
+                className="px-2 py-1 text-xs text-gray-500"
+                style={{ paddingLeft: `${(depth + 1) * 12 + 8}px` }}
+              >
+                No folders
+              </li>
+            )}
+
+            {!isLoading &&
+              !hasError &&
+              children.map((child) => renderNode(child, depth + 1))}
+          </ul>
+        )}
+      </li>
+    );
+  };
+
   if (!file) return null;
 
-  // Filter out the current folder (where the file currently is)
-  const filteredFolders = allFolders.filter(
-    (folder) => folder.type === "folder" && folder.url !== currentLocationUrl
-  );
+  const rootNodes: FolderPickerChild[] = storageFolders.map((folder) => ({
+    url: ensureTrailingSlash(folder.url),
+    name: folder.name || folder.url,
+  }));
+
+  const currentLocationName = (() => {
+    if (!currentLocationUrl) return "My Storages";
+    try {
+      const path = new URL(currentLocationUrl).pathname;
+      return path.split("/").filter(Boolean).pop() || currentLocationUrl;
+    } catch {
+      return currentLocationUrl;
+    }
+  })();
 
   return (
     <Modal
@@ -168,11 +279,7 @@ export default function MoveDialog({
       maxWidth="lg"
       footer={
         <div className="flex justify-end gap-2">
-          <Button
-            variant="ghost"
-            onClick={onClose}
-            disabled={isMoving}
-          >
+          <Button variant="ghost" onClick={onClose} disabled={isMoving}>
             Cancel
           </Button>
           <Button
@@ -187,71 +294,38 @@ export default function MoveDialog({
       }
     >
       <main className="py-4" onKeyDown={handleKeyDown}>
-        {/* Current Location */}
         <section className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="mb-2 block text-sm font-medium text-gray-700">
             Current location:
           </label>
-          <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-md border border-gray-200">
-            <FolderIcon className="h-5 w-5 text-gray-500" />
-            <span className="text-sm text-gray-900">
-              {currentLocationUrl 
-                ? availableFolders.find(f => f.url === currentLocationUrl)?.name || 
-                  (() => {
-                    try {
-                      const url = new URL(currentLocationUrl);
-                      return url.pathname.split("/").filter(Boolean).pop() || currentLocationUrl;
-                    } catch {
-                      return currentLocationUrl;
-                    }
-                  })()
-                : "My Storages"}
-            </span>
+          <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+            <FolderIcon className="h-5 w-5 text-gray-500" aria-hidden="true" />
+            <span className="text-sm text-gray-900">{currentLocationName}</span>
           </div>
         </section>
 
-        {/* Available Folders */}
         <section>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="mb-2 block text-sm font-medium text-gray-700">
             Select a destination:
           </label>
-          {isLoadingFolders ? (
-            <div className="flex items-center justify-center py-8">
-              <LoadingSpinner size="sm" text="Loading folders..." />
-            </div>
-          ) : filteredFolders.length === 0 ? (
-            <div className="text-center py-8 text-gray-500 text-sm">
+          {rootNodes.length === 0 ? (
+            <div className="py-8 text-center text-sm text-gray-500">
               No folders available to move to
             </div>
           ) : (
-            <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-md">
-              {filteredFolders.map((folder) => (
-                <button
-                  key={folder.id}
-                  type="button"
-                  onClick={() => setSelectedFolderUrl(folder.url)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors ${
-                    selectedFolderUrl === folder.url
-                      ? "bg-[#F3EDFF] border-l-4 border-[#7B42F6]"
-                      : "border-l-4 border-transparent"
-                  }`}
-                >
-                  <FolderIcon className="h-5 w-5 text-gray-500 flex-shrink-0" />
-                  <span className="text-sm text-gray-900 truncate">{folder.name}</span>
-                </button>
-              ))}
-            </div>
+            <ul className="max-h-64 overflow-y-auto rounded-md border border-gray-200">
+              {rootNodes.map((node) => renderNode(node, 0))}
+            </ul>
           )}
         </section>
 
-        {filteredFolders.length > 0 && !selectedFolderUrl && (
-          <div className="mt-4 flex items-start gap-2 text-sm text-gray-600 bg-yellow-50 border border-yellow-200 rounded-md p-3">
-            <ExclamationTriangleIcon className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-            <span>Select a location to show the folder path</span>
+        {!selectedFolderUrl && rootNodes.length > 0 && (
+          <div className="mt-4 flex items-start gap-2 rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-gray-600">
+            <ExclamationTriangleIcon className="mt-0.5 h-5 w-5 shrink-0 text-yellow-600" />
+            <span>Select a destination folder</span>
           </div>
         )}
       </main>
     </Modal>
   );
 }
-
