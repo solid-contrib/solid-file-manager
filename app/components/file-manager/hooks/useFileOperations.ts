@@ -234,7 +234,7 @@ export function useFileOperations({
         case "share":
           dialogHandlers.openShareDialog(action.file);
           break;
-        case "openNewFolder":
+        case "newFolder":
           dialogHandlers.openNewFolderDialog();
           break;
         case "triggerFileUpload":
