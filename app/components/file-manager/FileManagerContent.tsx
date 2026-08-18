@@ -37,6 +37,7 @@ import {
     hasFiles as hasFilesInDrag,
     isUnsupportedFolderDrag,
 } from "@/app/lib/helpers";
+import { isDialog } from "./types/fileActions";
 import { useFileManagerNavigation, useFileManagerBrowse, useFileManagerActions, useFileManagerSelection, useFileManagerDialogs } from "./context/fileManagerContext";
 
 type ContextMenuState =
@@ -84,29 +85,10 @@ export default function FileManagerContent() {
     const { selectedFileIds, selectFile } = useFileManagerSelection();
 
     const {
-        showNewFolderDialog,
-        closeNewFolderDialog,
+        activeDialog,
+        closeDialog,
         fileUploadTrigger,
         folderUploadTrigger,
-        showRenameDialog,
-        fileToRename,
-        closeRenameDialog,
-        showPreviewModal,
-        fileToPreview,
-        closePreviewModal,
-        showMoveDialog,
-        fileToMove,
-        closeMoveDialog,
-        showDeleteDialog,
-        fileToDelete,
-        closeDeleteDialog,
-        showShareDialog,
-        fileToShare,
-        closeShareDialog,
-        showShareSuccessModal,
-        sharedResourceUrl,
-        sharedResourceName,
-        closeShareSuccessModal,
         openShareSuccess,
         dialogHandlers,
     } = useFileManagerDialogs();
@@ -168,7 +150,7 @@ export default function FileManagerContent() {
     };
 
     const handleRenamed = (newUrl: string) => {
-        if (fileToRename && currentPath === fileToRename.url) {
+        if (isDialog(activeDialog, "rename") && currentPath === activeDialog.file.url) {
             setCurrentPath(newUrl);
             updateUrl(newUrl, false);
         }
@@ -176,19 +158,18 @@ export default function FileManagerContent() {
     };
 
     const handleDeleteConfirm = async () => {
-        if (!fileToDelete) return;
-        const deleted = await confirmDelete(fileToDelete);
+        if (!isDialog(activeDialog, "delete")) return;
+        const deleted = await confirmDelete(activeDialog.file);
         if (deleted) {
-            closeDeleteDialog();
+            closeDialog();
         }
     };
 
     const handleShareConfirm = async (webIds: string[], accessLevel: AccessLevel) => {
-        if (!fileToShare) return;
-        const result = await confirmShare(fileToShare, webIds, accessLevel);
+        if (!isDialog(activeDialog, "share")) return;
+        const result = await confirmShare(activeDialog.file, webIds, accessLevel);
         if (!result) return;
 
-        closeShareDialog();
         openShareSuccess(result.resourceUrl, result.resourceName);
     };
 
@@ -501,26 +482,26 @@ export default function FileManagerContent() {
                 </main>
             </div>
             <NewFolderDialog
-                isOpen={showNewFolderDialog}
-                onClose={closeNewFolderDialog}
+                isOpen={isDialog(activeDialog, "newFolder")}
+                onClose={closeDialog}
                 currentContainerUrl={containerUrlToBrowse}
                 onFolderCreated={triggerDelayedRefresh}
             />
             <RenameDialog
-                isOpen={showRenameDialog}
-                onClose={closeRenameDialog}
-                file={fileToRename}
+                isOpen={isDialog(activeDialog, "rename")}
+                onClose={closeDialog}
+                file={isDialog(activeDialog, "rename") ? activeDialog.file : null}
                 onRenamed={handleRenamed}
             />
             <PreviewModal
-                isOpen={showPreviewModal}
-                onClose={closePreviewModal}
-                file={fileToPreview}
+                isOpen={isDialog(activeDialog, "preview")}
+                onClose={closeDialog}
+                file={isDialog(activeDialog, "preview") ? activeDialog.file : null}
             />
             <MoveDialog
-                isOpen={showMoveDialog}
-                onClose={closeMoveDialog}
-                file={fileToMove}
+                isOpen={isDialog(activeDialog, "move")}
+                onClose={closeDialog}
+                file={isDialog(activeDialog, "move") ? activeDialog.file : null}
                 availableFolders={availableFolders}
                 currentLocationUrl={getCurrentLocationUrl()}
                 onMoved={(destinationUrl) => {
@@ -529,23 +510,27 @@ export default function FileManagerContent() {
                 }}
             />
             <DeleteConfirmDialog
-                isOpen={showDeleteDialog}
-                onClose={closeDeleteDialog}
-                file={fileToDelete}
+                isOpen={isDialog(activeDialog, "delete")}
+                onClose={closeDialog}
+                file={isDialog(activeDialog, "delete") ? activeDialog.file : null}
                 onConfirm={handleDeleteConfirm}
                 isDeleting={isDeleting}
             />
             <ShareDialog
-                isOpen={showShareDialog}
-                onClose={closeShareDialog}
-                file={fileToShare}
+                isOpen={isDialog(activeDialog, "share")}
+                onClose={closeDialog}
+                file={isDialog(activeDialog, "share") ? activeDialog.file : null}
                 onShare={handleShareConfirm}
             />
             <ShareSuccessModal
-                isOpen={showShareSuccessModal}
-                onClose={closeShareSuccessModal}
-                resourceUrl={sharedResourceUrl}
-                resourceName={sharedResourceName}
+                isOpen={isDialog(activeDialog, "shareSuccess")}
+                onClose={closeDialog}
+                resourceUrl={
+                    isDialog(activeDialog, "shareSuccess") ? activeDialog.resourceUrl : ""
+                }
+                resourceName={
+                    isDialog(activeDialog, "shareSuccess") ? activeDialog.resourceName : ""
+                }
                 onOpenInApp={(url) => updateUrl(url, true)}
             />
             {isDragActive && (
