@@ -1,7 +1,7 @@
 import { getSolidDataset, toRdfJsDataset } from "@inrupt/solid-client";
 import { DataFactory } from "n3";
 import { FileItemData } from "../../components/FileItem";
-import { ContainerDataset } from "../class/ContainerDataset";
+import { ContainerDataset } from "@solid/object/solid";
 import { ensureTrailingSlash } from "./copyUtils";
 import type { FolderTreeChild } from "./folderTreeUtils";
 
