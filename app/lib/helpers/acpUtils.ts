@@ -17,7 +17,7 @@ import {
   Matcher,
   Policy,
 } from "@solid/object/acp";
-import { ACP } from "@/app/lib/class/Vocabulary";
+import { ACP } from "@solid/object/vocabulary";
 import { DataFactory, Parser, Store, Writer } from "n3";
 import { getHttpStatus } from "./httpErrorUtils";
 
