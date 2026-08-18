@@ -15,7 +15,7 @@
   "dependencies": {
     "@heroicons/react": "^2.2.0",
     "@inrupt/solid-client": "^1.23.1",
-    "@rdfjs/wrapper": "^0.33.0",
+    "@solid/object": "^0.8.0",
     "@solid/reactive-authentication": "github:PreciousOritsedere/reactive-authentication",
     "jszip": "^3.10.1",
     "n3": "^2.0.1",

@@ -1,5 +1,5 @@
 import { DataFactory, Parser, Store } from "n3";
-import { WebIdDataset } from "@/app/lib/class/WebIdDataset";
+import { WebIdDataset } from "@solid/object/webid";
 import { fetchDiscovery } from "./discovery";
 import { LOOPBACK_HOSTS } from "./manager";
 
@@ -97,7 +97,7 @@ async function probeProfile(webId: string): Promise<string[] | null> {
     store.addQuads(parser.parse(await response.text()));
 
     const agent = new WebIdDataset(store, DataFactory).mainSubject;
-    return agent ? [...agent.oidcIssuers] : [];
+    return agent ? [...agent.oidcIssuer] : [];
   } catch {
     return null;
   }
