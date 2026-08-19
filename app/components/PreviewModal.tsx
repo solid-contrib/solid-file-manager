@@ -243,6 +243,8 @@ export default function PreviewModal({
       }
       return (
         <div className="flex min-h-[80vh] items-center justify-center bg-gray-50 p-4">
+          {/* Solid preview URLs are authenticated/cross-origin; next/image is not suitable here */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={previewUrl}
             alt={file.name}

@@ -70,7 +70,7 @@ export function useUserProfile(): UseUserProfileResult {
     }
 
     fetchProfile();
-  }, []);
+  }, [session.isLoggedIn, session.webId]);
 
   return { profile, isLoading, error };
 }

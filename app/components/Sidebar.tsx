@@ -5,13 +5,16 @@ import Button from "./shared/Button";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import NewMenuButton from "./NewMenuButton";
 import GitHubLinks from "./shared/GitHubLinks";
+import FolderTree from "./FolderTree";
 import { useClickOutside } from "../lib/hooks";
+import { SolidStorage } from "../lib/hooks/useSolidStorages";
 
 interface SidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
-  activeTab?: string;
   currentContainerUrl?: string | null;
+  storages?: SolidStorage[];
+  onFolderNavigate?: (folderUrl: string) => void;
   onNewFolderClick?: () => void;
   onFileUploadClick?: () => void;
   onFolderUploadClick?: () => void;
@@ -20,8 +23,9 @@ interface SidebarProps {
 export default function Sidebar({
   isOpen = true,
   onClose,
-  activeTab = "my-storages",
   currentContainerUrl,
+  storages,
+  onFolderNavigate,
   onNewFolderClick,
   onFileUploadClick,
   onFolderUploadClick,
@@ -40,9 +44,6 @@ export default function Sidebar({
     refs: [sidebarRef],
   });
 
-  const navigationTabs = [
-    { id: "my-storages", label: "My Storages" },
-  ];
 
   return (
     <>
@@ -58,9 +59,8 @@ export default function Sidebar({
       {/* Sidebar */}
       <aside
         ref={sidebarRef}
-        className={`fixed left-0 top-0 z-50 h-full w-64 border-r border-gray-200 bg-white shadow-lg transition-transform lg:relative lg:z-auto lg:shadow-none lg:translate-x-0 ${
-          isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        }`}
+        className={`fixed left-0 top-0 z-50 h-full w-64 border-r border-gray-200 bg-white shadow-lg transition-transform lg:relative lg:z-auto lg:shadow-none lg:translate-x-0 ${isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          }`}
       >
         <nav className="flex h-full flex-col p-2" aria-label="Navigation">
           {/* Header with close button on mobile */}
@@ -84,28 +84,17 @@ export default function Sidebar({
             onFileUploadClick={onFileUploadClick}
             onFolderUploadClick={onFolderUploadClick}
           />
-          
-          {/* Navigation Tabs */}
-          <ul className="space-y-1" role="list">
-            {navigationTabs.map((tab) => {
-              const isActive = activeTab === tab.id;
-              return (
-                <li key={tab.id}>
-                  <button
-                    type="button"
-                    className={`cursor-pointer w-full rounded-md px-3 py-2 text-left text-sm font-medium transition-colors ${
-                      isActive
-                        ? "bg-[#F3EDFF] text-black"
-                        : "text-gray-700 hover:bg-gray-100"
-                    }`}
-                    aria-current={isActive ? "page" : undefined}
-                  >
-                    {tab.label}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+
+          <div className="mt-2 flex-1 overflow-y-auto">
+            <p className="px-3 py-1 text-xs font-medium text-gray-500">My Storages</p>
+            {storages && onFolderNavigate ? (
+              <FolderTree
+                storages={storages}
+                currentFolderUrl={currentContainerUrl}
+                onNavigate={onFolderNavigate}
+              />
+            ) : null}
+          </div>
 
           {/* Footer links - pushed to bottom */}
           <div className="mt-auto border-t border-gray-200 pt-4">

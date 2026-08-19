@@ -20,8 +20,6 @@ export async function fetchUserContacts(): Promise<Contact[]> {
     }
 
     try {
-        const userWebId = session.info.webId;
-
         const userProfile = await fetchAndParseProfile(session.info.webId);
 
         const contacts: Contact[] = [];

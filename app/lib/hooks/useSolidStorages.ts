@@ -90,7 +90,7 @@ async function discoverStorageViaTraversal(
             const parser = new Parser({ baseIRI: currentUrl });
             const quads = parser.parse(content);
             store.addQuads(quads);
-          } catch (e) {
+          } catch {
             // Move up one level and continue
             const parentUrl = currentUrl.substring(
               0,
@@ -137,7 +137,7 @@ async function discoverStorageViaTraversal(
         }
         currentUrl = parentUrl;
         level++;
-      } catch (error) {
+      } catch {
         // If we can't fetch a container, try the parent
         const parentUrl = currentUrl.substring(
           0,
@@ -150,7 +150,7 @@ async function discoverStorageViaTraversal(
         level++;
       }
     }
-  } catch (error) {
+  } catch {
     // Silent error handling
   }
 
@@ -215,7 +215,7 @@ export function useSolidStorages(): UseSolidStoragesResult {
                 storageUrls.add(url);
               }
             });
-          } catch (err) {
+          } catch {
             // Silent error handling
           }
         }
@@ -268,6 +268,8 @@ export function useSolidStorages(): UseSolidStoragesResult {
     return () => {
       isMounted = false;
     };
+    // session.fetch is read inside; isLoggedIn/webId are the auth signals we depend on
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- session identity changes often; auth fields above are sufficient
   }, [session.isLoggedIn, session.webId]);
 
   return { storages, isLoading, error };

@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense } from "react";
-import { useRouter } from "next/navigation";
 import {
   SolidLoginNavigationProviderNext,
   AuthGuard,
@@ -15,7 +14,6 @@ const loadingFallback = (
 );
 
 export default function Login() {
-  const router = useRouter();
   return (
     <Suspense fallback={loadingFallback}>
       <SolidLoginNavigationProviderNext
