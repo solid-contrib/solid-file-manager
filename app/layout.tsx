@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import LdoProvider from "./components/providers/LdoProvider";
+import ThemeProvider from "./components/providers/ThemeProvider";
 import { cn } from "@/lib/utils";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
@@ -34,16 +35,23 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={cn("font-sans", inter.variable)}>
+    <html lang="en" suppressHydrationWarning className={cn("font-sans", inter.variable)}>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <LdoProvider>
-          <TooltipProvider>
-            {children}
-            <Toaster />
-          </TooltipProvider>
-        </LdoProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <LdoProvider>
+            <TooltipProvider>
+              {children}
+              <Toaster />
+            </TooltipProvider>
+          </LdoProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
