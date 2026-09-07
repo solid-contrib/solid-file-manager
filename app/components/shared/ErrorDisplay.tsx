@@ -18,16 +18,16 @@ export default function ErrorDisplay({
 }: ErrorDisplayProps) {
   return (
     <main
-      className={`flex min-h-screen flex-col items-center justify-center bg-white px-4 ${className}`}
+      className={`flex min-h-screen flex-col items-center justify-center bg-background px-4 ${className}`}
       role="alert"
       aria-live="assertive"
     >
       <section className="max-w-md text-center">
         <div className="mb-4 flex justify-center">
-          <AlertTriangle className="h-12 w-12 text-red-500" />
+          <AlertTriangle className="h-12 w-12 text-destructive" />
         </div>
-        <h2 className="mb-2 text-xl font-semibold text-black">{title}</h2>
-        <p className="mb-6 text-gray-600">{message}</p>
+        <h2 className="mb-2 text-xl font-semibold text-foreground">{title}</h2>
+        <p className="mb-6 text-muted-foreground">{message}</p>
         {onRetry && (
           <Button variant="default" onClick={onRetry}>
             Try Again
@@ -37,4 +37,3 @@ export default function ErrorDisplay({
     </main>
   );
 }
-

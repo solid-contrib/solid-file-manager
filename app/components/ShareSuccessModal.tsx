@@ -52,14 +52,14 @@ export default function ShareSuccessModal({
             </div>
 
             {/* Message */}
-            <p className="text-gray-600 text-center mb-6">
+            <p className="text-muted-foreground text-center mb-6">
                 <span className="font-medium">{resourceName}</span> has been shared successfully.
                 Please copy the resource URL below and send it to the people you shared with.
             </p>
 
             {/* Resource URL */}
             <div className="mb-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                     Resource URL
                 </label>
                 <div className="flex items-center gap-2">
@@ -67,7 +67,7 @@ export default function ShareSuccessModal({
                         type="text"
                         value={resourceUrl}
                         readOnly
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        className="flex-1 px-3 py-2 border border-border rounded-md bg-muted text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
                     />
                     <Button
                         onClick={handleCopy}

@@ -135,14 +135,14 @@ export default function FolderTree({
         return (
             <li key={nodeUrl}>
                 <div
-                    className={`group flex items-center gap-1 rounded-md px-2 py-1 text-sm ${isCurrent ? "bg-[#F3EDFF] text-black font-medium" : "text-gray-700 hover:bg-gray-100"
+                    className={`group flex items-center gap-1 rounded-md px-2 py-1 text-sm ${isCurrent ? "bg-accent text-foreground font-medium" : "text-foreground hover:bg-muted"
                         }`}
                     style={{ paddingLeft: `${depth * 12 + 8}px` }}
                 >
                     <button
                         type="button"
                         onClick={() => void toggleExpand(nodeUrl)}
-                        className="rounded p-0.5 hover:bg-gray-200"
+                        className="rounded p-0.5 hover:bg-muted"
                         aria-label={isExpanded ? `Collapse ${node.name}` : `Expand ${node.name}`}
                         aria-expanded={isExpanded}
                     >
@@ -169,7 +169,7 @@ export default function FolderTree({
                     <ul className="space-y-0.5">
                         {isLoading && (
                             <li
-                                className="px-2 py-1 text-xs text-gray-500"
+                                className="px-2 py-1 text-xs text-muted-foreground"
                                 style={{ paddingLeft: `${(depth + 1) * 12 + 8}px` }}
                                 aria-live="polite"
                             >
@@ -179,7 +179,7 @@ export default function FolderTree({
 
                         {!isLoading && hasError && (
                             <li
-                                className="px-2 py-1 text-xs text-red-600"
+                                className="px-2 py-1 text-xs text-destructive"
                                 style={{ paddingLeft: `${(depth + 1) * 12 + 8}px` }}
                             >
                                 Failed to load folders
@@ -212,7 +212,7 @@ export default function FolderTree({
     );
 
     if (rootNodes.length === 0) {
-        return <p className="px-3 py-2 text-sm text-gray-500">No storages found</p>
+        return <p className="px-3 py-2 text-sm text-muted-foreground">No storages found</p>
     }
 
     return (

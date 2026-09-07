@@ -247,7 +247,7 @@ export default function PreviewModal({
         );
       }
       return (
-        <div className="flex min-h-[80vh] items-center justify-center bg-gray-50 p-4">
+        <div className="flex min-h-[80vh] items-center justify-center bg-muted p-4">
           {/* Solid preview URLs are authenticated/cross-origin; next/image is not suitable here */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -263,7 +263,7 @@ export default function PreviewModal({
     if (fileType === "text") {
       return (
         <div className="min-h-[80vh] overflow-auto">
-          <pre className="whitespace-pre-wrap break-words p-4 font-mono text-sm text-gray-800 bg-gray-50 rounded">
+          <pre className="whitespace-pre-wrap break-words p-4 font-mono text-sm text-foreground bg-muted rounded">
             {previewContent || ""}
           </pre>
         </div>
@@ -273,15 +273,15 @@ export default function PreviewModal({
     // For other file types
     return (
       <div className="flex h-96 flex-col items-center justify-center text-center px-4">
-        <p className="text-gray-600 mb-2 font-medium">
+        <p className="text-muted-foreground mb-2 font-medium">
           Preview is not available for this file type.
         </p>
         {previewUnavailableReason && (
-          <p className="text-sm text-gray-500 mb-4 max-w-md">
+          <p className="text-sm text-muted-foreground mb-4 max-w-md">
             {previewUnavailableReason}
           </p>
         )}
-        <p className="text-sm text-gray-500 mb-6">
+        <p className="text-sm text-muted-foreground mb-6">
           Please download the file to view it.
         </p>
         <Button variant="default" onClick={onClose}>

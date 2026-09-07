@@ -18,7 +18,7 @@ export default function Toolbar({
   actions,
 }: ToolbarProps) {
   return (
-    <header className="flex items-center justify-between border-b border-gray-200 px-2 py-2 sm:px-4">
+    <header className="flex items-center justify-between border-b border-border px-2 py-2 sm:px-4">
       <nav className="flex items-center gap-1 sm:gap-2" aria-label="View options">
         <Button
           variant="ghost"
@@ -26,8 +26,8 @@ export default function Toolbar({
           onClick={() => onViewChange("list")}
           className={`p-1.5 sm:p-2 ${
             view === "list"
-              ? "bg-[#F3EDFF] text-black"
-              : "text-gray-600 hover:bg-gray-100"
+              ? "bg-accent text-foreground"
+              : "text-muted-foreground hover:bg-muted"
           }`}
           aria-label="List view"
           aria-pressed={view === "list"}
@@ -40,8 +40,8 @@ export default function Toolbar({
           onClick={() => onViewChange("grid")}
           className={`p-1.5 sm:p-2 ${
             view === "grid"
-              ? "bg-[#F3EDFF] text-black"
-              : "text-gray-600 hover:bg-gray-100"
+              ? "bg-accent text-foreground"
+              : "text-muted-foreground hover:bg-muted"
           }`}
           aria-label="Grid view"
           aria-pressed={view === "grid"}
@@ -50,10 +50,9 @@ export default function Toolbar({
         </Button>
         {actions && <div className="flex items-center gap-1 sm:gap-2">{actions}</div>}
       </nav>
-      <div className="text-xs text-gray-600 sm:text-sm" role="status" aria-live="polite">
+      <div className="text-xs text-muted-foreground sm:text-sm" role="status" aria-live="polite">
         {itemCount} {itemCount === 1 ? "item" : "items"}
       </div>
     </header>
   );
 }
-

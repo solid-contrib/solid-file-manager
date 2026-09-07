@@ -30,12 +30,12 @@ export default function EmptyState({
         >
             <section className="text-center">
                 <div className="mb-4 flex justify-center">
-                    {icon || <File className="h-12 w-12 text-gray-400" />}
+                    {icon || <File className="h-12 w-12 text-muted-foreground" />}
                 </div>
                 {title && (
-                    <h3 className="mb-2 text-lg font-medium text-black">{title}</h3>
+                    <h3 className="mb-2 text-lg font-medium text-foreground">{title}</h3>
                 )}
-                <p className="mb-6 text-gray-600">{message}</p>
+                <p className="mb-6 text-muted-foreground">{message}</p>
                 {action && (
                     <Button variant="default" onClick={action.onClick}>
                         {action.label}
@@ -45,4 +45,3 @@ export default function EmptyState({
         </main>
     );
 }
-

@@ -55,7 +55,7 @@ export default function FileItemMenu({
             variant="ghost"
             size="icon"
             aria-label="More options"
-            className={position === "top-right" ? "bg-white/90 hover:bg-white shadow-sm" : ""}
+            className={position === "top-right" ? "bg-background/90 hover:bg-background shadow-sm" : ""}
             onClick={(e) => e.stopPropagation()}
           />
         }

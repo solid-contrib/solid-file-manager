@@ -120,7 +120,7 @@ function AuthWrapperContent({ children }: AuthWrapperProps) {
 
   if (showLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white">
+      <div className="flex min-h-screen items-center justify-center bg-background">
         <LoadingSpinner size="md" text="Loading..." />
       </div>
     );
@@ -141,7 +141,7 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-white">
+        <div className="flex min-h-screen items-center justify-center bg-background">
           <LoadingSpinner size="md" text="Loading..." />
         </div>
       }

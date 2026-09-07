@@ -407,7 +407,7 @@ export default function FileManagerContent() {
 
     return (
         <div
-            className="flex h-screen flex-col overflow-hidden bg-white"
+            className="flex h-screen flex-col overflow-hidden bg-background"
             onDragEnter={handleDragEnter}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -543,15 +543,15 @@ export default function FileManagerContent() {
             />
             {isDragActive && (
                 <div
-                    className="pointer-events-none fixed inset-0 z-40 flex flex-col items-center justify-center bg-purple-500/10"
+                    className="pointer-events-none fixed inset-0 z-40 flex flex-col items-center justify-center bg-primary/10"
                     role="status"
                     aria-live="polite"
                 >
-                    <div className="rounded-2xl border border-purple-400 bg-white/90 px-8 py-6 text-center shadow-lg">
-                        <p className="text-lg font-semibold text-purple-700">
+                    <div className="rounded-2xl border border-primary/40 bg-background/90 px-8 py-6 text-center shadow-lg">
+                        <p className="text-lg font-semibold text-primary">
                             Drop files or folders to upload
                         </p>
-                        <p className="mt-2 text-sm text-purple-600">
+                        <p className="mt-2 text-sm text-primary/80">
                             They will be uploaded to the current folder
                         </p>
                     </div>

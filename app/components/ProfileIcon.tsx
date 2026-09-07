@@ -73,7 +73,7 @@ export default function ProfileIcon() {
       type="button"
       variant="ghost"
       size="icon"
-      className="relative h-9 w-9 rounded-full border-2 border-gray-300 hover:border-gray-400 overflow-hidden bg-white"
+      className="relative h-9 w-9 rounded-full border-2 border-border hover:border-muted-foreground overflow-hidden bg-background"
       aria-label="User profile"
     >
       {profile?.photoUrl ? (
@@ -91,7 +91,7 @@ export default function ProfileIcon() {
         />
       ) : null}
       <UserCircle
-        className="h-7 w-7 text-gray-600"
+        className="h-7 w-7 text-muted-foreground"
         style={{ display: profile?.photoUrl ? "none" : "block" }}
       />
     </Button>

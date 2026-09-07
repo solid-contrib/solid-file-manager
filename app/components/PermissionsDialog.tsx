@@ -63,7 +63,7 @@ export default function PermissionsDialog({
         </DialogHeader>
           {/* Add People Section */}
           <div className="mb-6">
-            <label htmlFor="share-input" className="mb-2 block text-sm font-medium text-black">
+            <label htmlFor="share-input" className="mb-2 block text-sm font-medium text-foreground">
               Add people or groups
             </label>
             <div className="flex flex-col gap-2 sm:flex-row">
@@ -73,7 +73,7 @@ export default function PermissionsDialog({
                 value={shareInput}
                 onChange={(e) => setShareInput(e.target.value)}
                 placeholder="Enter WebID or email"
-                className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm text-black placeholder:text-gray-500 focus:border-[#7B42F6] focus:outline-none focus:ring-1 focus:ring-[#7B42F6]"
+                className="flex-1 rounded-md border border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     handleAddPermission();
@@ -84,7 +84,7 @@ export default function PermissionsDialog({
                 <select
                   value={selectedRole}
                   onChange={(e) => setSelectedRole(e.target.value as "viewer" | "editor")}
-                  className="cursor-pointer flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-black focus:border-[#7B42F6] focus:outline-none focus:ring-1 focus:ring-[#7B42F6] sm:flex-initial"
+                  className="cursor-pointer flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring sm:flex-initial"
                   aria-label="Permission role"
                 >
                   <option value="viewer">Viewer</option>
@@ -105,27 +105,27 @@ export default function PermissionsDialog({
 
           {/* Permissions List */}
           <div>
-            <h3 className="mb-3 text-sm font-medium text-black">People with access</h3>
+            <h3 className="mb-3 text-sm font-medium text-foreground">People with access</h3>
             <div className="space-y-2">
               {permissions.map((permission) => (
                 <div
                   key={permission.id}
-                  className="flex flex-col gap-2 rounded-md border border-gray-200 p-3 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-2 rounded-md border border-border p-3 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#F3EDFF] text-sm font-medium text-black">
+                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-accent text-sm font-medium text-foreground">
                       {permission.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-black">{permission.name}</p>
+                      <p className="truncate text-sm font-medium text-foreground">{permission.name}</p>
                       {permission.email && (
-                        <p className="truncate text-xs text-gray-600">{permission.email}</p>
+                        <p className="truncate text-xs text-muted-foreground">{permission.email}</p>
                       )}
                     </div>
                   </div>
                   <div className="flex items-center justify-end gap-2">
                     {permission.role === "owner" ? (
-                      <span className="text-sm text-gray-600">Owner</span>
+                      <span className="text-sm text-muted-foreground">Owner</span>
                     ) : (
                       <>
                         <select
@@ -136,7 +136,7 @@ export default function PermissionsDialog({
                               e.target.value as "viewer" | "editor"
                             )
                           }
-                          className="cursor-pointer rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-black focus:border-[#7B42F6] focus:outline-none focus:ring-1 focus:ring-[#7B42F6]"
+                          className="cursor-pointer rounded-md border border-border bg-background px-2 py-1 text-sm text-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
                           aria-label={`Change permission for ${permission.name}`}
                         >
                           <option value="viewer">Viewer</option>

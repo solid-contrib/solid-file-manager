@@ -112,11 +112,11 @@ export default function ShareDialog({
       icon: (
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200">
           {contact.name ? (
-            <span className="text-sm font-medium text-gray-700">
+            <span className="text-sm font-medium text-foreground">
               {contact.name.charAt(0).toUpperCase()}
             </span>
           ) : (
-            <User className="h-5 w-5 text-gray-500" />
+            <User className="h-5 w-5 text-muted-foreground" />
           )}
         </div>
       ),
@@ -250,7 +250,7 @@ export default function ShareDialog({
       <div className="space-y-6">
         {/* Add people section */}
         <div>
-          <label className="mb-2 block text-sm font-medium text-gray-700">
+          <label className="mb-2 block text-sm font-medium text-foreground">
             Add a WebID
           </label>
 
@@ -260,18 +260,18 @@ export default function ShareDialog({
               {peopleChips.map((chip) => (
                 <div
                   key={chip.webId}
-                  className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 py-1.5"
+                  className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5"
                 >
                   <div className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-xs font-medium text-white">
                     {getInitial(chip)}
                   </div>
-                  <span className="text-sm text-gray-700">
+                  <span className="text-sm text-foreground">
                     {getDisplayText(chip)}
                   </span>
                   <button
                     type="button"
                     onClick={() => handleRemoveChip(chip.webId)}
-                    className="ml-1 text-gray-400 hover:text-gray-600"
+                    className="ml-1 text-muted-foreground hover:text-muted-foreground"
                     aria-label="Remove"
                   >
                     <X className="h-4 w-4" />
@@ -298,13 +298,13 @@ export default function ShareDialog({
 
         {/* General access section */}
         <div>
-          <h3 className="mb-3 text-sm font-medium text-gray-700">General access</h3>
+          <h3 className="mb-3 text-sm font-medium text-foreground">General access</h3>
           <div className="flex items-center gap-2">
-            <Lock className="h-5 w-5 text-gray-500" />
+            <Lock className="h-5 w-5 text-muted-foreground" />
             <select
               value={selectedAccessLevel}
               onChange={(e) => setSelectedAccessLevel(e.target.value as AccessLevel)}
-              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:border-[#7B42F6] focus:outline-none focus:ring-1 focus:ring-[#7B42F6]"
+              className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
             >
               <option value="Editor">Editor</option>
               <option value="Viewer">Viewer</option>
@@ -315,7 +315,7 @@ export default function ShareDialog({
         {/* People with access section */}
         {accessList && accessList.length > 0 && (
           <div>
-            <h3 className="mb-3 text-sm font-medium text-gray-700">People with access</h3>
+            <h3 className="mb-3 text-sm font-medium text-foreground">People with access</h3>
             <div className="space-y-2">
               {isLoadingAccessList ? (
                 <div className="flex items-center justify-center py-2">
@@ -330,21 +330,21 @@ export default function ShareDialog({
                   return (
                     <div
                       key={access.webId || index}
-                      className="flex items-center justify-between rounded-md border border-gray-200 bg-gray-50 px-3 py-2"
+                      className="flex items-center justify-between rounded-md border border-border bg-muted px-3 py-2"
                     >
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
-                        <span className="text-sm text-gray-700 truncate">
+                        <span className="text-sm text-foreground truncate">
                           {access.webId}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0 ml-2">
-                        <span className="text-xs text-gray-500">{accessLevel}</span>
+                        <span className="text-xs text-muted-foreground">{accessLevel}</span>
                         <button
                           type="button"
                           onClick={() => handleRemoveAccess(access.webId)}
                           disabled={isRemoving}
-                          className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           aria-label={`Remove access for ${access.webId}`}
                           title="Remove access"
                         >

@@ -23,7 +23,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState("");
 
   return (
-    <header className="sticky top-0 z-10 border-b border-gray-200 bg-white">
+    <header className="sticky top-0 z-10 border-b border-border bg-background">
       <div className="relative flex flex-col gap-2 px-2 py-2 sm:flex-row sm:items-center sm:gap-4 sm:px-4 sm:py-0 sm:h-14">
         {/* Top Row: Menu, Logo, Actions */}
         <div className="flex h-14 w-full items-center gap-2 sm:gap-4">
@@ -32,7 +32,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
             <button
               type="button"
               onClick={onMenuClick}
-              className="cursor-pointer flex h-9 w-9 items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-[#7B42F6] lg:hidden"
+              className="cursor-pointer flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring lg:hidden"
               aria-label="Toggle menu"
             >
               <Menu className="h-5 w-5" />

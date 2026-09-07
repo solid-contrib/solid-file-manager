@@ -20,18 +20,17 @@ export default function LoadingSpinner({
   return (
     <main className={`flex flex-col items-center justify-center ${className}`}>
       <div
-        className={`inline-block animate-spin rounded-full border-solid border-[#7B42F6] border-r-transparent ${sizeClasses[size]}`}
+        className={`inline-block animate-spin rounded-full border-solid border-primary border-r-transparent ${sizeClasses[size]}`}
         role="status"
         aria-label="Loading"
       >
         <span className="sr-only">Loading...</span>
       </div>
       {text && (
-        <p className="mt-4 text-sm text-gray-600" aria-live="polite">
+        <p className="mt-4 text-sm text-muted-foreground" aria-live="polite">
           {text}
         </p>
       )}
     </main>
   );
 }
-
