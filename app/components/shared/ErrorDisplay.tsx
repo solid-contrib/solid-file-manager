@@ -2,6 +2,15 @@
 
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { cn } from "@/lib/utils";
 
 interface ErrorDisplayProps {
   title?: string;
@@ -17,23 +26,25 @@ export default function ErrorDisplay({
   className = "",
 }: ErrorDisplayProps) {
   return (
-    <main
-      className={`flex min-h-screen flex-col items-center justify-center bg-background px-4 ${className}`}
+    <Empty
+      className={cn("min-h-screen border-0 bg-background", className)}
       role="alert"
       aria-live="assertive"
     >
-      <section className="max-w-md text-center">
-        <div className="mb-4 flex justify-center">
-          <AlertTriangle className="h-12 w-12 text-destructive" />
-        </div>
-        <h2 className="mb-2 text-xl font-semibold text-foreground">{title}</h2>
-        <p className="mb-6 text-muted-foreground">{message}</p>
-        {onRetry && (
+      <EmptyHeader>
+        <EmptyMedia variant="icon" className="text-destructive">
+          <AlertTriangle />
+        </EmptyMedia>
+        <EmptyTitle>{title}</EmptyTitle>
+        <EmptyDescription>{message}</EmptyDescription>
+      </EmptyHeader>
+      {onRetry ? (
+        <EmptyContent>
           <Button variant="default" onClick={onRetry}>
             Try Again
           </Button>
-        )}
-      </section>
-    </main>
+        </EmptyContent>
+      ) : null}
+    </Empty>
   );
 }
