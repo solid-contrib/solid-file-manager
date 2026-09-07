@@ -9,6 +9,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@/components/ui/native-select";
 import UrlCombobox, { ComboboxOption } from "./shared/UrlCombobox";
 import { FileItemData } from "./FileItem";
 import { fetchUserContacts, Contact } from "../lib/helpers/contactUtils";
@@ -110,7 +114,7 @@ export default function ShareDialog({
       value: contact.webId,
       secondaryLabel: contact.email && contact.name ? contact.email : undefined,
       icon: (
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
           {contact.name ? (
             <span className="text-sm font-medium text-foreground">
               {contact.name.charAt(0).toUpperCase()}
@@ -262,7 +266,7 @@ export default function ShareDialog({
                   key={chip.webId}
                   className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5"
                 >
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-xs font-medium text-white">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
                     {getInitial(chip)}
                   </div>
                   <span className="text-sm text-foreground">
@@ -271,7 +275,7 @@ export default function ShareDialog({
                   <button
                     type="button"
                     onClick={() => handleRemoveChip(chip.webId)}
-                    className="ml-1 text-muted-foreground hover:text-muted-foreground"
+                    className="ml-1 text-muted-foreground hover:text-foreground"
                     aria-label="Remove"
                   >
                     <X className="h-4 w-4" />
@@ -301,14 +305,14 @@ export default function ShareDialog({
           <h3 className="mb-3 text-sm font-medium text-foreground">General access</h3>
           <div className="flex items-center gap-2">
             <Lock className="h-5 w-5 text-muted-foreground" />
-            <select
+            <NativeSelect
               value={selectedAccessLevel}
               onChange={(e) => setSelectedAccessLevel(e.target.value as AccessLevel)}
-              className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
+              aria-label="Access level"
             >
-              <option value="Editor">Editor</option>
-              <option value="Viewer">Viewer</option>
-            </select>
+              <NativeSelectOption value="Editor">Editor</NativeSelectOption>
+              <NativeSelectOption value="Viewer">Viewer</NativeSelectOption>
+            </NativeSelect>
           </div>
         </div>
 
@@ -333,7 +337,7 @@ export default function ShareDialog({
                       className="flex items-center justify-between rounded-md border border-border bg-muted px-3 py-2"
                     >
                       <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
+                        <CheckCircle className="h-4 w-4 text-primary shrink-0" />
                         <span className="text-sm text-foreground truncate">
                           {access.webId}
                         </span>

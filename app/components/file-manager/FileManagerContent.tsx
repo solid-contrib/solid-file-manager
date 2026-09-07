@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "@/components/ui/toast";
 import {
     FolderPlus,
@@ -100,23 +100,6 @@ export default function FileManagerContent() {
     const [contextMenuState, setContextMenuState] = useState<ContextMenuState | null>(null);
 
     const closeContextMenu = () => setContextMenuState(null);
-
-    // Close context menu on outside click
-    useEffect(() => {
-        if (!contextMenuState) return;
-
-        const handleClick = () => setContextMenuState(null);
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape") setContextMenuState(null);
-        };
-
-        document.addEventListener("click", handleClick);
-        document.addEventListener("keydown", handleKeyDown);
-        return () => {
-            document.removeEventListener("click", handleClick);
-            document.removeEventListener("keydown", handleKeyDown);
-        };
-    }, [contextMenuState]);
 
     /** Require a selected container before create/upload actions. */
     const ensureStorageSelected = () => {
