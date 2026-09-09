@@ -14,5 +14,4 @@ export type { SolidStorage } from "./useSolidStorages";
 export { useUserProfile } from "./useUserProfile";
 export type { UserProfile } from "./useUserProfile";
 export { useBrowseStorage } from "./useBrowseStorage";
-export { useClickOutside } from "./useClickOutside";
 

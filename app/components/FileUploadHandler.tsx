@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect, type InputHTMLAttributes } from "react";
-import toast from "react-hot-toast";
+import { toast } from "@/components/ui/toast";
 import {
   getAuthenticatedSession,
   uploadFilesToContainer,
@@ -45,7 +45,7 @@ export default function FileUploadHandler({
     if (!files || files.length === 0) return;
 
     if (!currentContainerUrl) {
-      toast.error("Please select a storage first");
+      toast.add({ title: "Please select a storage first", type: "error" });
       e.target.value = "";
       return;
     }
@@ -54,7 +54,7 @@ export default function FileUploadHandler({
     try {
       ({ fetch: fetchFn } = getAuthenticatedSession());
     } catch {
-      toast.error("Not authenticated");
+      toast.add({ title: "Not authenticated", type: "error" });
       e.target.value = "";
       return;
     }
@@ -70,7 +70,7 @@ export default function FileUploadHandler({
           uploadedFiles.length === 1
             ? `File uploaded successfully`
             : `${uploadedFiles.length} files uploaded successfully`;
-        toast.success(message);
+        toast.add({ title: message, type: "success" });
       }
 
       if (failedFiles.length > 0) {
@@ -78,7 +78,7 @@ export default function FileUploadHandler({
           failedFiles.length === 1
             ? `Failed to upload "${failedFiles[0]}"`
             : `Failed to upload ${failedFiles.length} files`;
-        toast.error(message);
+        toast.add({ title: message, type: "error" });
       }
 
       if (uploadedFiles.length > 0 && onUploadComplete) {
@@ -87,7 +87,7 @@ export default function FileUploadHandler({
       }
     } catch (error) {
       console.error("Upload error:", error);
-      toast.error("Failed to upload files");
+      toast.add({ title: "Failed to upload files", type: "error" });
     } finally {
       e.target.value = "";
     }
@@ -98,7 +98,7 @@ export default function FileUploadHandler({
     if (!files || files.length === 0) return;
 
     if (!currentContainerUrl) {
-      toast.error("Please select a storage first");
+      toast.add({ title: "Please select a storage first", type: "error" });
       e.target.value = "";
       return;
     }
@@ -107,7 +107,7 @@ export default function FileUploadHandler({
     try {
       ({ fetch: fetchFn } = getAuthenticatedSession());
     } catch {
-      toast.error("Not authenticated");
+      toast.add({ title: "Not authenticated", type: "error" });
       e.target.value = "";
       return;
     }
@@ -131,7 +131,7 @@ export default function FileUploadHandler({
           uploadedFiles.length === 1
             ? `File uploaded successfully`
             : `${uploadedFiles.length} files uploaded successfully`;
-        toast.success(message);
+        toast.add({ title: message, type: "success" });
       }
 
       if (failedFiles.length > 0) {
@@ -139,7 +139,7 @@ export default function FileUploadHandler({
           failedFiles.length === 1
             ? `Failed to upload "${failedFiles[0]}"`
             : `Failed to upload ${failedFiles.length} files`;
-        toast.error(message);
+        toast.add({ title: message, type: "error" });
       }
 
       if (uploadedFiles.length > 0 && onUploadComplete) {
@@ -148,7 +148,7 @@ export default function FileUploadHandler({
       }
     } catch (error) {
       console.error("Upload error:", error);
-      toast.error("Failed to upload folder");
+      toast.add({ title: "Failed to upload folder", type: "error" });
     } finally {
       e.target.value = "";
     }

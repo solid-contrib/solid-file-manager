@@ -120,8 +120,8 @@ export default function FileItem({
     return (
       <section
         className={`group relative flex cursor-pointer select-none flex-col items-center justify-center rounded-lg border-2 p-2 transition-colors sm:p-4 ${isSelected
-            ? "border-[#7B42F6] bg-[#F9F6FF]"
-            : "border-transparent bg-white hover:border-gray-300 hover:bg-gray-50"
+            ? "border-primary bg-accent"
+            : "border-transparent bg-background hover:border-border hover:bg-muted"
           }`}
         style={{ touchAction: 'manipulation' }}
         onMouseEnter={() => setIsHovered(true)}
@@ -153,7 +153,7 @@ export default function FileItem({
         <div className="mb-1 flex h-12 w-12 items-center justify-center sm:mb-2 sm:h-16 sm:w-16">
           {getFileIcon(file.type, file.mimeType)}
         </div>
-        <p className="max-w-full truncate text-center text-xs font-medium text-black sm:text-sm">
+        <p className="max-w-full truncate text-center text-xs font-medium text-foreground sm:text-sm">
           {file.name}
         </p>
       </section>
@@ -163,7 +163,7 @@ export default function FileItem({
   // List view
   return (
     <section
-      className={`group flex cursor-pointer select-none items-center gap-2 border-b border-gray-100 px-2 py-2 transition-colors sm:gap-4 sm:px-4 sm:py-3 ${isSelected ? "bg-[#F9F6FF]" : "bg-white hover:bg-gray-50"
+      className={`group flex cursor-pointer select-none items-center gap-2 border-b border-border px-2 py-2 transition-colors sm:gap-4 sm:px-4 sm:py-3 ${isSelected ? "bg-accent" : "bg-background hover:bg-muted"
         }`}
       style={{ touchAction: 'manipulation' }}
       onMouseEnter={() => setIsHovered(true)}
@@ -183,12 +183,12 @@ export default function FileItem({
         {getFileIcon(file.type, file.mimeType)}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-xs font-medium text-black sm:text-sm">{file.name}</p>
+        <p className="truncate text-xs font-medium text-foreground sm:text-sm">{file.name}</p>
       </div>
-      <div className="hidden flex-shrink-0 text-xs text-gray-600 sm:block sm:text-sm">
+      <div className="hidden flex-shrink-0 text-xs text-muted-foreground sm:block sm:text-sm">
         {file.lastModified && formatDate(file.lastModified)}
       </div>
-      <div className="hidden flex-shrink-0 text-xs text-gray-600 md:block md:text-sm">
+      <div className="hidden flex-shrink-0 text-xs text-muted-foreground md:block md:text-sm">
         {file.size && formatFileSize(file.size)}
       </div>
       {isHovered && (

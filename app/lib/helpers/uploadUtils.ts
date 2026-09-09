@@ -5,7 +5,7 @@ import {
   UrlString,
 } from "@inrupt/solid-client";
 import { ensureTrailingSlash, getHttpStatus, sanitizeResourceName } from ".";
-import toast from "react-hot-toast";
+import { toast } from "@/components/ui/toast";
 
 export interface FolderUploadFile {
   file: File;
@@ -148,7 +148,7 @@ async function ensureFolderExists(
             pathSegments.length > 0
               ? decodeURIComponent(pathSegments[pathSegments.length - 1])
               : folderUrl;
-          toast(`Folder "${folderName}" already exists`);
+          toast.add({ title: `Folder "${folderName}" already exists` });
         } catch {
           // Skip toast if URL parsing fails
         }

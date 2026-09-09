@@ -1,8 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import Modal from "./shared/Modal";
-import Button from "./shared/Button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { getFile, UrlString } from "@inrupt/solid-client";
 import { getAuthenticatedSession } from "../lib/helpers";
 import { FileItemData } from "./FileItem";
@@ -226,7 +231,7 @@ export default function PreviewModal({
       return (
         <div className="flex h-96 flex-col items-center justify-center text-center">
           <p className="text-red-600 mb-4">{error}</p>
-          <Button variant="primary" onClick={onClose}>
+          <Button variant="default" onClick={onClose}>
             Close
           </Button>
         </div>
@@ -242,7 +247,7 @@ export default function PreviewModal({
         );
       }
       return (
-        <div className="flex min-h-[80vh] items-center justify-center bg-gray-50 p-4">
+        <div className="flex min-h-[80vh] items-center justify-center bg-muted p-4">
           {/* Solid preview URLs are authenticated/cross-origin; next/image is not suitable here */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -258,7 +263,7 @@ export default function PreviewModal({
     if (fileType === "text") {
       return (
         <div className="min-h-[80vh] overflow-auto">
-          <pre className="whitespace-pre-wrap break-words p-4 font-mono text-sm text-gray-800 bg-gray-50 rounded">
+          <pre className="whitespace-pre-wrap break-words p-4 font-mono text-sm text-foreground bg-muted rounded">
             {previewContent || ""}
           </pre>
         </div>
@@ -268,18 +273,18 @@ export default function PreviewModal({
     // For other file types
     return (
       <div className="flex h-96 flex-col items-center justify-center text-center px-4">
-        <p className="text-gray-600 mb-2 font-medium">
+        <p className="text-muted-foreground mb-2 font-medium">
           Preview is not available for this file type.
         </p>
         {previewUnavailableReason && (
-          <p className="text-sm text-gray-500 mb-4 max-w-md">
+          <p className="text-sm text-muted-foreground mb-4 max-w-md">
             {previewUnavailableReason}
           </p>
         )}
-        <p className="text-sm text-gray-500 mb-6">
+        <p className="text-sm text-muted-foreground mb-6">
           Please download the file to view it.
         </p>
-        <Button variant="primary" onClick={onClose}>
+        <Button variant="default" onClick={onClose}>
           Close
         </Button>
       </div>
@@ -287,14 +292,14 @@ export default function PreviewModal({
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={`Preview: ${file.name}`}
-      maxWidth="6xl"
-    >
-      {renderPreview()}
-    </Modal>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-6xl">
+        <DialogHeader>
+          <DialogTitle>Preview: {file.name}</DialogTitle>
+        </DialogHeader>
+        {renderPreview()}
+      </DialogContent>
+    </Dialog>
   );
 }
 

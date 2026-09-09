@@ -1,18 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import toast from "react-hot-toast";
+import { useRef, useState } from "react";
+import { toast } from "@/components/ui/toast";
 import {
-    FolderPlusIcon,
-    ArrowUpTrayIcon,
-    PencilIcon,
-    ArrowDownTrayIcon,
-    DocumentDuplicateIcon,
-    ArrowRightCircleIcon,
-    TrashIcon,
-    EyeIcon,
-    ShareIcon,
-} from "@heroicons/react/24/outline";
+    FolderPlus,
+    Upload,
+    Pencil,
+    Download,
+    Copy,
+    CircleArrowRight,
+    Trash2,
+    Eye,
+    Share2,
+} from "lucide-react";
 import Header from "../Header";
 import Sidebar from "../Sidebar";
 import Breadcrumb from "../Breadcrumb";
@@ -101,27 +101,10 @@ export default function FileManagerContent() {
 
     const closeContextMenu = () => setContextMenuState(null);
 
-    // Close context menu on outside click
-    useEffect(() => {
-        if (!contextMenuState) return;
-
-        const handleClick = () => setContextMenuState(null);
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape") setContextMenuState(null);
-        };
-
-        document.addEventListener("click", handleClick);
-        document.addEventListener("keydown", handleKeyDown);
-        return () => {
-            document.removeEventListener("click", handleClick);
-            document.removeEventListener("keydown", handleKeyDown);
-        };
-    }, [contextMenuState]);
-
     /** Require a selected container before create/upload actions. */
     const ensureStorageSelected = () => {
         if (!containerUrlToBrowse) {
-            toast.error("Please select a storage first.");
+            toast.add({ title: "Please select a storage first.", type: "error" });
             return false;
         }
         return true;
@@ -201,14 +184,14 @@ export default function FileManagerContent() {
         setIsDragActive(false);
 
         if (!containerUrlToBrowse) {
-            toast.error("Please select a storage first");
+            toast.add({ title: "Please select a storage first", type: "error" });
             return;
         }
         let fetchFn: typeof fetch;
         try {
             ({ fetch: fetchFn } = getAuthenticatedSession());
         } catch {
-            toast.error("Not authenticated");
+            toast.add({ title: "Not authenticated", type: "error" });
             return;
         }
 
@@ -219,7 +202,7 @@ export default function FileManagerContent() {
             folderFiles.length === 0 &&
             isUnsupportedFolderDrag(e)
         ) {
-            toast.error("Folder drag-and-drop is not supported in this browser. Please use the 'Folder Upload' button in the menu.")
+            toast.add({ title: "Folder drag-and-drop is not supported in this browser. Please use the 'Folder Upload' button in the menu.", type: "error" })
             return;
         }
 
@@ -230,22 +213,26 @@ export default function FileManagerContent() {
                 const { uploadedFiles, failedFiles } = await uploadFilesToContainer(singleFiles, containerUrlToBrowse, fetchFn);
                 if (uploadedFiles.length > 0) {
                     uploadedSomething = true;
-                    toast.success(
-                        uploadedFiles.length === 1
-                            ? "File uploaded successfully"
-                            : `${uploadedFiles.length} files uploaded successfully`,
-                    );
+                    toast.add({
+                        title:
+                            uploadedFiles.length === 1
+                                ? "File uploaded successfully"
+                                : `${uploadedFiles.length} files uploaded successfully`,
+                        type: "success",
+                    });
                 }
                 if (failedFiles.length > 0) {
-                    toast.error(
-                        failedFiles.length === 1
-                            ? `Failed to upload "${failedFiles[0]}"`
-                            : `Failed to upload ${failedFiles.length} files.`,
-                    );
+                    toast.add({
+                        title:
+                            failedFiles.length === 1
+                                ? `Failed to upload "${failedFiles[0]}"`
+                                : `Failed to upload ${failedFiles.length} files.`,
+                        type: "error",
+                    });
                 }
             } catch (error) {
                 console.error("Upload error:", error);
-                toast.error("Failed to upload files");
+                toast.add({ title: "Failed to upload files", type: "error" });
             }
         }
 
@@ -254,22 +241,26 @@ export default function FileManagerContent() {
                 const { uploadedFiles, failedFiles } = await uploadFolderFilesToContainer(folderFiles, containerUrlToBrowse, fetchFn);
                 if (uploadedFiles.length > 0) {
                     uploadedSomething = true;
-                    toast.success(
-                        uploadedFiles.length === 1
-                            ? "File uploaded successfully"
-                            : `${uploadedFiles.length} files uploaded successfully`,
-                    );
+                    toast.add({
+                        title:
+                            uploadedFiles.length === 1
+                                ? "File uploaded successfully"
+                                : `${uploadedFiles.length} files uploaded successfully`,
+                        type: "success",
+                    });
                 }
                 if (failedFiles.length > 0) {
-                    toast.error(
-                        failedFiles.length === 1
-                            ? `Failed to upload "${failedFiles[0]}"`
-                            : `Failed to upload ${failedFiles.length} files.`,
-                    );
+                    toast.add({
+                        title:
+                            failedFiles.length === 1
+                                ? `Failed to upload "${failedFiles[0]}"`
+                                : `Failed to upload ${failedFiles.length} files.`,
+                        type: "error",
+                    });
                 }
             } catch (error) {
                 console.error("Upload error:", error);
-                toast.error("Failed to upload folder");
+                toast.add({ title: "Failed to upload folder", type: "error" });
             }
         }
 
@@ -282,7 +273,7 @@ export default function FileManagerContent() {
     const newContextMenuActions: ContextMenuAction[] = [
         {
             label: "New Folder",
-            icon: FolderPlusIcon,
+            icon: FolderPlus,
             onClick: () => {
                 closeContextMenu();
                 if (!ensureStorageSelected()) return;
@@ -291,7 +282,7 @@ export default function FileManagerContent() {
         },
         {
             label: "File Upload",
-            icon: ArrowUpTrayIcon,
+            icon: Upload,
             onClick: () => {
                 closeContextMenu();
                 if (!ensureStorageSelected()) return;
@@ -300,7 +291,7 @@ export default function FileManagerContent() {
         },
         {
             label: "Folder Upload",
-            icon: FolderPlusIcon,
+            icon: FolderPlus,
             onClick: () => {
                 closeContextMenu();
                 if (!ensureStorageSelected()) return;
@@ -315,7 +306,7 @@ export default function FileManagerContent() {
         if (file.type === "file") {
             actions.push({
                 label: "Preview",
-                icon: EyeIcon,
+                icon: Eye,
                 onClick: () => {
                     closeContextMenu();
                     dispatchFileAction({ type: "preview", file });
@@ -326,7 +317,7 @@ export default function FileManagerContent() {
         actions.push(
             {
                 label: "Rename",
-                icon: PencilIcon,
+                icon: Pencil,
                 onClick: () => {
                     closeContextMenu();
                     dispatchFileAction({ type: "rename", file });
@@ -334,7 +325,7 @@ export default function FileManagerContent() {
             },
             {
                 label: "Download",
-                icon: ArrowDownTrayIcon,
+                icon: Download,
                 onClick: () => {
                     closeContextMenu();
                     dispatchFileAction({ type: "download", file });
@@ -342,7 +333,7 @@ export default function FileManagerContent() {
             },
             {
                 label: "Copy",
-                icon: DocumentDuplicateIcon,
+                icon: Copy,
                 onClick: () => {
                     closeContextMenu();
                     dispatchFileAction({ type: "copy", file });
@@ -350,7 +341,7 @@ export default function FileManagerContent() {
             },
             {
                 label: "Share",
-                icon: ShareIcon,
+                icon: Share2,
                 onClick: () => {
                     closeContextMenu();
                     dispatchFileAction({ type: "share", file });
@@ -361,7 +352,7 @@ export default function FileManagerContent() {
         if (file.type === "file") {
             actions.push({
                 label: "Move",
-                icon: ArrowRightCircleIcon,
+                icon: CircleArrowRight,
                 onClick: () => {
                     closeContextMenu();
                     dispatchFileAction({ type: "move", file });
@@ -371,7 +362,7 @@ export default function FileManagerContent() {
 
         actions.push({
             label: "Delete",
-            icon: TrashIcon,
+            icon: Trash2,
             onClick: () => {
                 closeContextMenu();
                 dispatchFileAction({ type: "delete", file });
@@ -399,7 +390,7 @@ export default function FileManagerContent() {
 
     return (
         <div
-            className="flex h-screen flex-col overflow-hidden bg-white"
+            className="flex h-screen flex-col overflow-hidden bg-background"
             onDragEnter={handleDragEnter}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -535,15 +526,15 @@ export default function FileManagerContent() {
             />
             {isDragActive && (
                 <div
-                    className="pointer-events-none fixed inset-0 z-40 flex flex-col items-center justify-center bg-purple-500/10"
+                    className="pointer-events-none fixed inset-0 z-40 flex flex-col items-center justify-center bg-primary/10"
                     role="status"
                     aria-live="polite"
                 >
-                    <div className="rounded-2xl border border-purple-400 bg-white/90 px-8 py-6 text-center shadow-lg">
-                        <p className="text-lg font-semibold text-purple-700">
+                    <div className="rounded-2xl border border-primary/40 bg-background/90 px-8 py-6 text-center shadow-lg">
+                        <p className="text-lg font-semibold text-primary">
                             Drop files or folders to upload
                         </p>
-                        <p className="mt-2 text-sm text-purple-600">
+                        <p className="mt-2 text-sm text-primary/80">
                             They will be uploaded to the current folder
                         </p>
                     </div>

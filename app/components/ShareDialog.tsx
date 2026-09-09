@@ -1,14 +1,24 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import Modal from "./shared/Modal";
-import Button from "./shared/Button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@/components/ui/native-select";
 import UrlCombobox, { ComboboxOption } from "./shared/UrlCombobox";
 import { FileItemData } from "./FileItem";
 import { fetchUserContacts, Contact } from "../lib/helpers/contactUtils";
 import { fetchAndParseProfile } from "../lib/helpers/profileUtils";
 import { getResourceAccessList, removeAccessFromResource } from "../lib/helpers/acpUtils";
-import { UserIcon, MagnifyingGlassIcon, LockClosedIcon, XMarkIcon, CheckCircleIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { User, Search, Lock, X, CheckCircle, Trash2 } from "lucide-react";
 import LoadingSpinner from "./shared/LoadingSpinner";
 
 export type AccessLevel = "Editor" | "Viewer";
@@ -104,13 +114,13 @@ export default function ShareDialog({
       value: contact.webId,
       secondaryLabel: contact.email && contact.name ? contact.email : undefined,
       icon: (
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
           {contact.name ? (
-            <span className="text-sm font-medium text-gray-700">
+            <span className="text-sm font-medium text-foreground">
               {contact.name.charAt(0).toUpperCase()}
             </span>
           ) : (
-            <UserIcon className="h-5 w-5 text-gray-500" />
+            <User className="h-5 w-5 text-muted-foreground" />
           )}
         </div>
       ),
@@ -230,25 +240,21 @@ export default function ShareDialog({
   };
 
   const footer = (
-    <div className="flex justify-end">
-      <Button onClick={handleDone} variant="primary" disabled={isSharing || peopleChips.length === 0}>
-        {isSharing ? "Sharing..." : "Share"}
-      </Button>
-    </div>
+    <Button onClick={handleDone} variant="default" disabled={isSharing || peopleChips.length === 0}>
+      {isSharing ? "Sharing..." : "Share"}
+    </Button>
   );
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={file ? `Share '${file.name}'` : "Share"}
-      footer={footer}
-      maxWidth="2xl"
-    >
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{file ? `Share '${file.name}'` : "Share"}</DialogTitle>
+        </DialogHeader>
       <div className="space-y-6">
         {/* Add people section */}
         <div>
-          <label className="mb-2 block text-sm font-medium text-gray-700">
+          <label className="mb-2 block text-sm font-medium text-foreground">
             Add a WebID
           </label>
 
@@ -258,21 +264,21 @@ export default function ShareDialog({
               {peopleChips.map((chip) => (
                 <div
                   key={chip.webId}
-                  className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 py-1.5"
+                  className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5"
                 >
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-xs font-medium text-white">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
                     {getInitial(chip)}
                   </div>
-                  <span className="text-sm text-gray-700">
+                  <span className="text-sm text-foreground">
                     {getDisplayText(chip)}
                   </span>
                   <button
                     type="button"
                     onClick={() => handleRemoveChip(chip.webId)}
-                    className="ml-1 text-gray-400 hover:text-gray-600"
+                    className="ml-1 text-muted-foreground hover:text-foreground"
                     aria-label="Remove"
                   >
-                    <XMarkIcon className="h-4 w-4" />
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
               ))}
@@ -287,7 +293,7 @@ export default function ShareDialog({
             options={contactOptions}
             placeholder="Add a WebID"
             disabled={isAddingWebId}
-            leftIcon={<MagnifyingGlassIcon className="h-5 w-5" />}
+            leftIcon={<Search className="h-5 w-5" />}
             showChevron={false}
             aria-label="Add a WebID"
             inputClassName="h-9"
@@ -296,24 +302,24 @@ export default function ShareDialog({
 
         {/* General access section */}
         <div>
-          <h3 className="mb-3 text-sm font-medium text-gray-700">General access</h3>
+          <h3 className="mb-3 text-sm font-medium text-foreground">General access</h3>
           <div className="flex items-center gap-2">
-            <LockClosedIcon className="h-5 w-5 text-gray-500" />
-            <select
+            <Lock className="h-5 w-5 text-muted-foreground" />
+            <NativeSelect
               value={selectedAccessLevel}
               onChange={(e) => setSelectedAccessLevel(e.target.value as AccessLevel)}
-              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:border-[#7B42F6] focus:outline-none focus:ring-1 focus:ring-[#7B42F6]"
+              aria-label="Access level"
             >
-              <option value="Editor">Editor</option>
-              <option value="Viewer">Viewer</option>
-            </select>
+              <NativeSelectOption value="Editor">Editor</NativeSelectOption>
+              <NativeSelectOption value="Viewer">Viewer</NativeSelectOption>
+            </NativeSelect>
           </div>
         </div>
 
         {/* People with access section */}
         {accessList && accessList.length > 0 && (
           <div>
-            <h3 className="mb-3 text-sm font-medium text-gray-700">People with access</h3>
+            <h3 className="mb-3 text-sm font-medium text-foreground">People with access</h3>
             <div className="space-y-2">
               {isLoadingAccessList ? (
                 <div className="flex items-center justify-center py-2">
@@ -328,28 +334,28 @@ export default function ShareDialog({
                   return (
                     <div
                       key={access.webId || index}
-                      className="flex items-center justify-between rounded-md border border-gray-200 bg-gray-50 px-3 py-2"
+                      className="flex items-center justify-between rounded-md border border-border bg-muted px-3 py-2"
                     >
                       <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <CheckCircleIcon className="h-4 w-4 text-green-500 shrink-0" />
-                        <span className="text-sm text-gray-700 truncate">
+                        <CheckCircle className="h-4 w-4 text-primary shrink-0" />
+                        <span className="text-sm text-foreground truncate">
                           {access.webId}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0 ml-2">
-                        <span className="text-xs text-gray-500">{accessLevel}</span>
+                        <span className="text-xs text-muted-foreground">{accessLevel}</span>
                         <button
                           type="button"
                           onClick={() => handleRemoveAccess(access.webId)}
                           disabled={isRemoving}
-                          className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           aria-label={`Remove access for ${access.webId}`}
                           title="Remove access"
                         >
                           {isRemoving ? (
                             <LoadingSpinner size="sm" />
                           ) : (
-                            <TrashIcon className="h-4 w-4" />
+                            <Trash2 className="h-4 w-4" />
                           )}
                         </button>
                       </div>
@@ -367,7 +373,9 @@ export default function ShareDialog({
           </div>
         )}
       </div>
-    </Modal>
+        <DialogFooter>{footer}</DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

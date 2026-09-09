@@ -79,8 +79,9 @@ This application provides a user-friendly interface for managing files and folde
 - **Language**: TypeScript
 - **Solid SDK**: [@inrupt/solid-client-js](https://github.com/inrupt/solid-client-js)
 - **RDF/JS Wrapper**: Object graph mapper
-- **Icons**: [@heroicons/react](https://heroicons.com/)
-- **Notifications**: [react-hot-toast](https://react-hot-toast.com/)
+- **Icons**: [lucide-react](https://lucide.dev/)
+- **UI**: [shadcn/ui](https://ui.shadcn.com/) (Base UI)
+- **Notifications**: shadcn toast (Base UI)
 
 ## Getting Started
 

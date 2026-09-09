@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import toast from "react-hot-toast";
+import { toast } from "@/components/ui/toast";
 import type { FileItemData } from "../../FileItem";
 import type { AccessLevel } from "../../ShareDialog";
 import {
@@ -25,23 +25,24 @@ async function runWithToast<T>(
     errorPrefix?: string;
   },
 ): Promise<T | null> {
-  const toastId = toast.loading(loadingMessage);
+  const toastId = toast.add({ title: loadingMessage, type: "loading" });
   try {
     const result = await action();
     const success =
       typeof options.successMessage === "function"
         ? options.successMessage(result)
         : options.successMessage;
-    toast.success(success, { id: toastId });
+    toast.update(toastId, { title: success, type: "success" });
     return result;
   } catch (error) {
     console.error(options.errorFallback, error);
-    toast.error(
-      error instanceof Error
-        ? `${options.errorPrefix ?? "Failed"}: ${error.message}`
-        : options.errorFallback,
-      { id: toastId },
-    );
+    toast.update(toastId, {
+      title:
+        error instanceof Error
+          ? `${options.errorPrefix ?? "Failed"}: ${error.message}`
+          : options.errorFallback,
+      type: "error",
+    });
     return null;
   }
 }

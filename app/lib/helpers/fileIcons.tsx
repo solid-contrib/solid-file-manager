@@ -3,17 +3,17 @@
  */
 
 import {
-  FolderIcon,
-  PhotoIcon,
-  DocumentIcon,
-  DocumentTextIcon,
-  CodeBracketIcon,
-  VideoCameraIcon,
-  MusicalNoteIcon,
-  PresentationChartBarIcon,
-  TableCellsIcon,
-  ArchiveBoxIcon,
-} from "@heroicons/react/24/outline";
+  Folder,
+  Image as ImageIcon,
+  File,
+  FileText,
+  FileCode,
+  Video,
+  Music,
+  Presentation,
+  Table,
+  Archive,
+} from "lucide-react";
 
 export type FileType = "folder" | "file" | "image" | "document" | "other";
 
@@ -27,22 +27,22 @@ function getIconFromMimeType(mimeType: string) {
 
   // Images
   if (normalizedMime.startsWith("image/")) {
-    return <PhotoIcon className="h-6 w-6 text-green-500" />;
+    return <ImageIcon className="h-6 w-6 text-green-500" />;
   }
 
   // PDFs
   if (normalizedMime === "application/pdf") {
-    return <DocumentTextIcon className="h-6 w-6 text-blue-500" />;
+    return <FileText className="h-6 w-6 text-blue-500" />;
   }
 
   // Videos
   if (normalizedMime.startsWith("video/")) {
-    return <VideoCameraIcon className="h-6 w-6 text-purple-500" />;
+    return <Video className="h-6 w-6 text-purple-500" />;
   }
 
   // Audio
   if (normalizedMime.startsWith("audio/")) {
-    return <MusicalNoteIcon className="h-6 w-6 text-pink-500" />;
+    return <Music className="h-6 w-6 text-pink-500" />;
   }
 
   // Code files
@@ -62,7 +62,7 @@ function getIconFromMimeType(mimeType: string) {
     normalizedMime === "text/markdown" ||
     normalizedMime === "text/plain"
   ) {
-    return <CodeBracketIcon className="h-6 w-6 text-orange-500" />;
+    return <FileCode className="h-6 w-6 text-orange-500" />;
   }
 
   // Office documents - Word
@@ -71,7 +71,7 @@ function getIconFromMimeType(mimeType: string) {
     normalizedMime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
     normalizedMime === "application/vnd.ms-word.document.macroEnabled.12"
   ) {
-    return <DocumentIcon className="h-6 w-6 text-blue-600" />;
+    return <File className="h-6 w-6 text-blue-600" />;
   }
 
   // Office documents - Excel
@@ -79,7 +79,7 @@ function getIconFromMimeType(mimeType: string) {
     normalizedMime === "application/vnd.ms-excel" ||
     normalizedMime === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
   ) {
-    return <TableCellsIcon className="h-6 w-6 text-green-600" />;
+    return <Table className="h-6 w-6 text-green-600" />;
   }
 
   // Office documents - PowerPoint
@@ -87,7 +87,7 @@ function getIconFromMimeType(mimeType: string) {
     normalizedMime === "application/vnd.ms-powerpoint" ||
     normalizedMime === "application/vnd.openxmlformats-officedocument.presentationml.presentation"
   ) {
-    return <PresentationChartBarIcon className="h-6 w-6 text-orange-600" />;
+    return <Presentation className="h-6 w-6 text-orange-600" />;
   }
 
   // Archives
@@ -99,16 +99,16 @@ function getIconFromMimeType(mimeType: string) {
     normalizedMime === "application/gzip" ||
     normalizedMime === "application/x-7z-compressed"
   ) {
-    return <ArchiveBoxIcon className="h-6 w-6 text-amber-600" />;
+    return <Archive className="h-6 w-6 text-amber-600" />;
   }
 
   // CSV files
   if (normalizedMime === "text/csv" || normalizedMime === "application/x-csv") {
-    return <TableCellsIcon className="h-6 w-6 text-green-500" />;
+    return <Table className="h-6 w-6 text-green-500" />;
   }
 
   // Default document icon for other types
-  return <DocumentIcon className="h-6 w-6 text-blue-500" />;
+  return <File className="h-6 w-6 text-blue-500" />;
 }
 
 /**
@@ -120,7 +120,7 @@ function getIconFromMimeType(mimeType: string) {
 export function getFileIcon(type: FileType, mimeType?: string) {
   // Always show folder icon for folders
   if (type === "folder") {
-    return <FolderIcon className="h-6 w-6 text-yellow-500" />;
+    return <Folder className="h-6 w-6 text-yellow-500" />;
   }
 
   // If MIME type is provided, use it for more specific icon selection
@@ -131,11 +131,11 @@ export function getFileIcon(type: FileType, mimeType?: string) {
   // Fallback to type-based icons if no MIME type
   switch (type) {
     case "image":
-      return <PhotoIcon className="h-6 w-6 text-green-500" />;
+      return <ImageIcon className="h-6 w-6 text-green-500" />;
     case "document":
-      return <DocumentIcon className="h-6 w-6 text-blue-500" />;
+      return <File className="h-6 w-6 text-blue-500" />;
     default:
-      return <DocumentIcon className="h-6 w-6 text-gray-500" />;
+      return <File className="h-6 w-6 text-gray-500" />;
   }
 }
 

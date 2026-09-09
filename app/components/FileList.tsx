@@ -81,7 +81,7 @@ export default function FileList({
             ))}
           </div>
         ) : (
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-border">
             {files.map((file) => (
               <FileItem
                 key={file.id}

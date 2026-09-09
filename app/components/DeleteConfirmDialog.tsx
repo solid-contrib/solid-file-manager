@@ -1,8 +1,18 @@
 "use client";
 
-import Modal from "./shared/Modal";
-import Button from "./shared/Button";
-import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Spinner } from "@/components/ui/spinner";
+import { AlertTriangle } from "lucide-react";
 import { FileItemData } from "./FileItem";
 
 interface DeleteConfirmDialogProps {
@@ -23,54 +33,41 @@ export default function DeleteConfirmDialog({
   if (!file) return null;
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={`Delete ${file.type === "folder" ? "Folder" : "File"}`}
-      maxWidth="md"
-      footer={
-        <div className="flex justify-end gap-2">
-          <Button
-            variant="ghost"
-            onClick={onClose}
-            disabled={isDeleting}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            onClick={onConfirm}
-            isLoading={isDeleting}
-            disabled={isDeleting}
-            className="bg-red-600 hover:bg-red-700 text-white"
-          >
-            Delete
-          </Button>
-        </div>
-      }
+    <AlertDialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open && !isDeleting) onClose();
+      }}
     >
-      <section className="py-4">
-        <div className="flex items-start gap-3">
-          <ExclamationTriangleIcon className="h-6 w-6 text-red-600 shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <p className="text-sm text-gray-700 mb-2">
-              Are you sure you want to delete{" "}
-              <span className="font-medium">&quot;{file.name}&quot;</span>?
-            </p>
-            {file.type === "folder" && (
-              <p className="text-sm text-gray-500">
-                This will permanently delete the folder and all its contents. This action cannot be undone.
-              </p>
-            )}
-            {file.type === "file" && (
-              <p className="text-sm text-gray-500">
-                This action cannot be undone.
-              </p>
-            )}
-          </div>
-        </div>
-      </section>
-    </Modal>
+      <AlertDialogContent size="default">
+        <AlertDialogHeader>
+          <AlertDialogMedia className="bg-destructive/10 text-destructive">
+            <AlertTriangle />
+          </AlertDialogMedia>
+          <AlertDialogTitle>
+            Delete {file.type === "folder" ? "Folder" : "File"}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to delete{" "}
+            <span className="font-medium text-foreground">&quot;{file.name}&quot;</span>?
+            {file.type === "folder"
+              ? " This will permanently delete the folder and all its contents. This action cannot be undone."
+              : " This action cannot be undone."}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            variant="destructive"
+            onClick={onConfirm}
+            disabled={isDeleting}
+            aria-busy={isDeleting}
+          >
+            {isDeleting && <Spinner />}
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
-

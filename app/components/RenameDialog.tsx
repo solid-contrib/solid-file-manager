@@ -1,11 +1,18 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import Modal from "./shared/Modal";
-import Button from "./shared/Button";
-import Input from "./shared/Input";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { Input } from "@/components/ui/input";
 import { UrlString, getFile, overwriteFile, deleteFile, createContainerAt } from "@inrupt/solid-client";
-import toast from "react-hot-toast";
+import { toast } from "@/components/ui/toast";
 import { FileItemData } from "./FileItem";
 import { getAuthenticatedSession, sanitizeResourceName, getParentContainerUrl, ensureTrailingSlash, copyFolderContents, deleteFolderResource } from "../lib/helpers";
 
@@ -44,7 +51,7 @@ export default function RenameDialog({
 
   const handleRename = async () => {
     if (!file || !newName.trim()) {
-      toast.error("Please enter a name");
+      toast.add({ title: "Please enter a name", type: "error" });
       return;
     }
 
@@ -68,7 +75,7 @@ export default function RenameDialog({
       try {
         const response = await fetchFn(newUrl, { method: "HEAD" });
         if (response.status !== 404) {
-          toast.error(`A resource with the name "${sanitizedName}" already exists`);
+          toast.add({ title: `A resource with the name "${sanitizedName}" already exists`, type: "error" });
           setIsRenaming(false);
           return;
         }
@@ -96,7 +103,7 @@ export default function RenameDialog({
         await deleteFile(file.url as UrlString, { fetch: fetchFn });
       }
       
-      toast.success(`Renamed to "${sanitizedName}"`);
+      toast.add({ title: `Renamed to "${sanitizedName}"`, type: "success" });
       
       // Notify parent to refresh
       if (onRenamed) {
@@ -107,11 +114,9 @@ export default function RenameDialog({
       onClose();
     } catch (error) {
       console.error("Failed to rename:", error);
-      toast.error(
-        error instanceof Error
+      toast.add({ title: error instanceof Error
           ? `Failed to rename: ${error.message}`
-          : "Failed to rename"
-      );
+          : "Failed to rename", type: "error" });
     } finally {
       setIsRenaming(false);
     }
@@ -128,13 +133,23 @@ export default function RenameDialog({
   if (!file) return null;
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Rename"
-      maxWidth="sm"
-      footer={
-        <div className="flex justify-end gap-2">
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Rename</DialogTitle>
+        </DialogHeader>
+        <div className="py-2">
+          <Input
+            ref={inputRef}
+            type="text"
+            value={newName}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewName(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={isLoadingName ? "Loading..." : "Enter new name"}
+            disabled={isRenaming || isLoadingName}
+          />
+        </div>
+        <DialogFooter>
           <Button
             variant="ghost"
             onClick={onClose}
@@ -143,28 +158,17 @@ export default function RenameDialog({
             Cancel
           </Button>
           <Button
-            variant="primary"
+            variant="default"
             onClick={handleRename}
-            isLoading={isRenaming}
             disabled={isRenaming || isLoadingName || !newName.trim() || newName.trim() === file.name}
+            aria-busy={isRenaming}
           >
+            {isRenaming && <Spinner />}
             OK
           </Button>
-        </div>
-      }
-    >
-      <div className="py-2">
-        <Input
-          ref={inputRef}
-          type="text"
-          value={newName}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewName(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={isLoadingName ? "Loading..." : "Enter new name"}
-          disabled={isRenaming || isLoadingName}
-        />
-      </div>
-    </Modal>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

@@ -9,7 +9,7 @@ import LoadingSpinner from "./components/shared/LoadingSpinner";
 import FileManager from "./components/FileManager";
 
 const loadingFallback = (
-  <div className="flex min-h-screen items-center justify-center bg-white">
+  <div className="flex min-h-screen items-center justify-center bg-background">
     <LoadingSpinner size="md" text="Loading..." />
   </div>
 );

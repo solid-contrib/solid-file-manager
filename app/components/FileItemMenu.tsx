@@ -1,18 +1,23 @@
 "use client";
 
-import { useState, useRef } from "react";
-import Button from "./shared/Button";
+import { Button } from "@/components/ui/button";
 import {
-  EllipsisVerticalIcon,
-  PencilIcon,
-  ArrowDownTrayIcon,
-  DocumentDuplicateIcon,
-  ArrowRightCircleIcon,
-  TrashIcon,
-  EyeIcon,
-  ShareIcon,
-} from "@heroicons/react/24/outline";
-import { useClickOutside } from "../lib/hooks";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  EllipsisVertical,
+  Pencil,
+  Download,
+  Copy,
+  CircleArrowRight,
+  Trash2,
+  Eye,
+  Share2,
+} from "lucide-react";
 import { FileItemData } from "./FileItem";
 
 interface FileItemMenuProps {
@@ -38,171 +43,71 @@ export default function FileItemMenu({
   onShare,
   position = "right",
 }: FileItemMenuProps) {
-  const [showMenu, setShowMenu] = useState(false);
-  const [menuPosition, setMenuPosition] = useState<"bottom" | "top">("bottom");
-  const menuButtonRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useClickOutside({
-    isEnabled: showMenu,
-    onOutsideClick: () => setShowMenu(false),
-    refs: [menuRef, menuButtonRef],
-  });
-
-  const toggleMenu = (event: React.MouseEvent) => {
-    event.stopPropagation();
-
-    if (showMenu) {
-      setShowMenu(false);
-      return;
-    }
-
-    if (menuButtonRef.current) {
-      const buttonRect = menuButtonRef.current.getBoundingClientRect();
-      const viewportHeight = window.innerHeight;
-      const spaceBelow = viewportHeight - buttonRect.bottom;
-      const spaceAbove = buttonRect.top;
-      const estimatedMenuHeight = 250;
-
-      if (spaceBelow < estimatedMenuHeight && spaceAbove > estimatedMenuHeight) {
-        setMenuPosition("top");
-      } else {
-        setMenuPosition("bottom");
-      }
-    }
-
-    setShowMenu(true);
-  }
-
-  const handleAction = (action: ((file: FileItemData) => void) | undefined) => {
-    if (action) {
-      action(file);
-    }
-    setShowMenu(false);
+  const run = (action: ((file: FileItemData) => void) | undefined) => {
+    action?.(file);
   };
 
-  const menuItems = [
-    // Only show Preview for files, not folders
-    ...(file.type === "file"
-      ? [
-        {
-          label: "Preview",
-          icon: EyeIcon,
-          action: onPreview,
-          className: "text-gray-700 hover:bg-gray-100 border-b border-gray-100",
-          iconClassName: "text-gray-500",
-        },
-      ]
-      : []),
-    {
-      label: "Rename",
-      icon: PencilIcon,
-      action: onRename,
-      className: "text-gray-700 hover:bg-gray-100 border-b border-gray-100",
-      iconClassName: "text-gray-500",
-    },
-    {
-      label: "Download",
-      icon: ArrowDownTrayIcon,
-      action: onDownload,
-      className: "text-gray-700 hover:bg-gray-100 border-b border-gray-100",
-      iconClassName: "text-gray-500",
-    },
-    {
-      label: "Copy",
-      icon: DocumentDuplicateIcon,
-      action: onCopy,
-      className: "text-gray-700 hover:bg-gray-100 border-b border-gray-100",
-      iconClassName: "text-gray-500",
-    },
-    {
-      label: "Share",
-      icon: ShareIcon,
-      action: onShare,
-      className: "text-gray-700 hover:bg-gray-100 border-b border-gray-100",
-      iconClassName: "text-gray-500",
-    },
-    // Only show Move for files, not folders
-    ...(file.type === "file"
-      ? [
-        {
-          label: "Move",
-          icon: ArrowRightCircleIcon,
-          action: onMove,
-          className: "text-gray-700 hover:bg-gray-100 border-b border-gray-100",
-          iconClassName: "text-gray-500",
-        },
-      ]
-      : []),
-    {
-      label: "Delete",
-      icon: TrashIcon,
-      action: onDelete,
-      className: "text-red-600 hover:bg-red-50",
-      iconClassName: "text-red-500",
-    },
-  ];
-
-  const menuButton = (
-    <Button
-      ref={menuButtonRef}
-      variant="icon"
-      aria-label="More options"
-      aria-expanded={showMenu}
-      onClick={toggleMenu}
-      className={position === "top-right" ? "bg-white/90 hover:bg-white shadow-sm" : ""}
-    >
-      <EllipsisVerticalIcon className="h-4 w-4 sm:h-5 sm:w-5" />
-    </Button>
-  );
-
-  const dropdownMenu = showMenu && (
-    <div
-      ref={menuRef}
-      className={`absolute ${position === "top-right" ? "right-0" : "right-0"} ${menuPosition === "top" ? "bottom-full mb-1" : "top-full mt-1"
-        } z-[100] w-48 rounded-lg bg-white border border-gray-200 shadow-lg overflow-hidden`}
-      role="menu"
-      onClick={(e) => e.stopPropagation()}
-    >
-      {menuItems.map((item, index) => {
-        const Icon = item.icon;
-        const isLast = index === menuItems.length - 1;
-        return (
-          <button
-            key={item.label}
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleAction(item.action);
-            }}
-            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors cursor-pointer ${isLast ? item.className : `${item.className} border-b border-gray-100`
-              }`}
-            role="menuitem"
-          >
-            <Icon className={`h-5 w-5 ${item.iconClassName}`} />
-            <span>{item.label}</span>
-          </button>
-        );
-      })}
-    </div>
+  const menu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="More options"
+            className={position === "top-right" ? "bg-background/90 hover:bg-background shadow-sm" : ""}
+            onClick={(e) => e.stopPropagation()}
+          />
+        }
+      >
+        <EllipsisVertical className="h-4 w-4 sm:h-5 sm:w-5" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        side={position === "top-right" ? "bottom" : "bottom"}
+        className="min-w-48 w-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {file.type === "file" && (
+          <DropdownMenuItem onClick={() => run(onPreview)}>
+            <Eye />
+            Preview
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem onClick={() => run(onRename)}>
+          <Pencil />
+          Rename
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => run(onDownload)}>
+          <Download />
+          Download
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => run(onCopy)}>
+          <Copy />
+          Copy
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => run(onShare)}>
+          <Share2 />
+          Share
+        </DropdownMenuItem>
+        {file.type === "file" && (
+          <DropdownMenuItem onClick={() => run(onMove)}>
+            <CircleArrowRight />
+            Move
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem variant="destructive" onClick={() => run(onDelete)}>
+          <Trash2 />
+          Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 
   if (position === "top-right") {
-    return (
-      <div className="absolute top-2 right-2 z-10">
-        <div className="relative">
-          {menuButton}
-          {dropdownMenu}
-        </div>
-      </div>
-    );
+    return <div className="absolute top-2 right-2 z-10">{menu}</div>;
   }
 
-  return (
-    <div className="relative flex-shrink-0">
-      {menuButton}
-      {dropdownMenu}
-    </div>
-  );
+  return <div className="relative shrink-0">{menu}</div>;
 }
-

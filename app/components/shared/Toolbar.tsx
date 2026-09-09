@@ -1,8 +1,8 @@
 "use client";
 
 import { ReactNode } from "react";
-import Button from "./Button";
-import { ListBulletIcon, Squares2X2Icon } from "@heroicons/react/24/outline";
+import { List, LayoutGrid } from "lucide-react";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 interface ToolbarProps {
   view: "list" | "grid";
@@ -18,42 +18,32 @@ export default function Toolbar({
   actions,
 }: ToolbarProps) {
   return (
-    <header className="flex items-center justify-between border-b border-gray-200 px-2 py-2 sm:px-4">
+    <header className="flex items-center justify-between border-b border-border px-2 py-2 sm:px-4">
       <nav className="flex items-center gap-1 sm:gap-2" aria-label="View options">
-        <Button
-          variant="ghost"
+        <ToggleGroup
+          value={[view]}
+          onValueChange={(groupValue) => {
+            const next = groupValue[0];
+            if (next === "list" || next === "grid") {
+              onViewChange(next);
+            }
+          }}
+          variant="outline"
           size="sm"
-          onClick={() => onViewChange("list")}
-          className={`p-1.5 sm:p-2 ${
-            view === "list"
-              ? "bg-[#F3EDFF] text-black"
-              : "text-gray-600 hover:bg-gray-100"
-          }`}
-          aria-label="List view"
-          aria-pressed={view === "list"}
+          spacing={0}
         >
-          <ListBulletIcon className="h-4 w-4 sm:h-5 sm:w-5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => onViewChange("grid")}
-          className={`p-1.5 sm:p-2 ${
-            view === "grid"
-              ? "bg-[#F3EDFF] text-black"
-              : "text-gray-600 hover:bg-gray-100"
-          }`}
-          aria-label="Grid view"
-          aria-pressed={view === "grid"}
-        >
-          <Squares2X2Icon className="h-4 w-4 sm:h-5 sm:w-5" />
-        </Button>
+          <ToggleGroupItem value="list" aria-label="List view">
+            <List className="h-4 w-4 sm:h-5 sm:w-5" />
+          </ToggleGroupItem>
+          <ToggleGroupItem value="grid" aria-label="Grid view">
+            <LayoutGrid className="h-4 w-4 sm:h-5 sm:w-5" />
+          </ToggleGroupItem>
+        </ToggleGroup>
         {actions && <div className="flex items-center gap-1 sm:gap-2">{actions}</div>}
       </nav>
-      <div className="text-xs text-gray-600 sm:text-sm" role="status" aria-live="polite">
+      <div className="text-xs text-muted-foreground sm:text-sm" role="status" aria-live="polite">
         {itemCount} {itemCount === 1 ? "item" : "items"}
       </div>
     </header>
   );
 }
-

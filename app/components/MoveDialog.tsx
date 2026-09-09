@@ -1,10 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Modal from "./shared/Modal";
-import Button from "./shared/Button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { getSolidDataset, getContainedResourceUrlAll, UrlString } from "@inrupt/solid-client";
-import toast from "react-hot-toast";
+import { toast } from "@/components/ui/toast";
 import { FileItemData } from "./FileItem";
 import {
   moveFileResource,
@@ -12,7 +19,7 @@ import {
   decodeResourceNameFromUrl,
   ensureTrailingSlash,
 } from "../lib/helpers";
-import { FolderIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import { Folder, AlertTriangle } from "lucide-react";
 import LoadingSpinner from "./shared/LoadingSpinner";
 
 interface MoveDialogProps {
@@ -118,7 +125,7 @@ export default function MoveDialog({
 
   const handleMove = async () => {
     if (!file || !selectedFolderUrl) {
-      toast.error("Please select a destination folder");
+      toast.add({ title: "Please select a destination folder", type: "error" });
       return;
     }
 
@@ -128,7 +135,7 @@ export default function MoveDialog({
       const { fetch: fetchFn } = getAuthenticatedSession();
       await moveFileResource(file, selectedFolderUrl, fetchFn);
 
-      toast.success(`Moved "${file.name}"`);
+      toast.add({ title: `Moved "${file.name}"`, type: "success" });
       onClose();
 
       // Notify parent to refresh
@@ -137,11 +144,9 @@ export default function MoveDialog({
       }
     } catch (error) {
       console.error("Failed to move file:", error);
-      toast.error(
-        error instanceof Error
+      toast.add({ title: error instanceof Error
           ? `Failed to move: ${error.message}`
-          : "Failed to move file"
-      );
+          : "Failed to move file", type: "error" });
     } finally {
       setIsMoving(false);
     }
@@ -161,40 +166,20 @@ export default function MoveDialog({
   );
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={`Move ${file.name}`}
-      maxWidth="lg"
-      footer={
-        <div className="flex justify-end gap-2">
-          <Button
-            variant="ghost"
-            onClick={onClose}
-            disabled={isMoving}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            onClick={handleMove}
-            isLoading={isMoving}
-            disabled={isMoving || !selectedFolderUrl}
-          >
-            Move
-          </Button>
-        </div>
-      }
-    >
-      <main className="py-4" onKeyDown={handleKeyDown}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Move {file.name}</DialogTitle>
+        </DialogHeader>
+      <main className="py-2" onKeyDown={handleKeyDown}>
         {/* Current Location */}
         <section className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-foreground mb-2">
             Current location:
           </label>
-          <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-md border border-gray-200">
-            <FolderIcon className="h-5 w-5 text-gray-500" />
-            <span className="text-sm text-gray-900">
+          <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-md border border-border">
+            <Folder className="h-5 w-5 text-muted-foreground" />
+            <span className="text-sm text-foreground">
               {currentLocationUrl
                 ? availableFolders.find(f => f.url === currentLocationUrl)?.name ||
                 (() => {
@@ -212,7 +197,7 @@ export default function MoveDialog({
 
         {/* Available Folders */}
         <section>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-foreground mb-2">
             Select a destination:
           </label>
           {isLoadingFolders ? (
@@ -220,23 +205,23 @@ export default function MoveDialog({
               <LoadingSpinner size="sm" text="Loading folders..." />
             </div>
           ) : filteredFolders.length === 0 ? (
-            <div className="text-center py-8 text-gray-500 text-sm">
+            <div className="text-center py-8 text-muted-foreground text-sm">
               No folders available to move to
             </div>
           ) : (
-            <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-md">
+            <div className="max-h-64 overflow-y-auto border border-border rounded-md">
               {filteredFolders.map((folder) => (
                 <button
                   key={folder.id}
                   type="button"
                   onClick={() => setSelectedFolderUrl(folder.url)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors ${selectedFolderUrl === folder.url
-                      ? "bg-[#F3EDFF] border-l-4 border-[#7B42F6]"
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted transition-colors ${selectedFolderUrl === folder.url
+                      ? "bg-accent border-l-4 border-primary"
                       : "border-l-4 border-transparent"
                     }`}
                 >
-                  <FolderIcon className="h-5 w-5 text-gray-500 flex-shrink-0" />
-                  <span className="text-sm text-gray-900 truncate">{folder.name}</span>
+                  <Folder className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                  <span className="text-sm text-foreground truncate">{folder.name}</span>
                 </button>
               ))}
             </div>
@@ -244,13 +229,32 @@ export default function MoveDialog({
         </section>
 
         {filteredFolders.length > 0 && !selectedFolderUrl && (
-          <div className="mt-4 flex items-start gap-2 text-sm text-gray-600 bg-yellow-50 border border-yellow-200 rounded-md p-3">
-            <ExclamationTriangleIcon className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+          <div className="mt-4 flex items-start gap-2 text-sm text-muted-foreground bg-accent border border-border rounded-md p-3">
+            <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
             <span>Select a location to show the folder path</span>
           </div>
         )}
       </main>
-    </Modal>
+        <DialogFooter>
+          <Button
+            variant="ghost"
+            onClick={onClose}
+            disabled={isMoving}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="default"
+            onClick={handleMove}
+            disabled={isMoving || !selectedFolderUrl}
+            aria-busy={isMoving}
+          >
+            {isMoving && <Spinner />}
+            Move
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

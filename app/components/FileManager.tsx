@@ -14,7 +14,7 @@ export default function FileManager() {
   if (isLoading) {
     return (
       <AuthWrapper>
-        <div className="flex min-h-screen items-center justify-center bg-white">
+        <div className="flex min-h-screen items-center justify-center bg-background">
           <LoadingSpinner size="md" text="Loading your Solid storages..." />
         </div>
       </AuthWrapper>
@@ -36,10 +36,10 @@ export default function FileManager() {
   if (storages.length === 0) {
     return (
       <AuthWrapper>
-        <div className="flex min-h-screen items-center justify-center bg-white">
+        <div className="flex min-h-screen items-center justify-center bg-background">
           <div className="text-center">
-            <h2 className="mb-2 text-xl font-semibold text-black">No Storages Found</h2>
-            <p className="text-gray-600">
+            <h2 className="mb-2 text-xl font-semibold text-foreground">No Storages Found</h2>
+            <p className="text-muted-foreground">
               Unable to discover any Solid storage roots from your WebID profile.
             </p>
           </div>
