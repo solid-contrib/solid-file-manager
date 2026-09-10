@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import NewMenuButton from "./NewMenuButton";
 import GitHubLinks from "./shared/GitHubLinks";
 import FolderTree from "./FolderTree";
@@ -93,9 +94,18 @@ export default function Sidebar({
       >
         <SheetContent
           side="left"
-          className="w-64 gap-0 bg-sidebar p-2 pt-14 text-sidebar-foreground sm:max-w-64"
+          className="w-64 gap-0 bg-sidebar p-2 text-sidebar-foreground sm:max-w-64"
         >
           <SheetTitle className="sr-only">Navigation</SheetTitle>
+          <div className="flex items-center justify-center py-3">
+            <Image
+              src="/file-manager-logo.svg"
+              alt="Solid File Manager"
+              width={48}
+              height={48}
+              className="h-12 w-12"
+            />
+          </div>
           <SidebarNav {...navProps} />
         </SheetContent>
       </Sheet>
