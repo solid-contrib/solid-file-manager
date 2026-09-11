@@ -7,7 +7,6 @@ import type { AccessLevel } from "../../ShareDialog";
 import {
   getAuthenticatedSession,
   copyFileResource,
-  copyFolderResource,
   downloadFile,
   downloadFolderAsZip,
   deleteFileResource,
@@ -91,7 +90,7 @@ export function useFileOperations({
 
   const copyFile = useCallback(
     async (file: FileItemData) => {
-      if (!file) {
+      if (!file || file.type === "folder") {
         return;
       }
 
@@ -99,11 +98,7 @@ export function useFileOperations({
         `Copying "${file.name}"...`,
         async () => {
           const { fetch: fetchFn } = getAuthenticatedSession();
-          if (file.type === "folder") {
-            await copyFolderResource(file, fetchFn);
-          } else {
-            await copyFileResource(file, fetchFn);
-          }
+          await copyFileResource(file, fetchFn);
         },
         {
           successMessage: `Copied "${file.name}"`,
