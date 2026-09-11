@@ -332,14 +332,6 @@ export default function FileManagerContent() {
                 },
             },
             {
-                label: "Copy",
-                icon: Copy,
-                onClick: () => {
-                    closeContextMenu();
-                    dispatchFileAction({ type: "copy", file });
-                },
-            },
-            {
                 label: "Share",
                 icon: Share2,
                 onClick: () => {
@@ -356,6 +348,17 @@ export default function FileManagerContent() {
                 onClick: () => {
                     closeContextMenu();
                     dispatchFileAction({ type: "move", file });
+                },
+            });
+        }
+
+        if (file.type === "file") {
+            actions.push({
+                label: "Make a Copy",
+                icon: Copy,
+                onClick: () => {
+                    closeContextMenu();
+                    dispatchFileAction({ type: "copy", file });
                 },
             });
         }
