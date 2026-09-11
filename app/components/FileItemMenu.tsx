@@ -84,7 +84,7 @@ export default function FileItemMenu({
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => run(onCopy)}>
           <Copy />
-          Copy
+          Make a Copy
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => run(onShare)}>
           <Share2 />
