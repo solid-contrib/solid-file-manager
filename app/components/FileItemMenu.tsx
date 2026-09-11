@@ -82,10 +82,12 @@ export default function FileItemMenu({
           <Download />
           Download
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => run(onCopy)}>
-          <Copy />
-          Make a Copy
-        </DropdownMenuItem>
+        {file.type === "file" && (
+          <DropdownMenuItem onClick={() => run(onCopy)}>
+            <Copy />
+            Make a Copy
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onClick={() => run(onShare)}>
           <Share2 />
           Share
