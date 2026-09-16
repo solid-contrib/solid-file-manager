@@ -9,7 +9,6 @@ import {
   getHttpStatus,
   sanitizeResourceName,
   resourceExists,
-  generateCopyTarget,
 } from ".";
 import { toast } from "@/components/ui/toast";
 
@@ -80,17 +79,26 @@ export async function uploadFileWithConflictChoice(
     return { uploadedName: existingName };
   }
 
-  // Keep both: find a free name like "photo (1).jpg"
+  // Keep both: Drive-style names before the extension — photo (1).jpg, photo (2).jpg
   const lastDot = existingName.lastIndexOf(".");
   const base = lastDot > 0 ? existingName.slice(0, lastDot) : existingName;
   const ext = lastDot > 0 ? existingName.slice(lastDot) : "";
 
-  const { targetUrl: keepBothUrl, displayName } = await generateCopyTarget(
-    currentContainerUrl,
-    `${base} (1)${ext}`,
-    false,
-    fetchFn,
-  );
+  let keepBothUrl = "";
+  let displayName = "";
+
+  for (let attempt = 1; attempt < 100; attempt++) {
+    displayName = `${base} (${attempt})${ext}`;
+    const candidateName = sanitizeFilename(displayName);
+    keepBothUrl = buildFileTargetUrl(currentContainerUrl, candidateName);
+    const exists = await resourceExists(keepBothUrl, fetchFn);
+    if (!exists) {
+      break;
+    }
+    if (attempt === 99) {
+      throw new Error("Unable to generate a unique name for the upload");
+    }
+  }
 
   await overwriteFile(keepBothUrl as UrlString, file, {
     contentType: file.type || "application/octet-stream",
