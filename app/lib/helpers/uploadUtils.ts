@@ -4,7 +4,12 @@ import {
   overwriteFile,
   UrlString,
 } from "@inrupt/solid-client";
-import { ensureTrailingSlash, getHttpStatus, sanitizeResourceName } from ".";
+import {
+  ensureTrailingSlash,
+  getHttpStatus,
+  sanitizeResourceName,
+  resourceExists,
+} from ".";
 import { toast } from "@/components/ui/toast";
 
 export interface FolderUploadFile {
@@ -15,6 +20,47 @@ export interface FolderUploadFile {
 export interface UploadResult {
   uploadedFiles: string[];
   failedFiles: string[];
+}
+
+export type UploadConflictChoice = "replace" | "keepBoth" | "cancel";
+
+export interface UploadConflict {
+  file: File;
+  existingName: string;
+  targetUrl: string;
+}
+
+export interface UploadConflictCheckResult {
+  newFiles: File[];
+  conflicts: UploadConflict[];
+}
+
+function buildFileTargetUrl(containerUrl: string, fileName: string): string {
+  const parent = ensureTrailingSlash(containerUrl);
+  return `${parent}${fileName}`;
+}
+
+export async function findUploadConflicts(
+  files: File[],
+  currentContainerUrl: string,
+  fetchFn: typeof fetch,
+): Promise<UploadConflictCheckResult> {
+  const newFiles: File[] = [];
+  const conflicts: UploadConflict[] = [];
+
+  for (const file of files) {
+    const existingName = sanitizeFilename(file.name);
+    const targetUrl = buildFileTargetUrl(currentContainerUrl, existingName);
+    const exists = await resourceExists(targetUrl, fetchFn);
+
+    if (exists) {
+      conflicts.push({ file, existingName, targetUrl });
+    } else {
+      newFiles.push(file);
+    }
+  }
+
+  return { newFiles, conflicts };
 }
 
 export async function uploadFilesToContainer(
