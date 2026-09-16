@@ -9,6 +9,7 @@ import {
   getHttpStatus,
   sanitizeResourceName,
   resourceExists,
+  generateCopyTarget,
 } from ".";
 import { toast } from "@/components/ui/toast";
 
@@ -61,6 +62,42 @@ export async function findUploadConflicts(
   }
 
   return { newFiles, conflicts };
+}
+
+export async function uploadFileWithConflictChoice(
+  conflict: UploadConflict,
+  choice: Exclude<UploadConflictChoice, "cancel">,
+  currentContainerUrl: string,
+  fetchFn: typeof fetch,
+): Promise<{ uploadedName: string }> {
+  const { file, existingName, targetUrl } = conflict;
+
+  if (choice === "replace") {
+    await overwriteFile(targetUrl as UrlString, file, {
+      contentType: file.type || "application/octet-stream",
+      fetch: fetchFn,
+    });
+    return { uploadedName: existingName };
+  }
+
+  // Keep both: find a free name like "photo (1).jpg"
+  const lastDot = existingName.lastIndexOf(".");
+  const base = lastDot > 0 ? existingName.slice(0, lastDot) : existingName;
+  const ext = lastDot > 0 ? existingName.slice(lastDot) : "";
+
+  const { targetUrl: keepBothUrl, displayName } = await generateCopyTarget(
+    currentContainerUrl,
+    `${base} (1)${ext}`,
+    false,
+    fetchFn,
+  );
+
+  await overwriteFile(keepBothUrl as UrlString, file, {
+    contentType: file.type || "application/octet-stream",
+    fetch: fetchFn,
+  });
+
+  return { uploadedName: displayName };
 }
 
 export async function uploadFilesToContainer(
