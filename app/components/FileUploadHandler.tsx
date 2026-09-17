@@ -1,18 +1,13 @@
 "use client";
 
-import { useRef, useEffect, type InputHTMLAttributes, useState } from "react";
+import { useRef, useEffect, type InputHTMLAttributes } from "react";
 import { toast } from "@/components/ui/toast";
 import {
   getAuthenticatedSession,
-  uploadFilesToContainer,
   uploadFolderFilesToContainer,
-  findUploadConflicts,
-  uploadFileWithConflictChoice,
   FolderUploadFile,
-  type UploadConflictChoice,
-  type UploadConflict,
 } from "../lib/helpers";
-import UploadConflictDialog from "./UploadConflictDialog";
+import { useUploadConflictPrompt } from "./useUploadConflictPrompt";
 
 type FileWithRelativePath = File & {
   webkitRelativePath?: string;
@@ -33,21 +28,7 @@ export default function FileUploadHandler({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
-  const [activeConflict, setActiveConflict] = useState<UploadConflict | null>(null);
-  const conflictResolverRef = useRef<((choice: UploadConflictChoice) => void) | null>(null);
-
-  const resolveConflictChoice = (choice: UploadConflictChoice) => {
-    const resolve = conflictResolverRef.current;
-    conflictResolverRef.current = null;
-    setActiveConflict(null);
-    resolve?.(choice);
-  }
-
-  const askConflictChoice = (conflict: UploadConflict) =>
-    new Promise<UploadConflictChoice>((resolve) => {
-      conflictResolverRef.current = resolve;
-      setActiveConflict(conflict);
-    });
+  const { uploadFilesWithConflictPrompt, conflictDialog } = useUploadConflictPrompt();
 
   useEffect(() => {
     if (triggerUpload && triggerUpload > 0 && fileInputRef.current) {
@@ -81,44 +62,11 @@ export default function FileUploadHandler({
     }
 
     try {
-      const selectedFiles = Array.from(files);
-      const { newFiles, conflicts } = await findUploadConflicts(
-        selectedFiles,
+      const { uploadedFiles, failedFiles } = await uploadFilesWithConflictPrompt(
+        Array.from(files),
         currentContainerUrl,
         fetchFn,
       );
-
-      const uploadedFiles: string[] = [];
-      const failedFiles: string[] = [];
-
-      if (newFiles.length > 0) {
-        const result = await uploadFilesToContainer(
-          newFiles,
-          currentContainerUrl,
-          fetchFn,
-        );
-        uploadedFiles.push(...result.uploadedFiles);
-        failedFiles.push(...result.failedFiles);
-      }
-
-      for (const conflict of conflicts) {
-        const choice = await askConflictChoice(conflict);
-        if (choice === "cancel") {
-          continue;
-        }
-
-        try {
-          const { uploadedName } = await uploadFileWithConflictChoice(
-            conflict,
-            choice,
-            currentContainerUrl,
-            fetchFn,
-          );
-          uploadedFiles.push(uploadedName);
-        } catch {
-          failedFiles.push(conflict.existingName);
-        }
-      }
 
       if (uploadedFiles.length > 0) {
         const message =
@@ -226,13 +174,7 @@ export default function FileUploadHandler({
         className="hidden"
         onChange={handleFolderChange}
       />
-      <UploadConflictDialog
-        isOpen={activeConflict !== null}
-        fileName={activeConflict?.existingName ?? null}
-        onReplace={() => resolveConflictChoice("replace")}
-        onKeepBoth={() => resolveConflictChoice("keepBoth")}
-        onCancel={() => resolveConflictChoice("cancel")}
-      />
+      {conflictDialog}
     </>
   );
 }

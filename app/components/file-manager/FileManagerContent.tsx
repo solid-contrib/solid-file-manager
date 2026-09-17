@@ -31,14 +31,20 @@ import LoadingSpinner from "../shared/LoadingSpinner";
 import ErrorDisplay from "../shared/ErrorDisplay";
 import {
     getAuthenticatedSession,
-    uploadFilesToContainer,
     uploadFolderFilesToContainer,
     processDragDropItems,
     hasFiles as hasFilesInDrag,
     isUnsupportedFolderDrag,
 } from "@/app/lib/helpers";
 import { isDialog } from "./types/fileActions";
-import { useFileManagerNavigation, useFileManagerBrowse, useFileManagerActions, useFileManagerSelection, useFileManagerDialogs } from "./context/fileManagerContext";
+import {
+    useFileManagerNavigation,
+    useFileManagerBrowse,
+    useFileManagerActions,
+    useFileManagerSelection,
+    useFileManagerDialogs
+} from "./context/fileManagerContext";
+import { useUploadConflictPrompt } from "../useUploadConflictPrompt";
 
 type ContextMenuState =
     | { type: "new"; position: { x: number; y: number } }
@@ -100,6 +106,7 @@ export default function FileManagerContent() {
     const [contextMenuState, setContextMenuState] = useState<ContextMenuState | null>(null);
 
     const closeContextMenu = () => setContextMenuState(null);
+    const { uploadFilesWithConflictPrompt, conflictDialog } = useUploadConflictPrompt();
 
     /** Require a selected container before create/upload actions. */
     const ensureStorageSelected = () => {
@@ -210,7 +217,12 @@ export default function FileManagerContent() {
 
         if (singleFiles.length > 0) {
             try {
-                const { uploadedFiles, failedFiles } = await uploadFilesToContainer(singleFiles, containerUrlToBrowse, fetchFn);
+                const { uploadedFiles, failedFiles } = await uploadFilesWithConflictPrompt(
+                    singleFiles,
+                    containerUrlToBrowse,
+                    fetchFn,
+                )
+
                 if (uploadedFiles.length > 0) {
                     uploadedSomething = true;
                     toast.add({
@@ -549,6 +561,7 @@ export default function FileManagerContent() {
                 triggerUpload={fileUploadTrigger}
                 triggerFolderUpload={folderUploadTrigger}
             />
+            {conflictDialog}
             {contextMenuState && (
                 <ContextMenu
                     position={contextMenuState.position}
