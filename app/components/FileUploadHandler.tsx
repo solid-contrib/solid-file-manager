@@ -4,10 +4,10 @@ import { useRef, useEffect, type InputHTMLAttributes } from "react";
 import { toast } from "@/components/ui/toast";
 import {
   getAuthenticatedSession,
-  uploadFilesToContainer,
   uploadFolderFilesToContainer,
   FolderUploadFile,
 } from "../lib/helpers";
+import { useUploadConflictPrompt } from "./useUploadConflictPrompt";
 
 type FileWithRelativePath = File & {
   webkitRelativePath?: string;
@@ -27,6 +27,8 @@ export default function FileUploadHandler({
 }: FileUploadHandlerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+
+  const { uploadFilesWithConflictPrompt, conflictDialog } = useUploadConflictPrompt();
 
   useEffect(() => {
     if (triggerUpload && triggerUpload > 0 && fileInputRef.current) {
@@ -58,11 +60,12 @@ export default function FileUploadHandler({
       e.target.value = "";
       return;
     }
+
     try {
-      const { uploadedFiles, failedFiles } = await uploadFilesToContainer(
+      const { uploadedFiles, failedFiles } = await uploadFilesWithConflictPrompt(
         Array.from(files),
         currentContainerUrl,
-        fetchFn
+        fetchFn,
       );
 
       if (uploadedFiles.length > 0) {
@@ -171,6 +174,7 @@ export default function FileUploadHandler({
         className="hidden"
         onChange={handleFolderChange}
       />
+      {conflictDialog}
     </>
   );
 }

@@ -4,7 +4,13 @@ import {
   overwriteFile,
   UrlString,
 } from "@inrupt/solid-client";
-import { ensureTrailingSlash, getHttpStatus, sanitizeResourceName } from ".";
+import {
+  ensureTrailingSlash,
+  getHttpStatus,
+  sanitizeResourceName,
+  fetchContainerListing,
+} from ".";
+import { getContainerListing, loadContainerListing } from "../cache";
 import { toast } from "@/components/ui/toast";
 
 export interface FolderUploadFile {
@@ -17,36 +23,205 @@ export interface UploadResult {
   failedFiles: string[];
 }
 
+export type UploadConflictChoice = "replace" | "keepBoth" | "cancel";
+
+export interface UploadConflict {
+  file: File;
+  existingName: string;
+  targetUrl: string;
+}
+
+export interface UploadConflictCheckResult {
+  newFiles: File[];
+  conflicts: UploadConflict[];
+}
+
+function buildFileTargetUrl(containerUrl: string, fileName: string): string {
+  const parent = ensureTrailingSlash(containerUrl);
+  return `${parent}${fileName}`;
+}
+
+async function getExistingChildNames(
+  currentContainerUrl: string,
+  fetchFn: typeof fetch,
+): Promise<Set<string>> {
+  const cached = getContainerListing(currentContainerUrl);
+  const listing =
+    cached ??
+    (await loadContainerListing(currentContainerUrl, () =>
+      fetchContainerListing(currentContainerUrl, fetchFn),
+    ));
+
+  return new Set(listing.map((item) => item.name));
+}
+
+export async function findUploadConflicts(
+  files: File[],
+  currentContainerUrl: string,
+  fetchFn: typeof fetch,
+): Promise<UploadConflictCheckResult> {
+  const existingNames = await getExistingChildNames(
+    currentContainerUrl,
+    fetchFn,
+  );
+
+  const newFiles: File[] = [];
+  const conflicts: UploadConflict[] = [];
+
+  for (const file of files) {
+    const existingName = sanitizeFilename(file.name);
+    const targetUrl = buildFileTargetUrl(currentContainerUrl, existingName);
+
+    if (existingNames.has(existingName)) {
+      conflicts.push({ file, existingName, targetUrl });
+    } else {
+      newFiles.push(file);
+    }
+  }
+
+  return { newFiles, conflicts };
+}
+
+/** Create-only PUT. Fails if the resource already exists (If-None-Match: *). */
+async function putFile(
+  fileUrl: string,
+  file: File,
+  fetchFn: typeof fetch,
+): Promise<void> {
+  const response = await fetchFn(fileUrl, {
+    method: "PUT",
+    headers: {
+      "Content-Type": file.type || "application/octet-stream",
+      "If-None-Match": "*",
+    },
+    body: file,
+  });
+
+  if (!response.ok) {
+    const error = new Error(
+      `Failed to create file at [${fileUrl}]: [${response.status}] [${response.statusText}]`,
+    ) as Error & { status: number };
+    error.status = response.status;
+    throw error;
+  }
+}
+
+function isNameConflictError(error: unknown): boolean {
+  const status = getHttpStatus(error);
+  return status === 412 || status === 409;
+}
+
+/** Try preferred name with putFile; on conflict, use Drive-style (1), (2), ... */
+async function uploadFileCreateOnly(
+  file: File,
+  preferredName: string,
+  currentContainerUrl: string,
+  fetchFn: typeof fetch,
+  usedNames: Set<string>,
+): Promise<string> {
+  const preferred = sanitizeFilename(preferredName);
+
+  if (!usedNames.has(preferred)) {
+    try {
+      await putFile(
+        buildFileTargetUrl(currentContainerUrl, preferred),
+        file,
+        fetchFn,
+      );
+      usedNames.add(preferred);
+      return preferred;
+    } catch (error) {
+      if (!isNameConflictError(error)) {
+        throw error;
+      }
+      usedNames.add(preferred);
+    }
+  }
+
+  const lastDot = preferred.lastIndexOf(".");
+  const base = lastDot > 0 ? preferred.slice(0, lastDot) : preferred;
+  const ext = lastDot > 0 ? preferred.slice(lastDot) : "";
+
+  let attempt = 1;
+  while (true) {
+    const displayName = `${base} (${attempt})${ext}`;
+    const candidateName = sanitizeFilename(displayName);
+
+    if (usedNames.has(candidateName)) {
+      attempt += 1;
+      continue;
+    }
+
+    try {
+      await putFile(
+        buildFileTargetUrl(currentContainerUrl, candidateName),
+        file,
+        fetchFn,
+      );
+      usedNames.add(candidateName);
+      return displayName;
+    } catch (error) {
+      if (isNameConflictError(error)) {
+        usedNames.add(candidateName);
+        attempt += 1;
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+
+export async function uploadFileWithConflictChoice(
+  conflict: UploadConflict,
+  choice: Exclude<UploadConflictChoice, "cancel">,
+  currentContainerUrl: string,
+  fetchFn: typeof fetch,
+): Promise<{ uploadedName: string }> {
+  const { file, existingName, targetUrl } = conflict;
+
+  if (choice === "replace") {
+    await overwriteFile(targetUrl as UrlString, file, {
+      contentType: file.type || "application/octet-stream",
+      fetch: fetchFn,
+    });
+    return { uploadedName: existingName };
+  }
+
+  const usedNames = await getExistingChildNames(currentContainerUrl, fetchFn);
+  const uploadedName = await uploadFileCreateOnly(
+    file,
+    existingName,
+    currentContainerUrl,
+    fetchFn,
+    usedNames,
+  );
+  return { uploadedName };
+}
+
 export async function uploadFilesToContainer(
   files: File[],
   currentContainerUrl: string,
   fetchFn: typeof fetch,
 ): Promise<UploadResult> {
-  const uploadPromises: Promise<void>[] = [];
+  const usedNames = await getExistingChildNames(currentContainerUrl, fetchFn);
   const uploadedFiles: string[] = [];
   const failedFiles: string[] = [];
 
   for (const file of files) {
-    const sanitizedName = sanitizeFilename(file.name);
-    const fileUrl = currentContainerUrl.endsWith("/")
-      ? `${currentContainerUrl}${sanitizedName}`
-      : `${currentContainerUrl}/${sanitizedName}`;
-
-    const uploadPromise = overwriteFile(fileUrl as UrlString, file, {
-      contentType: file.type || "application/octet-stream",
-      fetch: fetchFn,
-    })
-      .then(() => {
-        uploadedFiles.push(sanitizedName);
-      })
-      .catch(() => {
-        failedFiles.push(sanitizedName);
-      });
-
-    uploadPromises.push(uploadPromise);
+    const preferredName = sanitizeFilename(file.name);
+    try {
+      const uploadedName = await uploadFileCreateOnly(
+        file,
+        preferredName,
+        currentContainerUrl,
+        fetchFn,
+        usedNames,
+      );
+      uploadedFiles.push(uploadedName);
+    } catch {
+      failedFiles.push(preferredName);
+    }
   }
-
-  await Promise.all(uploadPromises);
 
   return { uploadedFiles, failedFiles };
 }
