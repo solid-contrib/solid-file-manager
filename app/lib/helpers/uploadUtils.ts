@@ -9,7 +9,9 @@ import {
   getHttpStatus,
   sanitizeResourceName,
   resourceExists,
+  fetchContainerListing,
 } from ".";
+import { getContainerListing, loadContainerListing } from "../cache";
 import { toast } from "@/components/ui/toast";
 
 export interface FolderUploadFile {
@@ -40,20 +42,38 @@ function buildFileTargetUrl(containerUrl: string, fileName: string): string {
   return `${parent}${fileName}`;
 }
 
+async function getExistingChildNames(
+  currentContainerUrl: string,
+  fetchFn: typeof fetch,
+): Promise<Set<string>> {
+  const cached = getContainerListing(currentContainerUrl);
+  const listing =
+    cached ??
+    (await loadContainerListing(currentContainerUrl, () =>
+      fetchContainerListing(currentContainerUrl, fetchFn),
+    ));
+
+  return new Set(listing.map((item) => item.name));
+}
+
 export async function findUploadConflicts(
   files: File[],
   currentContainerUrl: string,
   fetchFn: typeof fetch,
 ): Promise<UploadConflictCheckResult> {
+  const existingNames = await getExistingChildNames(
+    currentContainerUrl,
+    fetchFn,
+  );
+
   const newFiles: File[] = [];
   const conflicts: UploadConflict[] = [];
 
   for (const file of files) {
     const existingName = sanitizeFilename(file.name);
     const targetUrl = buildFileTargetUrl(currentContainerUrl, existingName);
-    const exists = await resourceExists(targetUrl, fetchFn);
 
-    if (exists) {
+    if (existingNames.has(existingName)) {
       conflicts.push({ file, existingName, targetUrl });
     } else {
       newFiles.push(file);
