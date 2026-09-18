@@ -8,7 +8,6 @@ import {
   ensureTrailingSlash,
   getHttpStatus,
   sanitizeResourceName,
-  resourceExists,
   fetchContainerListing,
 } from ".";
 import { getContainerListing, loadContainerListing } from "../cache";
@@ -83,6 +82,35 @@ export async function findUploadConflicts(
   return { newFiles, conflicts };
 }
 
+/** Create-only PUT. Fails if the resource already exists (If-None-Match: *). */
+async function putFile(
+  fileUrl: string,
+  file: File,
+  fetchFn: typeof fetch,
+): Promise<void> {
+  const response = await fetchFn(fileUrl, {
+    method: "PUT",
+    headers: {
+      "Content-Type": file.type || "application/octet-stream",
+      "If-None-Match": "*",
+    },
+    body: file,
+  });
+
+  if (!response.ok) {
+    const error = new Error(
+      `Failed to create file at [${fileUrl}]: [${response.status}] [${response.statusText}]`,
+    ) as Error & { status: number };
+    error.status = response.status;
+    throw error;
+  }
+}
+
+function isNameConflictError(error: unknown): boolean {
+  const status = getHttpStatus(error);
+  return status === 412 || status === 409;
+}
+
 export async function uploadFileWithConflictChoice(
   conflict: UploadConflict,
   choice: Exclude<UploadConflictChoice, "cancel">,
@@ -104,28 +132,29 @@ export async function uploadFileWithConflictChoice(
   const base = lastDot > 0 ? existingName.slice(0, lastDot) : existingName;
   const ext = lastDot > 0 ? existingName.slice(lastDot) : "";
 
-  let keepBothUrl = "";
-  let displayName = "";
+  const usedNames = await getExistingChildNames(currentContainerUrl, fetchFn);
+  let attempt = 1;
 
-  for (let attempt = 1; attempt < 100; attempt++) {
-    displayName = `${base} (${attempt})${ext}`;
+  while (true) {
+    const displayName = `${base} (${attempt})${ext}`;
     const candidateName = sanitizeFilename(displayName);
-    keepBothUrl = buildFileTargetUrl(currentContainerUrl, candidateName);
-    const exists = await resourceExists(keepBothUrl, fetchFn);
-    if (!exists) {
-      break;
+    if (usedNames.has(candidateName)) {
+      attempt += 1;
+      continue;
     }
-    if (attempt === 99) {
-      throw new Error("Unable to generate a unique name for the upload");
+    const keepBothUrl = buildFileTargetUrl(currentContainerUrl, candidateName);
+    try {
+      await putFile(keepBothUrl, file, fetchFn);
+      return { uploadedName: displayName };
+    } catch (error) {
+      if (isNameConflictError(error)) {
+        usedNames.add(candidateName);
+        attempt += 1;
+        continue;
+      }
+      throw error;
     }
   }
-
-  await overwriteFile(keepBothUrl as UrlString, file, {
-    contentType: file.type || "application/octet-stream",
-    fetch: fetchFn,
-  });
-
-  return { uploadedName: displayName };
 }
 
 export async function uploadFilesToContainer(
