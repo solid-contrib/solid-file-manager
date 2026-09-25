@@ -5,6 +5,14 @@ import { ChevronRight, ChevronDown, Folder } from "lucide-react";
 import { SolidStorage } from "../lib/hooks/useSolidStorages";
 import { FolderTreeChild, folderUrlsEqual, ensureTrailingSlash, getAuthenticatedSession, fetchContainerListing, foldersFromListing } from "../lib/helpers";
 import { getContainerListing, loadContainerListing, subscribeContainerCache, getContainerCacheVersion } from "../lib/cache";
+import {
+    SidebarMenu,
+    SidebarMenuButton,
+    SidebarMenuItem,
+    SidebarMenuSub,
+    SidebarMenuSubItem,
+    SidebarMenuSkeleton,
+} from "@/components/ui/sidebar";
 
 interface FolderTreeProps {
     storages: SolidStorage[];
@@ -124,7 +132,7 @@ export default function FolderTree({
     }, [expandedUrls, loadChildren]);
 
     // Render one folder row and its nested children when expanded.
-    const renderNode = useCallback((node: FolderTreeChild, depth: number) => {
+    const renderNode = useCallback((node: FolderTreeChild) => {
         const nodeUrl = ensureTrailingSlash(node.url);
         const isExpanded = expandedUrls.has(nodeUrl);
         const isLoading = loadingUrls.has(nodeUrl);
@@ -133,16 +141,12 @@ export default function FolderTree({
         const isCurrent = normalizedCurrentFolderUrl != null && folderUrlsEqual(normalizedCurrentFolderUrl, nodeUrl);
 
         return (
-            <li key={nodeUrl}>
-                <div
-                    className={`group flex items-center gap-1 rounded-md px-2 py-1 text-sm ${isCurrent ? "bg-accent text-foreground font-medium" : "text-foreground hover:bg-muted"
-                        }`}
-                    style={{ paddingLeft: `${depth * 12 + 8}px` }}
-                >
+            <SidebarMenuItem key={nodeUrl}>
+                <div className="flex w-full items-center gap-0.5">
                     <button
                         type="button"
                         onClick={() => void toggleExpand(nodeUrl)}
-                        className="rounded p-0.5 hover:bg-muted"
+                        className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground hover:bg-sidebar-accent"
                         aria-label={isExpanded ? `Collapse ${node.name}` : `Expand ${node.name}`}
                         aria-expanded={isExpanded}
                     >
@@ -153,44 +157,41 @@ export default function FolderTree({
                         )}
                     </button>
 
-                    <button
-                        type="button"
+                    <SidebarMenuButton
+                        isActive={isCurrent}
+                        className="flex-1"
                         onClick={() => onNavigate(nodeUrl)}
-                        className="flex min-w-0 flex-1 items-center gap-2 text-left"
                         title={node.name}
                         aria-current={isCurrent ? "page" : undefined}
                     >
-                        <Folder className="h-4 w-4 shrink-0" aria-hidden="true" />
-                        <span className="truncate">{node.name}</span>
-                    </button>
+                        <Folder aria-hidden="true" />
+                        <span>{node.name}</span>
+                    </SidebarMenuButton>
                 </div>
 
                 {isExpanded && (
-                    <ul className="space-y-0.5">
+                    <SidebarMenuSub>
                         {isLoading && (
-                            <li
-                                className="px-2 py-1 text-xs text-muted-foreground"
-                                style={{ paddingLeft: `${(depth + 1) * 12 + 8}px` }}
-                                aria-live="polite"
-                            >
-                                Loading...
-                            </li>
+                            <SidebarMenuSubItem>
+                                <SidebarMenuSkeleton showIcon />
+                            </SidebarMenuSubItem>
                         )}
 
                         {!isLoading && hasError && (
-                            <li
-                                className="px-2 py-1 text-xs text-destructive"
-                                style={{ paddingLeft: `${(depth + 1) * 12 + 8}px` }}
-                            >
-                                Failed to load folders
-                            </li>
+                            <SidebarMenuSubItem>
+                                <p className="px-2 py-1 text-xs text-destructive">
+                                    Failed to load folders
+                                </p>
+                            </SidebarMenuSubItem>
                         )}
 
-                        {!isLoading && !hasError && children.map((child) => renderNode(child, depth + 1))}
-                    </ul>
+                        {!isLoading &&
+                            !hasError &&
+                            children.map((child) => renderNode(child))}
+                    </SidebarMenuSub>
                 )}
-            </li>
-        )
+            </SidebarMenuItem>
+        );
     }, [
         childrenByUrl,
         errorByUrl,
@@ -212,12 +213,15 @@ export default function FolderTree({
     );
 
     if (rootNodes.length === 0) {
-        return <p className="px-3 py-2 text-sm text-muted-foreground">No storages found</p>
+        return (
+            <p className="px-3 py-2 text-sm text-muted-foreground">
+                No storages found
+            </p>
+        );
     }
-
     return (
-        <ul className="space-y-0.5" aria-label="My Storages">
-            {rootNodes.map((node) => renderNode(node, 0))}
-        </ul>
+        <SidebarMenu aria-label="My Storages">
+            {rootNodes.map((node) => renderNode(node))}
+        </SidebarMenu>
     );
 }
