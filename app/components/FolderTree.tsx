@@ -38,6 +38,8 @@ export default function FolderTree({
     // Children come from the shared cache, not a local copy.
     // cacheVersion makes this recompute when listings are written or invalidated.
     const childrenByUrl = useMemo(() => {
+        // cacheVersion is read so listings recompute after cache writes/invalidation.
+        void cacheVersion;
         const next: Record<string, FolderTreeChild[]> = {};
         for (const url of expandedUrls) {
             const cached = getContainerListing(url);
