@@ -3,6 +3,8 @@ import {
   createContainerAt,
   overwriteFile,
   UrlString,
+  getSourceUrl,
+  saveFileInContainer,
 } from "@inrupt/solid-client";
 import {
   ensureTrailingSlash,
@@ -82,36 +84,28 @@ export async function findUploadConflicts(
   return { newFiles, conflicts };
 }
 
-/** Create-only PUT. Fails if the resource already exists (If-None-Match: *). */
-async function putFile(
-  fileUrl: string,
-  file: File,
-  fetchFn: typeof fetch,
-): Promise<void> {
-  const response = await fetchFn(fileUrl, {
-    method: "PUT",
-    headers: {
-      "Content-Type": file.type || "application/octet-stream",
-      "If-None-Match": "*",
-    },
-    body: file,
-  });
-
-  if (!response.ok) {
-    const error = new Error(
-      `Failed to create file at [${fileUrl}]: [${response.status}] [${response.statusText}]`,
-    ) as Error & { status: number };
-    error.status = response.status;
-    throw error;
-  }
-}
-
 function isNameConflictError(error: unknown): boolean {
   const status = getHttpStatus(error);
   return status === 412 || status === 409;
 }
 
-/** Try preferred name with putFile; on conflict, use Drive-style (1), (2), ... */
+/** Last path segment of the URL the server actually created. */
+function nameFromSavedUrl(sourceUrl: string, containerUrl: string): string {
+  const parent = ensureTrailingSlash(containerUrl);
+  if (sourceUrl.startsWith(parent)) {
+    return decodeURIComponent(
+      sourceUrl.slice(parent.length).replace(/\/$/, ""),
+    );
+  }
+  try {
+    const segments = new URL(sourceUrl).pathname.split("/").filter(Boolean);
+    return decodeURIComponent(segments[segments.length - 1] ?? sourceUrl);
+  } catch {
+    return sourceUrl;
+  }
+}
+
+/** POST via saveFileInContainer; on conflict, try Drive-style (1), (2), ... */
 async function uploadFileCreateOnly(
   file: File,
   preferredName: string,
@@ -120,16 +114,28 @@ async function uploadFileCreateOnly(
   usedNames: Set<string>,
 ): Promise<string> {
   const preferred = sanitizeFilename(preferredName);
+  const contentType = file.type || "application/octet-stream";
+
+  const trySave = async (slug: string): Promise<string> => {
+    const saved = await saveFileInContainer(currentContainerUrl, file, {
+      slug,
+      contentType,
+      fetch: fetchFn,
+    });
+    const actualName = nameFromSavedUrl(
+      getSourceUrl(saved),
+      currentContainerUrl,
+    );
+    usedNames.add(actualName);
+    if (actualName !== slug) {
+      usedNames.add(slug);
+    }
+    return actualName;
+  };
 
   if (!usedNames.has(preferred)) {
     try {
-      await putFile(
-        buildFileTargetUrl(currentContainerUrl, preferred),
-        file,
-        fetchFn,
-      );
-      usedNames.add(preferred);
-      return preferred;
+      return await trySave(preferred);
     } catch (error) {
       if (!isNameConflictError(error)) {
         throw error;
@@ -144,8 +150,7 @@ async function uploadFileCreateOnly(
 
   let attempt = 1;
   while (true) {
-    const displayName = `${base} (${attempt})${ext}`;
-    const candidateName = sanitizeFilename(displayName);
+    const candidateName = sanitizeFilename(`${base} (${attempt})${ext}`);
 
     if (usedNames.has(candidateName)) {
       attempt += 1;
@@ -153,13 +158,7 @@ async function uploadFileCreateOnly(
     }
 
     try {
-      await putFile(
-        buildFileTargetUrl(currentContainerUrl, candidateName),
-        file,
-        fetchFn,
-      );
-      usedNames.add(candidateName);
-      return displayName;
+      return await trySave(candidateName);
     } catch (error) {
       if (isNameConflictError(error)) {
         usedNames.add(candidateName);
