@@ -55,7 +55,7 @@ const shouldSkipResourceCopy = (resourceUrl: string): boolean => {
 };
 
 
-const resourceExists = async (url: string, fetchFn: typeof fetch): Promise<boolean> => {
+export const resourceExists = async (url: string, fetchFn: typeof fetch): Promise<boolean> => {
   try {
     const response = await fetchFn(url, { method: "HEAD" });
     if (response.status === 404) {
