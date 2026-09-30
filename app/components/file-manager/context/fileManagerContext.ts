@@ -8,7 +8,6 @@ import type { FileAction } from "../types/fileActions";
 import type { ShareOperationResult } from "../hooks/useFileOperations";
 import type { UseFileDialogsResult } from "../hooks/useFileDialogs";
 import type { BreadcrumbItem } from "@/app/lib/helpers";
-import { invalidateContainerListing } from "@/app/lib/cache";
 
 /** Navigation slice */
 export interface FileManagerNavigationContextValue {

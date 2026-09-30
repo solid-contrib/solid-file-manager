@@ -29,6 +29,7 @@ import ContextMenu, { type ContextMenuAction } from "../ContextMenu";
 import type { FileItemData } from "../FileItem";
 import LoadingSpinner from "../shared/LoadingSpinner";
 import ErrorDisplay from "../shared/ErrorDisplay";
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import {
     getAuthenticatedSession,
     uploadFilesToContainer,
@@ -94,7 +95,6 @@ export default function FileManagerContent() {
     } = useFileManagerDialogs();
 
     // UI-local states
-    const [sidebarOpen, setSidebarOpen] = useState(false);
     const [isDragActive, setIsDragActive] = useState(false);
     const dragCounterRef = useRef(0);
     const [contextMenuState, setContextMenuState] = useState<ContextMenuState | null>(null);
@@ -392,42 +392,38 @@ export default function FileManagerContent() {
     const isBrowsing = Boolean(selectedStorageId && isLoadingFiles);
 
     return (
-        <div
-            className="flex h-screen flex-col overflow-hidden bg-background"
+        <SidebarProvider
+            className="flex h-screen w-full overflow-hidden bg-background"
+            style={{ "--sidebar-width": "16rem" } as React.CSSProperties}
             onDragEnter={handleDragEnter}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
         >
-            <Header
-                onMenuClick={() => setSidebarOpen(true)}
-                sidebarOpen={sidebarOpen}
+            <Sidebar
+                currentContainerUrl={containerUrlToBrowse}
+                storages={storages}
+                onFolderNavigate={(folderUrl) => {
+                    navigateToFolder(folderUrl);
+                }}
+                onNewFolderClick={() => {
+                    if (!ensureStorageSelected()) return;
+                    dialogHandlers.openNewFolderDialog();
+                }}
+                onFileUploadClick={() => {
+                    if (!ensureStorageSelected()) return;
+                    dialogHandlers.triggerFileUpload();
+                }}
+                onFolderUploadClick={() => {
+                    if (!ensureStorageSelected()) return;
+                    dialogHandlers.triggerFolderUpload();
+                }}
             />
-            <div className="flex flex-1 overflow-hidden">
-                <Sidebar
-                    isOpen={sidebarOpen}
-                    onClose={() => setSidebarOpen(false)}
-                    currentContainerUrl={containerUrlToBrowse}
-                    storages={storages}
-                    onFolderNavigate={(folderUrl) => {
-                        navigateToFolder(folderUrl);
-                        setSidebarOpen(false);
-                    }}
-                    onNewFolderClick={() => {
-                        if (!ensureStorageSelected()) return;
-                        dialogHandlers.openNewFolderDialog();
-                    }}
-                    onFileUploadClick={() => {
-                        if (!ensureStorageSelected()) return;
-                        dialogHandlers.triggerFileUpload();
-                    }}
-                    onFolderUploadClick={() => {
-                        if (!ensureStorageSelected()) return;
-                        dialogHandlers.triggerFolderUpload();
-                    }}
-                />
+
+            <SidebarInset className="min-w-0 flex-1 overflow-hidden">
+                <Header />
                 <main
-                    className="flex flex-1 flex-col overflow-hidden"
+                    className="flex min-h-0 flex-1 flex-col overflow-hidden"
                     onContextMenu={handleBlankContextMenu}
                 >
                     <div className="shrink-0">
@@ -474,7 +470,8 @@ export default function FileManagerContent() {
                         </div>
                     )}
                 </main>
-            </div>
+            </SidebarInset>
+
             <NewFolderDialog
                 isOpen={isDialog(activeDialog, "newFolder")}
                 onClose={closeDialog}
@@ -500,7 +497,7 @@ export default function FileManagerContent() {
                 currentLocationUrl={getCurrentLocationUrl()}
                 onMoved={(destinationUrl) => {
                     invalidateContainers([destinationUrl]);
-                    refresh(); // invalidates + refreshes current (source) folder
+                    refresh();
                 }}
             />
             <DeleteConfirmDialog
@@ -560,6 +557,6 @@ export default function FileManagerContent() {
                     onClose={closeContextMenu}
                 />
             )}
-        </div>
+        </SidebarProvider>
     );
 }
