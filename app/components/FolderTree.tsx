@@ -171,7 +171,7 @@ export default function FolderTree({
                     </SidebarMenuButton>
                 </div>
 
-                {isExpanded && (
+                {isExpanded && (isLoading || hasError || children.length > 0) && (
                     <SidebarMenuSub>
                         {isLoading && (
                             <SidebarMenuSubItem>
