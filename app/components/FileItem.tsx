@@ -7,6 +7,7 @@ import {
   Item,
   ItemActions,
   ItemContent,
+  ItemDescription,
   ItemMedia,
   ItemTitle,
 } from "@/components/ui/item";
@@ -123,12 +124,21 @@ export default function FileItem({
     lastTapRef.current = currentTime;
   };
 
+  const secondaryLabel =
+    file.lastModified
+      ? formatDate(file.lastModified)
+      : file.type === "folder"
+        ? "Folder"
+        : file.size
+          ? formatFileSize(file.size)
+          : "File";
+
   if (view === "grid") {
     return (
       <Item
         variant={isSelected ? "muted" : "outline"}
-        size="sm"
-        className="relative h-full cursor-pointer select-none flex-col items-center justify-center text-center hover:bg-muted"
+        size="default"
+        className="relative h-full cursor-pointer select-none flex-col items-center justify-center gap-3 py-5 text-center hover:bg-muted"
         style={{ touchAction: "manipulation" }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
@@ -144,7 +154,7 @@ export default function FileItem({
         }}
       >
         {isHovered && (
-          <ItemActions className="absolute top-1 right-1 z-10">
+          <ItemActions className="absolute top-1.5 right-1.5 z-10">
             <FileItemMenu
               file={file}
               position="top-right"
@@ -158,13 +168,16 @@ export default function FileItem({
             />
           </ItemActions>
         )}
-        <ItemMedia className="mb-1 size-12 sm:mb-2 sm:size-16">
+        <ItemMedia className="mb-0 flex size-14 items-center justify-center rounded-2xl bg-muted sm:size-16">
           {getFileIcon(file.type, file.mimeType)}
         </ItemMedia>
-        <ItemContent className="w-full min-w-0 items-center">
+        <ItemContent className="w-full min-w-0 items-center gap-0.5">
           <ItemTitle className="w-full justify-center truncate text-xs sm:text-sm">
             {file.name}
           </ItemTitle>
+          <ItemDescription className="line-clamp-1 w-full text-center text-xs">
+            {secondaryLabel}
+          </ItemDescription>
         </ItemContent>
       </Item>
     );
@@ -173,7 +186,7 @@ export default function FileItem({
   // List view
   return (
     <Item
-      variant={isSelected ? "muted" : "default"}
+      variant={isSelected ? "muted" : "outline"}
       size="sm"
       className="cursor-pointer select-none hover:bg-muted"
       style={{ touchAction: "manipulation" }}
@@ -190,23 +203,20 @@ export default function FileItem({
         onContextMenu?.(file, event);
       }}
     >
-      <ItemMedia variant="icon" className="size-8 sm:size-10">
+      <ItemMedia className="flex size-9 items-center justify-center rounded-xl bg-muted sm:size-10">
         {getFileIcon(file.type, file.mimeType)}
       </ItemMedia>
 
-      <ItemContent className="min-w-0">
+      <ItemContent className="min-w-0 gap-0.5">
         <ItemTitle className="w-full truncate">{file.name}</ItemTitle>
+        <ItemDescription className="line-clamp-1 text-xs">
+          {secondaryLabel}
+        </ItemDescription>
       </ItemContent>
 
-      <ItemActions className="ml-auto hidden shrink-0 text-muted-foreground sm:flex">
+      <ItemActions className="ml-auto hidden min-w-20 shrink-0 justify-end text-muted-foreground md:flex">
         <span className="text-xs sm:text-sm">
-          {file.lastModified ? formatDate(file.lastModified) : ""}
-        </span>
-      </ItemActions>
-
-      <ItemActions className="hidden shrink-0 text-muted-foreground md:flex">
-        <span className="text-xs sm:text-sm">
-          {file.size ? formatFileSize(file.size) : ""}
+          {file.size ? formatFileSize(file.size) : file.type === "folder" ? "—" : ""}
         </span>
       </ItemActions>
 
