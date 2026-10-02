@@ -125,12 +125,11 @@ export default function FileItem({
 
   if (view === "grid") {
     return (
-      <section
-        className={`group relative flex cursor-pointer select-none flex-col items-center justify-center rounded-lg border-2 p-2 transition-colors sm:p-4 ${isSelected
-          ? "border-primary bg-accent"
-          : "border-transparent bg-background hover:border-border hover:bg-muted"
-          }`}
-        style={{ touchAction: 'manipulation' }}
+      <Item
+        variant={isSelected ? "muted" : "outline"}
+        size="sm"
+        className="relative h-full cursor-pointer select-none flex-col items-center justify-center text-center hover:bg-muted"
+        style={{ touchAction: "manipulation" }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onClick={handleClick}
@@ -145,25 +144,29 @@ export default function FileItem({
         }}
       >
         {isHovered && (
-          <FileItemMenu
-            file={file}
-            position="top-right"
-            onRename={onRename}
-            onPreview={onPreview}
-            onDownload={onDownload}
-            onCopy={onCopy}
-            onMove={onMove}
-            onDelete={onDelete}
-            onShare={onShare}
-          />
+          <ItemActions className="absolute top-1 right-1 z-10">
+            <FileItemMenu
+              file={file}
+              position="top-right"
+              onRename={onRename}
+              onPreview={onPreview}
+              onDownload={onDownload}
+              onCopy={onCopy}
+              onMove={onMove}
+              onDelete={onDelete}
+              onShare={onShare}
+            />
+          </ItemActions>
         )}
-        <div className="mb-1 flex h-12 w-12 items-center justify-center sm:mb-2 sm:h-16 sm:w-16">
+        <ItemMedia className="mb-1 size-12 sm:mb-2 sm:size-16">
           {getFileIcon(file.type, file.mimeType)}
-        </div>
-        <p className="max-w-full truncate text-center text-xs font-medium text-foreground sm:text-sm">
-          {file.name}
-        </p>
-      </section>
+        </ItemMedia>
+        <ItemContent className="w-full min-w-0 items-center">
+          <ItemTitle className="w-full justify-center truncate text-xs sm:text-sm">
+            {file.name}
+          </ItemTitle>
+        </ItemContent>
+      </Item>
     );
   }
 

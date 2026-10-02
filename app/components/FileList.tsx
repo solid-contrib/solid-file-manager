@@ -61,7 +61,7 @@ export default function FileList({
         {files.length === 0 ? (
           <EmptyState message="No files or folders" />
         ) : view === "grid" ? (
-          <div className="grid grid-cols-2 gap-2 p-2 sm:grid-cols-3 sm:gap-3 sm:p-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+          <ItemGroup className="grid grid-cols-2 gap-2 p-2 sm:grid-cols-3 sm:gap-3 sm:p-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {files.map((file) => (
               <FileItem
                 key={file.id}
@@ -80,7 +80,7 @@ export default function FileList({
                 onContextMenu={onFileContextMenu}
               />
             ))}
-          </div>
+          </ItemGroup>
         ) : (
           <ItemGroup className="gap-0 p-2 sm:p-4" data-size="sm">
             {files.map((file) => (
