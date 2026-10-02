@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import FileItem, { FileItemData } from "./FileItem";
 import Toolbar from "./shared/Toolbar";
 import EmptyState from "./shared/EmptyState";
+import { ItemGroup } from "@/components/ui/item";
 
 interface FileListProps {
   files: FileItemData[];
@@ -81,7 +82,7 @@ export default function FileList({
             ))}
           </div>
         ) : (
-          <div className="divide-y divide-border">
+          <ItemGroup className="gap-0 p-2 sm:p-4" data-size="sm">
             {files.map((file) => (
               <FileItem
                 key={file.id}
@@ -100,7 +101,7 @@ export default function FileList({
                 onContextMenu={onFileContextMenu}
               />
             ))}
-          </div>
+          </ItemGroup>
         )}
       </section>
     </main>
