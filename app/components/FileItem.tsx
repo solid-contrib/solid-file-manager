@@ -3,6 +3,14 @@
 import { useState, useRef } from "react";
 import { getFileIcon, formatFileSize, formatDate, type FileType } from "../lib/helpers";
 import FileItemMenu from "./FileItemMenu";
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemMedia,
+  ItemTitle,
+} from "@/components/ui/item";
 
 export type { FileType };
 
@@ -61,7 +69,7 @@ export default function FileItem({
     }
 
     clickCountRef.current += 1;
-    
+
     if (clickCountRef.current === 1) {
       clickTimeoutRef.current = setTimeout(() => {
         if (clickCountRef.current === 1) {
@@ -88,13 +96,13 @@ export default function FileItem({
     setTimeout(() => {
       touchHandledRef.current = false;
     }, 400);
-    
+
     const currentTime = new Date().getTime();
     const tapLength = currentTime - lastTapRef.current;
-    
+
     if (tapLength < 300 && tapLength > 0) {
       // Double tap detected
-     
+
       if (clickTimeoutRef.current) {
         clearTimeout(clickTimeoutRef.current);
         clickTimeoutRef.current = null;
@@ -112,18 +120,26 @@ export default function FileItem({
         clickTimeoutRef.current = null;
       }, 300);
     }
-    
+
     lastTapRef.current = currentTime;
   };
 
+  const secondaryLabel =
+    file.lastModified
+      ? formatDate(file.lastModified)
+      : file.type === "folder"
+        ? "Folder"
+        : file.size
+          ? formatFileSize(file.size)
+          : "File";
+
   if (view === "grid") {
     return (
-      <section
-        className={`group relative flex cursor-pointer select-none flex-col items-center justify-center rounded-lg border-2 p-2 transition-colors sm:p-4 ${isSelected
-            ? "border-primary bg-accent"
-            : "border-transparent bg-background hover:border-border hover:bg-muted"
-          }`}
-        style={{ touchAction: 'manipulation' }}
+      <Item
+        variant={isSelected ? "muted" : "outline"}
+        size="default"
+        className="relative h-full cursor-pointer select-none flex-col items-center justify-center gap-3 py-5 text-center hover:bg-muted"
+        style={{ touchAction: "manipulation" }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onClick={handleClick}
@@ -138,34 +154,42 @@ export default function FileItem({
         }}
       >
         {isHovered && (
-          <FileItemMenu
-            file={file}
-            position="top-right"
-            onRename={onRename}
-            onPreview={onPreview}
-            onDownload={onDownload}
-            onCopy={onCopy}
-            onMove={onMove}
-            onDelete={onDelete}
-            onShare={onShare}
-          />
+          <ItemActions className="absolute top-1.5 right-1.5 z-10">
+            <FileItemMenu
+              file={file}
+              position="top-right"
+              onRename={onRename}
+              onPreview={onPreview}
+              onDownload={onDownload}
+              onCopy={onCopy}
+              onMove={onMove}
+              onDelete={onDelete}
+              onShare={onShare}
+            />
+          </ItemActions>
         )}
-        <div className="mb-1 flex h-12 w-12 items-center justify-center sm:mb-2 sm:h-16 sm:w-16">
+        <ItemMedia className="mb-0 flex size-14 items-center justify-center rounded-2xl bg-muted sm:size-16">
           {getFileIcon(file.type, file.mimeType)}
-        </div>
-        <p className="max-w-full truncate text-center text-xs font-medium text-foreground sm:text-sm">
-          {file.name}
-        </p>
-      </section>
+        </ItemMedia>
+        <ItemContent className="w-full min-w-0 items-center gap-0.5">
+          <ItemTitle className="w-full justify-center truncate text-xs sm:text-sm">
+            {file.name}
+          </ItemTitle>
+          <ItemDescription className="line-clamp-1 w-full text-center text-xs">
+            {secondaryLabel}
+          </ItemDescription>
+        </ItemContent>
+      </Item>
     );
   }
 
   // List view
   return (
-    <section
-      className={`group flex cursor-pointer select-none items-center gap-2 border-b border-border px-2 py-2 transition-colors sm:gap-4 sm:px-4 sm:py-3 ${isSelected ? "bg-accent" : "bg-background hover:bg-muted"
-        }`}
-      style={{ touchAction: 'manipulation' }}
+    <Item
+      variant={isSelected ? "muted" : "outline"}
+      size="sm"
+      className="cursor-pointer select-none hover:bg-muted"
+      style={{ touchAction: "manipulation" }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={handleClick}
@@ -179,32 +203,39 @@ export default function FileItem({
         onContextMenu?.(file, event);
       }}
     >
-      <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center sm:h-10 sm:w-10">
+      <ItemMedia className="flex size-9 items-center justify-center rounded-xl bg-muted sm:size-10">
         {getFileIcon(file.type, file.mimeType)}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-xs font-medium text-foreground sm:text-sm">{file.name}</p>
-      </div>
-      <div className="hidden flex-shrink-0 text-xs text-muted-foreground sm:block sm:text-sm">
-        {file.lastModified && formatDate(file.lastModified)}
-      </div>
-      <div className="hidden flex-shrink-0 text-xs text-muted-foreground md:block md:text-sm">
-        {file.size && formatFileSize(file.size)}
-      </div>
+      </ItemMedia>
+
+      <ItemContent className="min-w-0 gap-0.5">
+        <ItemTitle className="w-full truncate">{file.name}</ItemTitle>
+        <ItemDescription className="line-clamp-1 text-xs">
+          {secondaryLabel}
+        </ItemDescription>
+      </ItemContent>
+
+      <ItemActions className="ml-auto hidden min-w-20 shrink-0 justify-end text-muted-foreground md:flex">
+        <span className="text-xs sm:text-sm">
+          {file.size ? formatFileSize(file.size) : file.type === "folder" ? "—" : ""}
+        </span>
+      </ItemActions>
+
       {isHovered && (
-        <FileItemMenu
-          file={file}
-          position="right"
-          onRename={onRename}
-          onPreview={onPreview}
-          onDownload={onDownload}
-          onCopy={onCopy}
-          onMove={onMove}
-          onDelete={onDelete}
-          onShare={onShare}
-        />
+        <ItemActions className="shrink-0">
+          <FileItemMenu
+            file={file}
+            position="right"
+            onRename={onRename}
+            onPreview={onPreview}
+            onDownload={onDownload}
+            onCopy={onCopy}
+            onMove={onMove}
+            onDelete={onDelete}
+            onShare={onShare}
+          />
+        </ItemActions>
       )}
-    </section>
+    </Item>
   );
 }
 
