@@ -4,14 +4,24 @@ import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { AlertCircle, FileWarning } from "lucide-react";
 import { getFile, UrlString } from "@inrupt/solid-client";
 import { getAuthenticatedSession } from "../lib/helpers";
 import { FileItemData } from "./FileItem";
-import LoadingSpinner from "./shared/LoadingSpinner";
 import { getHttpStatus } from "../lib/helpers";
 
 interface PreviewModalProps {
@@ -64,11 +74,11 @@ export default function PreviewModal({
 
       try {
         const { fetch: fetchFn } = getAuthenticatedSession();
-        
+
 
         let fileBlob: Blob;
         let actualMimeType: string = "";
-        
+
         try {
           fileBlob = await getFile(file.url as UrlString, { fetch: fetchFn });
           // Get the content-type from the blob's type property (set from HTTP response header)
@@ -76,18 +86,18 @@ export default function PreviewModal({
         } catch (getFileError: unknown) {
           const statusCode = getHttpStatus(getFileError);
           const errorMessage = getFileError instanceof Error ? getFileError.message : String(getFileError);
-          
-          if (statusCode === 501 || 
-              errorMessage.includes("501") || 
-              errorMessage.includes("Not Implemented") ||
-              errorMessage.includes("No conversion path")) {
+
+          if (statusCode === 501 ||
+            errorMessage.includes("501") ||
+            errorMessage.includes("Not Implemented") ||
+            errorMessage.includes("No conversion path")) {
 
             const response = await fetchFn(file.url);
 
             if (response.status === 501) {
-           
+
               const contentType = response.headers.get("content-type") || "";
-              
+
               if (contentType.includes("text/turtle") || contentType.includes("application/json")) {
                 // Can't preview - server returned error instead of file
                 setFileType("other");
@@ -95,7 +105,7 @@ export default function PreviewModal({
                 setIsLoading(false);
                 return;
               }
-              
+
               try {
                 fileBlob = await response.blob();
                 actualMimeType = contentType.split(";")[0].trim();
@@ -115,14 +125,14 @@ export default function PreviewModal({
             throw getFileError;
           }
         }
-        
+
         if (blobUrlRef.current) {
           URL.revokeObjectURL(blobUrlRef.current);
         }
-        
+
         const blobUrl = URL.createObjectURL(fileBlob);
         blobUrlRef.current = blobUrl;
-        
+
         // PDFs: open in new tab
         if (actualMimeType === "application/pdf") {
           window.open(blobUrl, "_blank");
@@ -130,11 +140,11 @@ export default function PreviewModal({
           setIsLoading(false);
           return;
         }
-        
+
         // Word documents: browsers can't natively view them, trigger download
-        if (actualMimeType.startsWith("application/msword") || 
-            actualMimeType.includes("wordprocessingml") ||
-            actualMimeType.includes("ms-word")) {
+        if (actualMimeType.startsWith("application/msword") ||
+          actualMimeType.includes("wordprocessingml") ||
+          actualMimeType.includes("ms-word")) {
           const link = document.createElement("a");
           link.href = blobUrl;
           link.download = file.name;
@@ -146,7 +156,7 @@ export default function PreviewModal({
           setIsLoading(false);
           return;
         }
-        
+
         // Images: display in modal
         if (actualMimeType.startsWith("image/")) {
           setPreviewUrl(blobUrl);
@@ -154,11 +164,11 @@ export default function PreviewModal({
           setIsLoading(false);
           return;
         }
-        
+
         // Check if this is a binary file that shouldn't be read as text
         let isBinaryFile = false;
         let reason = "";
-        
+
         if (file.name.endsWith(".DS_Store") || file.name.endsWith(".ds_store")) {
           isBinaryFile = true;
           reason = "This is a macOS system file (binary format) that cannot be displayed as text.";
@@ -168,30 +178,30 @@ export default function PreviewModal({
         } else if (actualMimeType.includes("binary")) {
           isBinaryFile = true;
           reason = "This is a binary file that cannot be displayed as text.";
-        } else if (actualMimeType && 
-                   !actualMimeType.startsWith("text/") && 
-                   !actualMimeType.includes("json") && 
-                   !actualMimeType.includes("xml") && 
-                   !actualMimeType.includes("javascript") &&
-                   !actualMimeType.includes("yaml") &&
-                   !actualMimeType.includes("csv") &&
-                   actualMimeType !== "application/pdf" &&
-                   !actualMimeType.startsWith("image/") &&
-                   !actualMimeType.startsWith("application/msword") &&
-                   !actualMimeType.includes("wordprocessingml") &&
-                   !actualMimeType.includes("ms-word")) {
+        } else if (actualMimeType &&
+          !actualMimeType.startsWith("text/") &&
+          !actualMimeType.includes("json") &&
+          !actualMimeType.includes("xml") &&
+          !actualMimeType.includes("javascript") &&
+          !actualMimeType.includes("yaml") &&
+          !actualMimeType.includes("csv") &&
+          actualMimeType !== "application/pdf" &&
+          !actualMimeType.startsWith("image/") &&
+          !actualMimeType.startsWith("application/msword") &&
+          !actualMimeType.includes("wordprocessingml") &&
+          !actualMimeType.includes("ms-word")) {
           isBinaryFile = true;
           reason = `This file type (${actualMimeType}) is not supported for preview. Please download the file to view it.`;
         }
-        
+
         if (isBinaryFile) {
-    
+
           setFileType("other");
           setPreviewUnavailableReason(reason);
           setIsLoading(false);
           return;
         }
-        
+
         try {
           const text = await fileBlob.text();
           if (text.length > 0 && text.length < 10 * 1024 * 1024) { // Less than 10MB
@@ -203,7 +213,7 @@ export default function PreviewModal({
         } catch (err) {
           console.error("Failed to load preview:", err);
         }
-   
+
         setFileType("other");
         setIsLoading(false);
       } catch (err) {
@@ -221,39 +231,44 @@ export default function PreviewModal({
   const renderPreview = () => {
     if (isLoading) {
       return (
-        <div className="flex h-96 items-center justify-center">
-          <LoadingSpinner size="md" text="Loading preview..." />
+        <div className="flex min-h-64 flex-col items-center justify-center gap-3 py-12">
+          <Spinner className="size-6" />
+          <p className="text-sm text-muted-foreground">Loading preview...</p>
         </div>
       );
     }
 
     if (error) {
       return (
-        <div className="flex h-96 flex-col items-center justify-center text-center">
-          <p className="text-red-600 mb-4">{error}</p>
-          <Button variant="default" onClick={onClose}>
-            Close
-          </Button>
-        </div>
+        <Empty className="min-h-64 border-0 py-12">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <AlertCircle className="text-destructive" />
+            </EmptyMedia>
+            <EmptyTitle>Preview failed</EmptyTitle>
+            <EmptyDescription>{error}</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       );
     }
 
     if (fileType === "image") {
       if (!previewUrl) {
         return (
-          <div className="flex h-96 items-center justify-center">
-            <LoadingSpinner size="md" text="Loading image..." />
+          <div className="flex min-h-64 flex-col items-center justify-center gap-3 py-12">
+            <Spinner className="size-6" />
+            <p className="text-sm text-muted-foreground">Loading image...</p>
           </div>
         );
       }
       return (
-        <div className="flex min-h-[80vh] items-center justify-center bg-muted p-4">
+        <div className="flex min-h-64 items-center justify-center rounded-2xl bg-muted p-4">
           {/* Solid preview URLs are authenticated/cross-origin; next/image is not suitable here */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={previewUrl}
             alt={file.name}
-            className="max-h-[80vh] max-w-full object-contain"
+            className="max-h-[60vh] max-w-full object-contain"
             onError={() => setError("Failed to load image")}
           />
         </div>
@@ -262,42 +277,49 @@ export default function PreviewModal({
 
     if (fileType === "text") {
       return (
-        <div className="min-h-[80vh] overflow-auto">
-          <pre className="whitespace-pre-wrap break-words p-4 font-mono text-sm text-foreground bg-muted rounded">
+        <div className="min-h-64 overflow-auto rounded-2xl bg-muted">
+          <pre className="wrap-break-word whitespace-pre-wrap p-4 font-mono text-sm text-foreground">
             {previewContent || ""}
           </pre>
         </div>
       );
     }
 
-    // For other file types
     return (
-      <div className="flex h-96 flex-col items-center justify-center text-center px-4">
-        <p className="text-muted-foreground mb-2 font-medium">
-          Preview is not available for this file type.
-        </p>
-        {previewUnavailableReason && (
-          <p className="text-sm text-muted-foreground mb-4 max-w-md">
-            {previewUnavailableReason}
-          </p>
-        )}
-        <p className="text-sm text-muted-foreground mb-6">
-          Please download the file to view it.
-        </p>
-        <Button variant="default" onClick={onClose}>
-          Close
-        </Button>
-      </div>
+      <Empty className="min-h-64 border-0 py-12">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <FileWarning />
+          </EmptyMedia>
+          <EmptyTitle>Preview not available</EmptyTitle>
+          <EmptyDescription>
+            {previewUnavailableReason ||
+              "This file type cannot be previewed in the browser. Download the file to view it."}
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
     );
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-6xl">
+      <DialogContent className="flex max-h-[90vh] flex-col gap-4 overflow-hidden sm:max-w-4xl">
         <DialogHeader>
-          <DialogTitle>Preview: {file.name}</DialogTitle>
+          <DialogTitle>Preview</DialogTitle>
+          <DialogDescription className="truncate">
+            {file.name}
+          </DialogDescription>
         </DialogHeader>
-        {renderPreview()}
+
+        <div className="min-h-0 flex-1 overflow-auto">
+          {renderPreview()}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Close
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -20,7 +21,6 @@ import {
   ensureTrailingSlash,
 } from "../lib/helpers";
 import { Folder, AlertTriangle } from "lucide-react";
-import LoadingSpinner from "./shared/LoadingSpinner";
 
 interface MoveDialogProps {
   isOpen: boolean;
@@ -169,7 +169,10 @@ export default function MoveDialog({
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Move {file.name}</DialogTitle>
+          <DialogTitle>Move</DialogTitle>
+          <DialogDescription className="truncate">
+            {file.name}
+          </DialogDescription>
         </DialogHeader>
       <main className="py-2" onKeyDown={handleKeyDown}>
         {/* Current Location */}
@@ -201,8 +204,9 @@ export default function MoveDialog({
             Select a destination:
           </label>
           {isLoadingFolders ? (
-            <div className="flex items-center justify-center py-8">
-              <LoadingSpinner size="sm" text="Loading folders..." />
+            <div className="flex flex-col items-center justify-center gap-2 py-8">
+              <Spinner className="size-5" />
+              <p className="text-sm text-muted-foreground">Loading folders...</p>
             </div>
           ) : filteredFolders.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground text-sm">
@@ -220,7 +224,7 @@ export default function MoveDialog({
                       : "border-l-4 border-transparent"
                     }`}
                 >
-                  <Folder className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                  <Folder className="h-5 w-5 text-muted-foreground shrink-0" />
                   <span className="text-sm text-foreground truncate">{folder.name}</span>
                 </button>
               ))}
@@ -230,7 +234,7 @@ export default function MoveDialog({
 
         {filteredFolders.length > 0 && !selectedFolderUrl && (
           <div className="mt-4 flex items-start gap-2 text-sm text-muted-foreground bg-accent border border-border rounded-md p-3">
-            <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+            <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0 mt-0.5" />
             <span>Select a location to show the folder path</span>
           </div>
         )}

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -137,6 +138,9 @@ export default function RenameDialog({
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Rename</DialogTitle>
+          <DialogDescription className="truncate">
+            {file.name}
+          </DialogDescription>
         </DialogHeader>
         <div className="py-2">
           <Input
@@ -164,7 +168,7 @@ export default function RenameDialog({
             aria-busy={isRenaming}
           >
             {isRenaming && <Spinner />}
-            OK
+            Rename
           </Button>
         </DialogFooter>
       </DialogContent>
