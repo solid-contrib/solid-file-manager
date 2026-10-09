@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -108,6 +109,9 @@ export default function NewFolderDialog({
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>New folder</DialogTitle>
+          <DialogDescription>
+            Enter a name for the new folder.
+          </DialogDescription>
         </DialogHeader>
         <div className="py-2">
           <Input
