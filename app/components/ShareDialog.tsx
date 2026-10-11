@@ -4,11 +4,13 @@ import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import {
   NativeSelect,
   NativeSelectOption,
@@ -19,7 +21,6 @@ import { fetchUserContacts, Contact } from "../lib/helpers/contactUtils";
 import { fetchAndParseProfile } from "../lib/helpers/profileUtils";
 import { getResourceAccessList, removeAccessFromResource } from "../lib/helpers/acpUtils";
 import { User, Search, Lock, X, CheckCircle, Trash2 } from "lucide-react";
-import LoadingSpinner from "./shared/LoadingSpinner";
 
 export type AccessLevel = "Editor" | "Viewer";
 
@@ -249,7 +250,12 @@ export default function ShareDialog({
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{file ? `Share '${file.name}'` : "Share"}</DialogTitle>
+          <DialogTitle>Share</DialogTitle>
+          {file ? (
+            <DialogDescription className="truncate">
+              {file.name}
+            </DialogDescription>
+          ) : null}
         </DialogHeader>
       <div className="space-y-6">
         {/* Add people section */}
@@ -323,7 +329,7 @@ export default function ShareDialog({
             <div className="space-y-2">
               {isLoadingAccessList ? (
                 <div className="flex items-center justify-center py-2">
-                  <LoadingSpinner />
+                  <Spinner className="size-5" />
                 </div>
               ) : (
                 accessList.map((access, index) => {
@@ -353,7 +359,7 @@ export default function ShareDialog({
                           title="Remove access"
                         >
                           {isRemoving ? (
-                            <LoadingSpinner size="sm" />
+                            <Spinner className="size-4" />
                           ) : (
                             <Trash2 className="h-4 w-4" />
                           )}
@@ -369,7 +375,7 @@ export default function ShareDialog({
 
         {isLoadingContacts && (
           <div className="flex items-center justify-center py-4">
-            <LoadingSpinner />
+            <Spinner className="size-5" />
           </div>
         )}
       </div>

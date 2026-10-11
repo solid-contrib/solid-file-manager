@@ -5,6 +5,7 @@ import { CheckCircle, Clipboard, ExternalLink } from "lucide-react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -43,18 +44,19 @@ export default function ShareSuccessModal({
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Sharing Successful</DialogTitle>
+          <DialogTitle>Shared successfully</DialogTitle>
+          <DialogDescription>
+            <span className="font-medium text-foreground">{resourceName}</span>{" "}
+            has been shared. Copy the URL below and send it to the people you
+            shared with.
+          </DialogDescription>
         </DialogHeader>
+
         <div className="mb-4 flex justify-center">
           <div className="rounded-full bg-primary/10 p-3">
             <CheckCircle className="h-8 w-8 text-primary" />
           </div>
         </div>
-
-        <p className="mb-6 text-center text-muted-foreground">
-          <span className="font-medium text-foreground">{resourceName}</span> has been shared successfully.
-          Please copy the resource URL below and send it to the people you shared with.
-        </p>
 
         <div className="mb-2">
           <label className="mb-2 block text-sm font-medium text-foreground">
