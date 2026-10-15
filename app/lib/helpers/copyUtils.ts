@@ -4,7 +4,6 @@ import {
   createContainerAt,
   getSolidDataset,
   getContainedResourceUrlAll,
-  deleteFile,
   UrlString,
 } from "@inrupt/solid-client";
 
@@ -164,42 +163,3 @@ export const copyFolderResource = async (
   await copyFolderContents(folder.url, targetUrl, fetchFn);
 
 };
-
-/**
- * Move a file resource from one location to another
- * Process: Fetch → Put in new location → Delete old one
- */
-export const moveFileResource = async (
-  file: { url: string; name?: string; mimeType?: string },
-  destinationFolderUrl: string,
-  fetchFn: typeof fetch
-): Promise<void> => {
-  // Get the original display name
-  const originalLabel = file.name ?? decodeResourceNameFromUrl(file.url);
-  
-  // Generate target URL in the destination folder
-  const destinationWithSlash = ensureTrailingSlash(destinationFolderUrl);
-  const sanitizedName = sanitizeResourceName(originalLabel);
-  const encodedName = encodeURIComponent(sanitizedName);
-  const targetUrl = `${destinationWithSlash}${encodedName}`;
-  
-  // Check if target already exists
-  const exists = await resourceExists(targetUrl, fetchFn);
-  if (exists) {
-    throw new Error(`A file with the name "${originalLabel}" already exists in the destination folder`);
-  }
-  
-  // Step 1: Fetch the file
-  const fileBlob = await getFile(file.url as UrlString, { fetch: fetchFn });
-  const contentType = fileBlob.type || file.mimeType || "application/octet-stream";
-  
-  // Step 2: Put it in the new location
-  await overwriteFile(targetUrl as UrlString, fileBlob, {
-    fetch: fetchFn,
-    contentType,
-  });
-  
-  // Step 3: Delete the old file
-  await deleteFile(file.url as UrlString, { fetch: fetchFn });
-};
-
