@@ -19,6 +19,7 @@ import {
   getAuthenticatedSession,
   decodeResourceNameFromUrl,
   ensureTrailingSlash,
+  folderUrlsEqual,
 } from "../lib/helpers";
 import { Folder, AlertTriangle } from "lucide-react";
 
@@ -144,9 +145,11 @@ export default function MoveDialog({
       }
     } catch (error) {
       console.error("Failed to move file:", error);
-      toast.add({ title: error instanceof Error
+      toast.add({
+        title: error instanceof Error
           ? `Failed to move: ${error.message}`
-          : "Failed to move file", type: "error" });
+          : "Failed to move file", type: "error"
+      });
     } finally {
       setIsMoving(false);
     }
@@ -160,9 +163,11 @@ export default function MoveDialog({
 
   if (!file) return null;
 
-  // Filter out the current folder (where the file currently is)
+  // Filter out the current folder (where the file currently is).
+  // Compare normalised URLs: currentLocationUrl can arrive without a
+  // trailing slash from the ?url= param, while listing URLs always have one.
   const filteredFolders = allFolders.filter(
-    (folder) => folder.type === "folder" && folder.url !== currentLocationUrl
+    (folder) => folder.type === "folder" && !folderUrlsEqual(folder.url, currentLocationUrl)
   );
 
   return (
@@ -174,71 +179,71 @@ export default function MoveDialog({
             {file.name}
           </DialogDescription>
         </DialogHeader>
-      <main className="py-2" onKeyDown={handleKeyDown}>
-        {/* Current Location */}
-        <section className="mb-4">
-          <label className="block text-sm font-medium text-foreground mb-2">
-            Current location:
-          </label>
-          <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-md border border-border">
-            <Folder className="h-5 w-5 text-muted-foreground" />
-            <span className="text-sm text-foreground">
-              {currentLocationUrl
-                ? availableFolders.find(f => f.url === currentLocationUrl)?.name ||
-                (() => {
-                  try {
-                    const url = new URL(currentLocationUrl);
-                    return url.pathname.split("/").filter(Boolean).pop() || currentLocationUrl;
-                  } catch {
-                    return currentLocationUrl;
-                  }
-                })()
-                : "My Storages"}
-            </span>
-          </div>
-        </section>
+        <main className="py-2" onKeyDown={handleKeyDown}>
+          {/* Current Location */}
+          <section className="mb-4">
+            <label className="block text-sm font-medium text-foreground mb-2">
+              Current location:
+            </label>
+            <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-md border border-border">
+              <Folder className="h-5 w-5 text-muted-foreground" />
+              <span className="text-sm text-foreground">
+                {currentLocationUrl
+                  ? availableFolders.find((f) => folderUrlsEqual(f.url, currentLocationUrl))?.name ||
+                  (() => {
+                    try {
+                      const url = new URL(currentLocationUrl);
+                      return url.pathname.split("/").filter(Boolean).pop() || currentLocationUrl;
+                    } catch {
+                      return currentLocationUrl;
+                    }
+                  })()
+                  : "My Storages"}
+              </span>
+            </div>
+          </section>
 
-        {/* Available Folders */}
-        <section>
-          <label className="block text-sm font-medium text-foreground mb-2">
-            Select a destination:
-          </label>
-          {isLoadingFolders ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-8">
-              <Spinner className="size-5" />
-              <p className="text-sm text-muted-foreground">Loading folders...</p>
-            </div>
-          ) : filteredFolders.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground text-sm">
-              No folders available to move to
-            </div>
-          ) : (
-            <div className="max-h-64 overflow-y-auto border border-border rounded-md">
-              {filteredFolders.map((folder) => (
-                <button
-                  key={folder.id}
-                  type="button"
-                  onClick={() => setSelectedFolderUrl(folder.url)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted transition-colors ${selectedFolderUrl === folder.url
+          {/* Available Folders */}
+          <section>
+            <label className="block text-sm font-medium text-foreground mb-2">
+              Select a destination:
+            </label>
+            {isLoadingFolders ? (
+              <div className="flex flex-col items-center justify-center gap-2 py-8">
+                <Spinner className="size-5" />
+                <p className="text-sm text-muted-foreground">Loading folders...</p>
+              </div>
+            ) : filteredFolders.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground text-sm">
+                No folders available to move to
+              </div>
+            ) : (
+              <div className="max-h-64 overflow-y-auto border border-border rounded-md">
+                {filteredFolders.map((folder) => (
+                  <button
+                    key={folder.id}
+                    type="button"
+                    onClick={() => setSelectedFolderUrl(folder.url)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted transition-colors ${selectedFolderUrl === folder.url
                       ? "bg-accent border-l-4 border-primary"
                       : "border-l-4 border-transparent"
-                    }`}
-                >
-                  <Folder className="h-5 w-5 text-muted-foreground shrink-0" />
-                  <span className="text-sm text-foreground truncate">{folder.name}</span>
-                </button>
-              ))}
+                      }`}
+                  >
+                    <Folder className="h-5 w-5 text-muted-foreground shrink-0" />
+                    <span className="text-sm text-foreground truncate">{folder.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {filteredFolders.length > 0 && !selectedFolderUrl && (
+            <div className="mt-4 flex items-start gap-2 text-sm text-muted-foreground bg-accent border border-border rounded-md p-3">
+              <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0 mt-0.5" />
+              <span>Select a location to show the folder path</span>
             </div>
           )}
-        </section>
-
-        {filteredFolders.length > 0 && !selectedFolderUrl && (
-          <div className="mt-4 flex items-start gap-2 text-sm text-muted-foreground bg-accent border border-border rounded-md p-3">
-            <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0 mt-0.5" />
-            <span>Select a location to show the folder path</span>
-          </div>
-        )}
-      </main>
+        </main>
         <DialogFooter>
           <Button
             variant="ghost"
