@@ -11,16 +11,16 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { getSolidDataset, getContainedResourceUrlAll, UrlString } from "@inrupt/solid-client";
 import { toast } from "@/components/ui/toast";
 import { FileItemData } from "./FileItem";
 import {
   moveFileResource,
   getAuthenticatedSession,
-  decodeResourceNameFromUrl,
   ensureTrailingSlash,
   folderUrlsEqual,
+  fetchContainerListing,
 } from "../lib/helpers";
+import { loadContainerListing } from "../lib/cache";
 import { Folder, AlertTriangle } from "lucide-react";
 
 interface MoveDialogProps {
@@ -58,24 +58,17 @@ export default function MoveDialog({
       visited.add(normalizedUrl);
 
       try {
-        const dataset = await getSolidDataset(normalizedUrl as UrlString, { fetch: fetchFn });
-        const containedResources = getContainedResourceUrlAll(dataset);
+        const listing = await loadContainerListing(normalizedUrl, () =>
+          fetchContainerListing(normalizedUrl, fetchFn),
+        );
 
-        for (const resourceUrl of containedResources) {
-          if (resourceUrl.endsWith("/")) {
-            // It's a folder
-            const folderName = decodeResourceNameFromUrl(resourceUrl);
-
-            folders.push({
-              id: resourceUrl,
-              name: folderName,
-              type: "folder",
-              url: resourceUrl,
-            });
-
-            // Recursively traverse subfolders
-            await traverse(resourceUrl);
+        for (const item of listing) {
+          if (item.type !== "folder") {
+            continue;
           }
+
+          folders.push(item);
+          await traverse(item.url);
         }
       } catch (error) {
         // Skip folders we can't access
