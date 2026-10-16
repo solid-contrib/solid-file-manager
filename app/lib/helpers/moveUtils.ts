@@ -1,13 +1,18 @@
 // Solid has no server-side move, so moving is copy-then-delete.
 
-import { deleteFile, getFile, UrlString } from "@inrupt/solid-client";
+import { deleteFile, getFile, overwriteFile, UrlString } from "@inrupt/solid-client";
+import { loadContainerListing } from "../cache";
+import { fetchContainerListing } from "./containerListingUtils";
 import { decodeResourceNameFromUrl } from "./copyUtils";
 import { getHttpStatus } from "./httpErrorUtils";
 import {
     createResourceWithSlug,
     isIndeterminateWriteError,
+    isNameConflictError,
     type SlugWriteResult,
 } from "./slugUtils";
+
+const MAX_KEEP_BOTH_ATTEMPTS = 100;
 
 export interface MoveResult {
     /** Where the resource actually ended up. */
@@ -21,6 +26,14 @@ export interface MoveResult {
     /** False when the original could not be removed, so both copies now exist. */
     sourceRemoved: boolean;
 }
+
+
+export interface MoveConflict {
+    existingName: string;
+    targetUrl: string;
+}
+
+export type MoveConflictChoice = "replace" | "keepBoth";
 
 /**
  * Thrown when a write may or may not have reached the destination.
@@ -38,6 +51,25 @@ export class IndeterminateMoveError extends Error {
 }
 
 /**
+ * Look for a resource already using requestedName at the destination, so the
+ * user can be asked before any bytes are transferred.
+ */
+export async function findMoveConflict(
+    destinationFolderUrl: string,
+    requestedName: string,
+    fetchFn: typeof fetch,
+): Promise<MoveConflict | null> {
+    const listing = await loadContainerListing(destinationFolderUrl, () =>
+        fetchContainerListing(destinationFolderUrl, fetchFn),
+    );
+
+    const existing = listing.find((item) => item.name === requestedName);
+    return existing
+        ? { existingName: existing.name, targetUrl: existing.url }
+        : null;
+}
+
+/**
  * Move a file into another container, optionally under a new name.
  *
  * The delete only runs once the write has been confirmed, so a failed or
@@ -51,33 +83,133 @@ export async function moveFileResource(
 ): Promise<MoveResult> {
     const originalName = file.name ?? decodeResourceNameFromUrl(file.url);
     const requestedName = newName?.trim() || originalName;
+    const { body, contentType } = await readSource(file, fetchFn);
 
-    const fileBlob = await getFile(file.url as UrlString, { fetch: fetchFn });
-    const contentType =
-        fileBlob.type || file.mimeType || "application/octet-stream";
-
-    let written: SlugWriteResult;
-    try {
-        written = await createResourceWithSlug(
+    const written = await writeOrFlagIndeterminate(destinationFolderUrl, () =>
+        createResourceWithSlug(
             destinationFolderUrl,
-            fileBlob,
+            body,
             requestedName,
             contentType,
             fetchFn,
-        );
+        ),
+    );
+
+    return completeMove(written, requestedName, originalName, file.url, fetchFn);
+}
+
+/** Move a file when the user has decided how to resolve a name clash. */
+export async function moveFileWithConflictChoice(
+    file: { url: string; name?: string; mimeType?: string },
+    destinationFolderUrl: string,
+    newName: string,
+    conflict: MoveConflict,
+    choice: MoveConflictChoice,
+    fetchFn: typeof fetch,
+): Promise<MoveResult> {
+    const originalName = file.name ?? decodeResourceNameFromUrl(file.url);
+    const requestedName = newName?.trim() || originalName;
+    const { body, contentType } = await readSource(file, fetchFn);
+
+    const written =
+        choice === "replace"
+            ? await writeOrFlagIndeterminate(destinationFolderUrl, async () => {
+                await overwriteFile(conflict.targetUrl as UrlString, body, {
+                    contentType,
+                    fetch: fetchFn,
+                });
+                // We wrote over a resource we had already located, so the name is exact.
+                return {
+                    url: conflict.targetUrl,
+                    name: conflict.existingName,
+                    slugRespected: true,
+                };
+            })
+            : await createKeepingBoth(
+                destinationFolderUrl,
+                body,
+                requestedName,
+                contentType,
+                fetchFn,
+            );
+
+    return completeMove(written, requestedName, originalName, file.url, fetchFn);
+}
+
+/** Read the resource being moved, with the content type to write it back under. */
+async function readSource(
+    file: { url: string; mimeType?: string },
+    fetchFn: typeof fetch,
+): Promise<{ body: Blob; contentType: string }> {
+    const body = await getFile(file.url as UrlString, { fetch: fetchFn });
+    return {
+        body,
+        contentType: body.type || file.mimeType || "application/octet-stream",
+    };
+}
+
+/** Create under "name (1)", "name (2)" and so on, since the plain name is taken. */
+async function createKeepingBoth(
+    destinationFolderUrl: string,
+    body: Blob,
+    requestedName: string,
+    contentType: string,
+    fetchFn: typeof fetch,
+): Promise<SlugWriteResult> {
+    const lastDot = requestedName.lastIndexOf(".");
+    const base = lastDot > 0 ? requestedName.slice(0, lastDot) : requestedName;
+    const ext = lastDot > 0 ? requestedName.slice(lastDot) : "";
+
+    for (let attempt = 1; attempt <= MAX_KEEP_BOTH_ATTEMPTS; attempt += 1) {
+        try {
+            return await writeOrFlagIndeterminate(destinationFolderUrl, () =>
+                createResourceWithSlug(
+                    destinationFolderUrl,
+                    body,
+                    `${base} (${attempt})${ext}`,
+                    contentType,
+                    fetchFn,
+                ),
+            );
+        } catch (error) {
+            if (!isNameConflictError(error)) {
+                throw error;
+            }
+        }
+    }
+
+    throw new Error(`Could not find a free name based on "${requestedName}".`);
+}
+
+/** Convert a write we cannot account for into a signal not to touch the source. */
+async function writeOrFlagIndeterminate(
+    destinationFolderUrl: string,
+    write: () => Promise<SlugWriteResult>,
+): Promise<SlugWriteResult> {
+    try {
+        return await write();
     } catch (error) {
         if (isIndeterminateWriteError(error)) {
             throw new IndeterminateMoveError(destinationFolderUrl, error);
         }
         throw error;
     }
+}
 
+/** Remove the original now the copy is confirmed, and report what happened. */
+async function completeMove(
+    written: SlugWriteResult,
+    requestedName: string,
+    originalName: string,
+    sourceUrl: string,
+    fetchFn: typeof fetch,
+): Promise<MoveResult> {
     return {
         url: written.url,
         name: written.name,
         requestedName,
         originalName,
-        sourceRemoved: await deleteSource(file.url, fetchFn),
+        sourceRemoved: await deleteSource(sourceUrl, fetchFn),
     };
 }
 
