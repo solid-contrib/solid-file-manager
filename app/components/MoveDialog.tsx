@@ -20,9 +20,11 @@ import {
   findMoveConflict,
   getAuthenticatedSession,
   getParentContainerUrl,
+  getHttpStatus,
   ensureTrailingSlash,
   folderUrlsEqual,
   fetchContainerListing,
+  IndeterminateMoveError,
   type MoveResult,
 } from "../lib/helpers";
 import { useNameConflictPrompt } from "./useNameConflictPrompt";
@@ -72,6 +74,77 @@ function describeMoveResult(result: MoveResult): {
   }
 
   return { title: `Moved as "${result.name}"`, type: "success" };
+}
+
+/** Maps a failed move to something the user can act on. */
+function describeMoveError(error: unknown): {
+  title: string;
+  type: "warning" | "error";
+} {
+  // The write may have landed, so the original was deliberately kept.
+  if (error instanceof IndeterminateMoveError) {
+    return {
+      title:
+        "Could not confirm the move. Check the destination folder before trying again — the original has been left in place.",
+      type: "warning",
+    };
+  }
+
+  const status = getHttpStatus(error);
+
+  switch (status) {
+    case 401:
+    case 403:
+      return {
+        title:
+          "You do not have permission to write to that folder. Nothing was moved.",
+        type: "error",
+      };
+    case 404:
+      return {
+        title:
+          "The file or the destination folder no longer exists. Nothing was moved.",
+        type: "error",
+      };
+    case 409:
+    case 412:
+      return {
+        title:
+          "Something else took that name just now. Try again. Nothing was moved.",
+        type: "error",
+      };
+    case 413:
+      return {
+        title: "The file is too large for that destination. Nothing was moved.",
+        type: "error",
+      };
+    case 415:
+      return {
+        title:
+          "The server rejected the file's content type. Nothing was moved.",
+        type: "error",
+      };
+    case 507:
+      return {
+        title: "There is not enough space in that storage. Nothing was moved.",
+        type: "error",
+      };
+  }
+
+  if (status === undefined) {
+    return {
+      title: "Could not reach the server. Nothing was moved.",
+      type: "error",
+    };
+  }
+
+  return {
+    title:
+      error instanceof Error
+        ? `Failed to move: ${error.message}`
+        : "Failed to move file",
+    type: "error",
+  };
 }
 
 export default function MoveDialog({
@@ -177,11 +250,17 @@ export default function MoveDialog({
       return;
     }
 
+    let fetchFn: typeof fetch;
+    try {
+      ({ fetch: fetchFn } = getAuthenticatedSession());
+    } catch {
+      toast.add({ title: "Not authenticated", type: "error" });
+      return;
+    }
+
     setIsMoving(true);
 
     try {
-      const { fetch: fetchFn } = getAuthenticatedSession();
-
       // Ask before transferring anything, so a clash does not cost a round trip
       // of the file's bytes. The server's own 409 is still the backstop.
       const conflict = await findMoveConflict(
@@ -219,11 +298,7 @@ export default function MoveDialog({
       }
     } catch (error) {
       console.error("Failed to move file:", error);
-      toast.add({
-        title: error instanceof Error
-          ? `Failed to move: ${error.message}`
-          : "Failed to move file", type: "error"
-      });
+      toast.add(describeMoveError(error));
     } finally {
       setIsMoving(false);
     }
