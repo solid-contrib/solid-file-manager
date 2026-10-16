@@ -12,6 +12,7 @@ import {
   sanitizeResourceName,
   fetchContainerListing,
 } from ".";
+import { isNameConflictError, nameFromSavedUrl } from "./slugUtils";
 import { getContainerListing, loadContainerListing } from "../cache";
 import { toast } from "@/components/ui/toast";
 
@@ -82,27 +83,6 @@ export async function findUploadConflicts(
   }
 
   return { newFiles, conflicts };
-}
-
-function isNameConflictError(error: unknown): boolean {
-  const status = getHttpStatus(error);
-  return status === 412 || status === 409;
-}
-
-/** Last path segment of the URL the server actually created. */
-function nameFromSavedUrl(sourceUrl: string, containerUrl: string): string {
-  const parent = ensureTrailingSlash(containerUrl);
-  if (sourceUrl.startsWith(parent)) {
-    return decodeURIComponent(
-      sourceUrl.slice(parent.length).replace(/\/$/, ""),
-    );
-  }
-  try {
-    const segments = new URL(sourceUrl).pathname.split("/").filter(Boolean);
-    return decodeURIComponent(segments[segments.length - 1] ?? sourceUrl);
-  } catch {
-    return sourceUrl;
-  }
 }
 
 /** POST via saveFileInContainer; on conflict, try Drive-style (1), (2), ... */
