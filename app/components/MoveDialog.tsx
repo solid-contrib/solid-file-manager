@@ -19,9 +19,11 @@ import {
   moveFileWithConflictChoice,
   findMoveConflict,
   getAuthenticatedSession,
+  getParentContainerUrl,
   ensureTrailingSlash,
   folderUrlsEqual,
   fetchContainerListing,
+  type MoveResult,
 } from "../lib/helpers";
 import { useNameConflictPrompt } from "./useNameConflictPrompt";
 import { loadContainerListing } from "../lib/cache";
@@ -34,6 +36,42 @@ interface MoveDialogProps {
   availableFolders: FileItemData[];
   currentLocationUrl: string;
   onMoved?: (destinationUrl: string) => void;
+}
+
+/**
+ * Describes what actually happened, which is not always what was asked for:
+ * the server may rename the resource, ignore a rename, or refuse to let go of
+ * the original.
+ */
+function describeMoveResult(result: MoveResult): {
+  title: string;
+  type: "success" | "warning" | "error";
+} {
+  // Worst case first: the copy landed but the pod now holds two of them.
+  if (!result.sourceRemoved) {
+    return {
+      title: `Copied "${result.name}", but the original could not be removed. Both copies now exist.`,
+      type: "error",
+    };
+  }
+
+  if (result.name === result.requestedName) {
+    return { title: `Moved "${result.name}"`, type: "success" };
+  }
+
+  // A rename was asked for and the old name stuck, so the move landed but the
+  // rename did not.
+  if (
+    result.requestedName !== result.originalName &&
+    result.name === result.originalName
+  ) {
+    return {
+      title: `Moved, but the name was not changed. It is still "${result.originalName}".`,
+      type: "warning",
+    };
+  }
+
+  return { title: `Moved as "${result.name}"`, type: "success" };
 }
 
 export default function MoveDialog({
@@ -152,13 +190,15 @@ export default function MoveDialog({
         fetchFn,
       );
 
+      let result: MoveResult;
+
       if (conflict) {
         const choice = await askConflictChoice(conflict.existingName);
         if (choice === "cancel") {
           return;
         }
 
-        await moveFileWithConflictChoice(
+        result = await moveFileWithConflictChoice(
           file,
           selectedFolderUrl,
           trimmedName,
@@ -167,15 +207,15 @@ export default function MoveDialog({
           fetchFn,
         );
       } else {
-        await moveFileResource(file, selectedFolderUrl, fetchFn, trimmedName);
+        result = await moveFileResource(file, selectedFolderUrl, fetchFn, trimmedName);
       }
 
-      toast.add({ title: `Moved "${file.name}"`, type: "success" });
+      toast.add(describeMoveResult(result));
       onClose();
 
       // Notify parent to refresh
       if (onMoved) {
-        onMoved(selectedFolderUrl);
+        onMoved(getParentContainerUrl(result.url));
       }
     } catch (error) {
       console.error("Failed to move file:", error);
