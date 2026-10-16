@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useId } from "react";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
 import { FileItemData } from "./FileItem";
 import {
@@ -44,6 +45,16 @@ export default function MoveDialog({
   const [isMoving, setIsMoving] = useState(false);
   const [isLoadingFolders, setIsLoadingFolders] = useState(false);
   const [allFolders, setAllFolders] = useState<FileItemData[]>([]);
+  const [newName, setNewName] = useState("");
+  const nameInputId = useId();
+
+  const trimmedName = newName.trim();
+  // A slash would change which container the resource lands in, not just its
+  // name, so block it here.
+  const nameError =
+    newName.includes("/") || newName.includes("\\")
+      ? "A name cannot contain / or \\"
+      : null;
 
   // Recursively fetch all folders from a storage
   const fetchAllFolders = async (containerUrl: string, fetchFn: typeof fetch): Promise<FileItemData[]> => {
@@ -86,6 +97,7 @@ export default function MoveDialog({
       setIsMoving(false);
       setIsLoadingFolders(true);
       setAllFolders([]);
+      setNewName(file.name);
 
       // Find the storage root for this file
       const fileStorage = availableFolders.find(
@@ -127,7 +139,7 @@ export default function MoveDialog({
 
     try {
       const { fetch: fetchFn } = getAuthenticatedSession();
-      await moveFileResource(file, selectedFolderUrl, fetchFn);
+      await moveFileResource(file, selectedFolderUrl, fetchFn, trimmedName);
 
       toast.add({ title: `Moved "${file.name}"`, type: "success" });
       onClose();
@@ -173,6 +185,35 @@ export default function MoveDialog({
           </DialogDescription>
         </DialogHeader>
         <main className="py-2" onKeyDown={handleKeyDown}>
+          {/* Name */}
+          <section className="mb-4">
+            <label
+              htmlFor={nameInputId}
+              className="block text-sm font-medium text-foreground mb-2"
+            >
+              Name:
+            </label>
+            <Input
+              id={nameInputId}
+              type="text"
+              value={newName}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setNewName(e.target.value)
+              }
+              disabled={isMoving}
+              aria-invalid={nameError ? true : undefined}
+              aria-describedby={nameError ? `${nameInputId}-error` : undefined}
+            />
+            {nameError && (
+              <p
+                id={`${nameInputId}-error`}
+                className="mt-1 text-xs text-destructive"
+                role="alert"
+              >
+                {nameError}
+              </p>
+            )}
+          </section>
           {/* Current Location */}
           <section className="mb-4">
             <label className="block text-sm font-medium text-foreground mb-2">
@@ -248,7 +289,7 @@ export default function MoveDialog({
           <Button
             variant="default"
             onClick={handleMove}
-            disabled={isMoving || !selectedFolderUrl}
+            disabled={isMoving || !selectedFolderUrl || !trimmedName || nameError !== null}
             aria-busy={isMoving}
           >
             {isMoving && <Spinner />}
