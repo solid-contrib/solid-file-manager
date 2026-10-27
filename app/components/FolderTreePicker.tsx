@@ -128,15 +128,15 @@ function FolderTreeNode({
                 className={cn(
                     "flex items-center gap-1 border-l-4 pr-2 transition-colors",
                     isSelected
-                        ? "border-primary bg-accent"
-                        : "border-transparent hover:bg-muted",
+                        ? "border-primary bg-primary/20"
+                        : "border-transparent hover:bg-primary/10",
                 )}
                 style={{ paddingLeft: `${depth * 1.25}rem` }}
             >
                 <button
                     type="button"
                     onClick={() => void tree.toggleExpand(nodeUrl)}
-                    className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+                                        className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-primary/20"
                     aria-label={
                         isExpanded ? `Collapse ${node.name}` : `Expand ${node.name}`
                     }
@@ -153,7 +153,7 @@ function FolderTreeNode({
                     onClick={() => onSelect(nodeUrl)}
                     disabled={isCurrent}
                     title={node.name}
-                    className="flex min-w-0 flex-1 items-center gap-3 py-2.5 text-left disabled:cursor-not-allowed disabled:opacity-50"
+                                        className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 py-2.5 text-left disabled:cursor-not-allowed disabled:opacity-50"
                 >
                     <Folder
                         className="h-5 w-5 shrink-0 text-muted-foreground"
