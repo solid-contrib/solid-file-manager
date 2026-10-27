@@ -28,7 +28,7 @@ import {
   type MoveResult,
 } from "../lib/helpers";
 import { useNameConflictPrompt } from "./useNameConflictPrompt";
-import { Folder } from "lucide-react";
+import { Folder, FolderInput } from "lucide-react";
 import FolderTreePicker from "./FolderTreePicker";
 
 interface MoveDialogProps {
@@ -163,10 +163,17 @@ export default function MoveDialog({
       <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Move</DialogTitle>
-            <DialogDescription className="truncate">
-              {file.name}
-            </DialogDescription>
+            <div className="flex items-center gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <FolderInput className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <DialogTitle>Move</DialogTitle>
+                <DialogDescription className="mt-1">
+                  Pick a destination folder, and rename the file if you need to.
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
           <main className="py-2" onKeyDown={handleKeyDown}>
             {/* Name */}
@@ -232,8 +239,8 @@ export default function MoveDialog({
             </section>
 
             {selectedFolderUrl && (
-              <div className="mt-4 rounded-md border border-border bg-accent p-3">
-                <p className="text-xs text-muted-foreground">Moving to</p>
+              <div className="mt-4 rounded-md border border-primary/30 bg-primary/5 p-3">
+                <p className="text-xs font-medium text-primary">Moving to</p>
                 <p
                   className="mt-0.5 truncate text-sm text-foreground"
                   title={selectedFolderUrl}
