@@ -74,141 +74,141 @@ export default function FolderTreePicker({
             ))}
         </ul>
     );
+}
 
-    interface FolderTreeNodeProps {
-        node: FolderTreeChild;
-        depth: number;
-        /** Shared expand/load state, passed whole so the recursion stays readable. */
-        tree: UseFolderTreeResult;
-        selectedUrl: string | null;
-        currentUrl?: string | null;
-        onSelect: (folderUrl: string) => void;
-    }
+interface FolderTreeNodeProps {
+    node: FolderTreeChild;
+    depth: number;
+    /** Shared expand/load state, passed whole so the recursion stays readable. */
+    tree: UseFolderTreeResult;
+    selectedUrl: string | null;
+    currentUrl?: string | null;
+    onSelect: (folderUrl: string) => void;
+}
 
-    /** One folder row, plus its children when the branch is open. */
-    function FolderTreeNode({
-        node,
-        depth,
-        tree,
-        selectedUrl,
-        currentUrl,
-        onSelect,
-    }: FolderTreeNodeProps) {
-        const nodeUrl = ensureTrailingSlash(node.url);
-        const isExpanded = tree.expandedUrls.has(nodeUrl);
-        const isLoading = tree.loadingUrls.has(nodeUrl);
-        const hasError = Boolean(tree.errorByUrl[nodeUrl]);
-        const children = tree.childrenByUrl[nodeUrl];
-        const isSelected =
-            selectedUrl !== null && folderUrlsEqual(selectedUrl, nodeUrl);
-        const isCurrent =
-            currentUrl != null && folderUrlsEqual(currentUrl, nodeUrl);
+/** One folder row, plus its children when the branch is open. */
+function FolderTreeNode({
+    node,
+    depth,
+    tree,
+    selectedUrl,
+    currentUrl,
+    onSelect,
+}: FolderTreeNodeProps) {
+    const nodeUrl = ensureTrailingSlash(node.url);
+    const isExpanded = tree.expandedUrls.has(nodeUrl);
+    const isLoading = tree.loadingUrls.has(nodeUrl);
+    const hasError = Boolean(tree.errorByUrl[nodeUrl]);
+    const children = tree.childrenByUrl[nodeUrl];
+    const isSelected =
+        selectedUrl !== null && folderUrlsEqual(selectedUrl, nodeUrl);
+    const isCurrent =
+        currentUrl != null && folderUrlsEqual(currentUrl, nodeUrl);
 
-        const rowRef = useRef<HTMLDivElement>(null);
+    const rowRef = useRef<HTMLDivElement>(null);
 
-        // Scroll the current folder into view.
-        useEffect(() => {
-            if (isCurrent) {
-                rowRef.current?.scrollIntoView({ block: "nearest" });
-            }
-        }, [isCurrent]);
+    // Scroll the current folder into view.
+    useEffect(() => {
+        if (isCurrent) {
+            rowRef.current?.scrollIntoView({ block: "nearest" });
+        }
+    }, [isCurrent]);
 
-        const childIndent = `${(depth + 1) * 1.25 + 0.5}rem`;
+    const childIndent = `${(depth + 1) * 1.25 + 0.5}rem`;
 
-        return (
-            <li
-                role="treeitem"
-                aria-expanded={isExpanded}
-                aria-selected={isSelected}
-                aria-disabled={isCurrent || undefined}
-            >
-                <div
-                    ref={rowRef}
-                    className={cn(
-                        "flex items-center gap-1 border-l-4 pr-2 transition-colors",
-                        isSelected
-                            ? "border-primary bg-accent"
-                            : "border-transparent hover:bg-muted",
-                    )}
-                    style={{ paddingLeft: `${depth * 1.25}rem` }}
-                >
-                    <button
-                        type="button"
-                        onClick={() => void tree.toggleExpand(nodeUrl)}
-                        className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
-                        aria-label={
-                            isExpanded ? `Collapse ${node.name}` : `Expand ${node.name}`
-                        }
-                    >
-                        {isExpanded ? (
-                            <ChevronDown className="h-4 w-4" aria-hidden="true" />
-                        ) : (
-                            <ChevronRight className="h-4 w-4" aria-hidden="true" />
-                        )}
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={() => onSelect(nodeUrl)}
-                        disabled={isCurrent}
-                        title={node.name}
-                        className="flex min-w-0 flex-1 items-center gap-3 py-2.5 text-left disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                        <Folder
-                            className="h-5 w-5 shrink-0 text-muted-foreground"
-                            aria-hidden="true"
-                        />
-                        <span className="truncate text-sm text-foreground">{node.name}</span>
-                        {isCurrent && (
-                            <span className="shrink-0 text-xs text-muted-foreground">
-                                (current)
-                            </span>
-                        )}
-                    </button>
-                </div>
-
-                {isExpanded && (
-                    <ul role="group">
-                        {isLoading && (
-                            <li className="py-2 pr-2" style={{ paddingLeft: childIndent }}>
-                                <Skeleton className="h-5 w-40" />
-                            </li>
-                        )}
-
-                        {!isLoading && hasError && (
-                            <li
-                                className="py-2 pr-2 text-xs text-destructive"
-                                style={{ paddingLeft: childIndent }}
-                            >
-                                Failed to load folders
-                            </li>
-                        )}
-
-                        {!isLoading && !hasError && children?.length === 0 && (
-                            <li
-                                className="py-2 pr-2 text-xs text-muted-foreground"
-                                style={{ paddingLeft: childIndent }}
-                            >
-                                No subfolders
-                            </li>
-                        )}
-
-                        {!isLoading &&
-                            !hasError &&
-                            children?.map((child) => (
-                                <FolderTreeNode
-                                    key={ensureTrailingSlash(child.url)}
-                                    node={child}
-                                    depth={depth + 1}
-                                    tree={tree}
-                                    selectedUrl={selectedUrl}
-                                    currentUrl={currentUrl}
-                                    onSelect={onSelect}
-                                />
-                            ))}
-                    </ul>
+    return (
+        <li
+            role="treeitem"
+            aria-expanded={isExpanded}
+            aria-selected={isSelected}
+            aria-disabled={isCurrent || undefined}
+        >
+            <div
+                ref={rowRef}
+                className={cn(
+                    "flex items-center gap-1 border-l-4 pr-2 transition-colors",
+                    isSelected
+                        ? "border-primary bg-accent"
+                        : "border-transparent hover:bg-muted",
                 )}
-            </li>
-        );
-    }
+                style={{ paddingLeft: `${depth * 1.25}rem` }}
+            >
+                <button
+                    type="button"
+                    onClick={() => void tree.toggleExpand(nodeUrl)}
+                    className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+                    aria-label={
+                        isExpanded ? `Collapse ${node.name}` : `Expand ${node.name}`
+                    }
+                >
+                    {isExpanded ? (
+                        <ChevronDown className="h-4 w-4" aria-hidden="true" />
+                    ) : (
+                        <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                    )}
+                </button>
+
+                <button
+                    type="button"
+                    onClick={() => onSelect(nodeUrl)}
+                    disabled={isCurrent}
+                    title={node.name}
+                    className="flex min-w-0 flex-1 items-center gap-3 py-2.5 text-left disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                    <Folder
+                        className="h-5 w-5 shrink-0 text-muted-foreground"
+                        aria-hidden="true"
+                    />
+                    <span className="truncate text-sm text-foreground">{node.name}</span>
+                    {isCurrent && (
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                            (current)
+                        </span>
+                    )}
+                </button>
+            </div>
+
+            {isExpanded && (
+                <ul role="group">
+                    {isLoading && (
+                        <li className="py-2 pr-2" style={{ paddingLeft: childIndent }}>
+                            <Skeleton className="h-5 w-40" />
+                        </li>
+                    )}
+
+                    {!isLoading && hasError && (
+                        <li
+                            className="py-2 pr-2 text-xs text-destructive"
+                            style={{ paddingLeft: childIndent }}
+                        >
+                            Failed to load folders
+                        </li>
+                    )}
+
+                    {!isLoading && !hasError && children?.length === 0 && (
+                        <li
+                            className="py-2 pr-2 text-xs text-muted-foreground"
+                            style={{ paddingLeft: childIndent }}
+                        >
+                            No subfolders
+                        </li>
+                    )}
+
+                    {!isLoading &&
+                        !hasError &&
+                        children?.map((child) => (
+                            <FolderTreeNode
+                                key={ensureTrailingSlash(child.url)}
+                                node={child}
+                                depth={depth + 1}
+                                tree={tree}
+                                selectedUrl={selectedUrl}
+                                currentUrl={currentUrl}
+                                onSelect={onSelect}
+                            />
+                        ))}
+                </ul>
+            )}
+        </li>
+    );
 }
