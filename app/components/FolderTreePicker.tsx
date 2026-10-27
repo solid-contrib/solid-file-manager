@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { ChevronDown, ChevronRight, Folder } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -7,6 +8,7 @@ import {
     FolderTreeChild,
     ensureTrailingSlash,
     folderUrlsEqual,
+    getAncestorFolderUrls
 } from "../lib/helpers";
 import { useFolderTree, type UseFolderTreeResult } from "../lib/hooks";
 
@@ -18,16 +20,36 @@ interface FolderTreePickerProps {
      * A folder that may be browsed but cannot be chosen, e.g the one the resource is
      * already in.
      */
-    disabledUrl?: string | null;
+    currentUrl?: string | null;
 }
 
 export default function FolderTreePicker({
     roots,
     selectedUrl,
     onSelect,
-    disabledUrl,
+    currentUrl,
 }: FolderTreePickerProps) {
     const tree = useFolderTree();
+    const { expandPath } = tree;
+
+    // Expand the path to the current folder so the user can see where they are.
+    const revealUrls = [
+        ...new Set([
+            ...roots.map((root) => ensureTrailingSlash(root.url)),
+            ...(currentUrl ? roots.flatMap((root) =>
+                getAncestorFolderUrls(currentUrl, root.url)) : []),
+        ]),
+    ];
+
+    // make sure the path to the current folder is expanded once when the component mounts
+    const revealKey = revealUrls.join("|");
+
+    useEffect(() => {
+        if (!revealKey) {
+            return;
+        }
+        void expandPath(revealKey.split("|"));
+    }, [revealKey, expandPath]);
 
     if (roots.length === 0) {
         return (
@@ -46,7 +68,7 @@ export default function FolderTreePicker({
                     depth={0}
                     tree={tree}
                     selectedUrl={selectedUrl}
-                    disabledUrl={disabledUrl}
+                    currentUrl={currentUrl}
                     onSelect={onSelect}
                 />
             ))}
@@ -59,7 +81,7 @@ export default function FolderTreePicker({
         /** Shared expand/load state, passed whole so the recursion stays readable. */
         tree: UseFolderTreeResult;
         selectedUrl: string | null;
-        disabledUrl?: string | null;
+        currentUrl?: string | null;
         onSelect: (folderUrl: string) => void;
     }
 
@@ -69,7 +91,7 @@ export default function FolderTreePicker({
         depth,
         tree,
         selectedUrl,
-        disabledUrl,
+        currentUrl,
         onSelect,
     }: FolderTreeNodeProps) {
         const nodeUrl = ensureTrailingSlash(node.url);
@@ -79,8 +101,17 @@ export default function FolderTreePicker({
         const children = tree.childrenByUrl[nodeUrl];
         const isSelected =
             selectedUrl !== null && folderUrlsEqual(selectedUrl, nodeUrl);
-        const isDisabled =
-            disabledUrl != null && folderUrlsEqual(disabledUrl, nodeUrl);
+        const isCurrent =
+            currentUrl != null && folderUrlsEqual(currentUrl, nodeUrl);
+
+        const rowRef = useRef<HTMLDivElement>(null);
+
+        // Scroll the current folder into view.
+        useEffect(() => {
+            if (isCurrent) {
+                rowRef.current?.scrollIntoView({ block: "nearest" });
+            }
+        }, [isCurrent]);
 
         const childIndent = `${(depth + 1) * 1.25 + 0.5}rem`;
 
@@ -89,9 +120,10 @@ export default function FolderTreePicker({
                 role="treeitem"
                 aria-expanded={isExpanded}
                 aria-selected={isSelected}
-                aria-disabled={isDisabled || undefined}
+                aria-disabled={isCurrent || undefined}
             >
                 <div
+                    ref={rowRef}
                     className={cn(
                         "flex items-center gap-1 border-l-4 pr-2 transition-colors",
                         isSelected
@@ -118,8 +150,8 @@ export default function FolderTreePicker({
                     <button
                         type="button"
                         onClick={() => onSelect(nodeUrl)}
-                        disabled={isDisabled}
-                        title={isDisabled ? `${node.name} (already here)` : node.name}
+                        disabled={isCurrent}
+                        title={node.name}
                         className="flex min-w-0 flex-1 items-center gap-3 py-2.5 text-left disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         <Folder
@@ -127,6 +159,11 @@ export default function FolderTreePicker({
                             aria-hidden="true"
                         />
                         <span className="truncate text-sm text-foreground">{node.name}</span>
+                        {isCurrent && (
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                                (current)
+                            </span>
+                        )}
                     </button>
                 </div>
 
@@ -165,7 +202,7 @@ export default function FolderTreePicker({
                                     depth={depth + 1}
                                     tree={tree}
                                     selectedUrl={selectedUrl}
-                                    disabledUrl={disabledUrl}
+                                    currentUrl={currentUrl}
                                     onSelect={onSelect}
                                 />
                             ))}

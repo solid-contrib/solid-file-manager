@@ -21,10 +21,8 @@ import {
   getAuthenticatedSession,
   getParentContainerUrl,
   ensureTrailingSlash,
-  folderUrlsEqual,
   describeMoveError,
   describeMoveResult,
-  extractNameFromUrl,
   type FolderTreeChild,
   type MoveResult,
 } from "../lib/helpers";
@@ -203,11 +201,12 @@ export default function MoveDialog({
               </label>
               <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-md border border-border">
                 <Folder className="h-5 w-5 text-muted-foreground" />
-                <span className="text-sm text-foreground">
+                <span
+                  className="text-sm text-foreground"
+                  title={currentLocationUrl || undefined}
+                >
                   {currentLocationUrl
-                    ? availableFolders.find((f) =>
-                      folderUrlsEqual(f.url, currentLocationUrl),
-                    )?.name || extractNameFromUrl(currentLocationUrl)
+                    ? folderPathLabel(currentLocationUrl)
                     : "My Storages"}
                 </span>
               </div>
@@ -223,7 +222,7 @@ export default function MoveDialog({
                   roots={roots}
                   selectedUrl={selectedFolderUrl}
                   onSelect={setSelectedFolderUrl}
-                  disabledUrl={currentLocationUrl}
+                  currentUrl={currentLocationUrl}
                 />
               </div>
             </section>

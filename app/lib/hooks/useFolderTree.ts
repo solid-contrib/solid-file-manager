@@ -30,6 +30,7 @@ export interface UseFolderTreeResult {
     /** Child folders per expanded folder URL. */
     childrenByUrl: Record<string, FolderTreeChild[]>;
     toggleExpand: (folderUrl: string) => Promise<void>;
+    expandPath: (folderUrls: string[]) => Promise<void>;
 }
 
 /**
@@ -137,11 +138,31 @@ export function useFolderTree(): UseFolderTreeResult {
         await loadChildren(normalizedUrl);
     }, [expandedUrls, loadChildren]);
 
+    // Open several branches at once. Children load in parallel because every
+    // folder in the chain has to be opened for the deepest one to show.
+    const expandPath = useCallback(async (folderUrls: string[]) => {
+        const normalized = folderUrls.map(ensureTrailingSlash);
+        if (normalized.length === 0) {
+            return;
+        }
+
+        setExpandedUrls((prev) => {
+            const next = new Set(prev);
+            for (const url of normalized) {
+                next.add(url);
+            }
+            return next;
+        });
+
+        await Promise.all(normalized.map((url) => loadChildren(url)));
+    }, [loadChildren]);
+
     return {
         expandedUrls,
         loadingUrls,
         errorByUrl,
         childrenByUrl,
         toggleExpand,
+        expandPath,
     };
 }
