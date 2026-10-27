@@ -22,14 +22,15 @@ import {
   getParentContainerUrl,
   ensureTrailingSlash,
   folderUrlsEqual,
-  fetchContainerListing,
   describeMoveError,
   describeMoveResult,
+  extractNameFromUrl,
+  type FolderTreeChild,
   type MoveResult,
 } from "../lib/helpers";
 import { useNameConflictPrompt } from "./useNameConflictPrompt";
-import { loadContainerListing } from "../lib/cache";
-import { Folder, AlertTriangle } from "lucide-react";
+import { Folder } from "lucide-react";
+import FolderTreePicker from "./FolderTreePicker";
 
 interface MoveDialogProps {
   isOpen: boolean;
@@ -38,6 +39,14 @@ interface MoveDialogProps {
   availableFolders: FileItemData[];
   currentLocationUrl: string;
   onMoved?: (destinationUrl: string) => void;
+}
+
+function folderPathLabel(folderUrl: string): string {
+  try {
+    return decodeURIComponent(new URL(folderUrl).pathname.replace(/\/$/, "")) || "";
+  } catch {
+    return folderUrl;
+  }
 }
 
 export default function MoveDialog({
@@ -50,8 +59,6 @@ export default function MoveDialog({
 }: MoveDialogProps) {
   const [selectedFolderUrl, setSelectedFolderUrl] = useState<string | null>(null);
   const [isMoving, setIsMoving] = useState(false);
-  const [isLoadingFolders, setIsLoadingFolders] = useState(false);
-  const [allFolders, setAllFolders] = useState<FileItemData[]>([]);
   const [newName, setNewName] = useState("");
   const nameInputId = useId();
   const { askConflictChoice, conflictDialog } = useNameConflictPrompt();
@@ -64,78 +71,13 @@ export default function MoveDialog({
       ? "A name cannot contain / or \\"
       : null;
 
-  // Recursively fetch all folders from a storage
-  const fetchAllFolders = async (containerUrl: string, fetchFn: typeof fetch): Promise<FileItemData[]> => {
-    const folders: FileItemData[] = [];
-    const visited = new Set<string>();
-
-    const traverse = async (url: string): Promise<void> => {
-      const normalizedUrl = ensureTrailingSlash(url);
-      if (visited.has(normalizedUrl)) {
-        return;
-      }
-      visited.add(normalizedUrl);
-
-      try {
-        const listing = await loadContainerListing(normalizedUrl, () =>
-          fetchContainerListing(normalizedUrl, fetchFn),
-        );
-
-        for (const item of listing) {
-          if (item.type !== "folder") {
-            continue;
-          }
-
-          folders.push(item);
-          await traverse(item.url);
-        }
-      } catch (error) {
-        // Skip folders we can't access
-        console.warn(`Could not access folder ${url}:`, error);
-      }
-    };
-
-    await traverse(containerUrl);
-    return folders;
-  };
-
   useEffect(() => {
     if (isOpen && file) {
       setSelectedFolderUrl(null);
       setIsMoving(false);
-      setIsLoadingFolders(true);
-      setAllFolders([]);
       setNewName(file.name);
-
-      // Find the storage root for this file
-      const fileStorage = availableFolders.find(
-        (folder) => folder.type === "folder" && file.url.startsWith(folder.url)
-      );
-
-      if (fileStorage) {
-        const loadFolders = async () => {
-          try {
-            const { fetch: fetchFn } = getAuthenticatedSession();
-            const folders = await fetchAllFolders(fileStorage.url, fetchFn);
-            // Include the storage root itself
-            setAllFolders([fileStorage, ...folders]);
-          } catch (error) {
-            console.error("Failed to load folders:", error);
-            // Fallback to availableFolders if recursive fetch fails
-            setAllFolders(availableFolders.filter(f => f.type === "folder"));
-          } finally {
-            setIsLoadingFolders(false);
-          }
-        };
-
-        loadFolders();
-      } else {
-        // Fallback to availableFolders if we can't find the storage
-        setAllFolders(availableFolders.filter(f => f.type === "folder"));
-        setIsLoadingFolders(false);
-      }
     }
-  }, [isOpen, file, availableFolders]);
+  }, [isOpen, file]);
 
   const handleMove = async () => {
     if (!file || !selectedFolderUrl) {
@@ -205,12 +147,14 @@ export default function MoveDialog({
 
   if (!file) return null;
 
-  // Filter out the current folder (where the file currently is).
-  // Compare normalised URLs: currentLocationUrl can arrive without a
-  // trailing slash from the ?url= param, while listing URLs always have one.
-  const filteredFolders = allFolders.filter(
-    (folder) => folder.type === "folder" && !folderUrlsEqual(folder.url, currentLocationUrl)
+  // Move is scoped to the storage the file already lives in.
+  const fileStorage = availableFolders.find(
+    (folder) => folder.type === "folder" && file.url.startsWith(folder.url),
   );
+
+  const roots: FolderTreeChild[] = fileStorage
+    ? [{ url: ensureTrailingSlash(fileStorage.url), name: fileStorage.name }]
+    : [];
 
   return (
     <>
@@ -261,58 +205,38 @@ export default function MoveDialog({
                 <Folder className="h-5 w-5 text-muted-foreground" />
                 <span className="text-sm text-foreground">
                   {currentLocationUrl
-                    ? availableFolders.find((f) => folderUrlsEqual(f.url, currentLocationUrl))?.name ||
-                    (() => {
-                      try {
-                        const url = new URL(currentLocationUrl);
-                        return url.pathname.split("/").filter(Boolean).pop() || currentLocationUrl;
-                      } catch {
-                        return currentLocationUrl;
-                      }
-                    })()
+                    ? availableFolders.find((f) =>
+                      folderUrlsEqual(f.url, currentLocationUrl),
+                    )?.name || extractNameFromUrl(currentLocationUrl)
                     : "My Storages"}
                 </span>
               </div>
             </section>
 
-            {/* Available Folders */}
+            {/* Destination */}
             <section>
               <label className="block text-sm font-medium text-foreground mb-2">
                 Select a destination:
               </label>
-              {isLoadingFolders ? (
-                <div className="flex flex-col items-center justify-center gap-2 py-8">
-                  <Spinner className="size-5" />
-                  <p className="text-sm text-muted-foreground">Loading folders...</p>
-                </div>
-              ) : filteredFolders.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground text-sm">
-                  No folders available to move to
-                </div>
-              ) : (
-                <div className="max-h-64 overflow-y-auto border border-border rounded-md">
-                  {filteredFolders.map((folder) => (
-                    <button
-                      key={folder.id}
-                      type="button"
-                      onClick={() => setSelectedFolderUrl(folder.url)}
-                      className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted transition-colors ${selectedFolderUrl === folder.url
-                        ? "bg-accent border-l-4 border-primary"
-                        : "border-l-4 border-transparent"
-                        }`}
-                    >
-                      <Folder className="h-5 w-5 text-muted-foreground shrink-0" />
-                      <span className="text-sm text-foreground truncate">{folder.name}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
+              <div className="max-h-64 overflow-y-auto border border-border rounded-md">
+                <FolderTreePicker
+                  roots={roots}
+                  selectedUrl={selectedFolderUrl}
+                  onSelect={setSelectedFolderUrl}
+                  disabledUrl={currentLocationUrl}
+                />
+              </div>
             </section>
 
-            {filteredFolders.length > 0 && !selectedFolderUrl && (
-              <div className="mt-4 flex items-start gap-2 text-sm text-muted-foreground bg-accent border border-border rounded-md p-3">
-                <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0 mt-0.5" />
-                <span>Select a location to show the folder path</span>
+            {selectedFolderUrl && (
+              <div className="mt-4 rounded-md border border-border bg-accent p-3">
+                <p className="text-xs text-muted-foreground">Moving to</p>
+                <p
+                  className="mt-0.5 truncate text-sm text-foreground"
+                  title={selectedFolderUrl}
+                >
+                  {folderPathLabel(selectedFolderUrl)}
+                </p>
               </div>
             )}
           </main>
