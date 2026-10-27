@@ -159,7 +159,7 @@ export default function MoveDialog({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Move</DialogTitle>
             <DialogDescription className="truncate">
@@ -218,7 +218,7 @@ export default function MoveDialog({
               <label className="block text-sm font-medium text-foreground mb-2">
                 Select a destination:
               </label>
-              <div className="max-h-64 overflow-y-auto border border-border rounded-md">
+              <div className="max-h-80 overflow-y-auto border border-border rounded-md">
                 <FolderTreePicker
                   roots={roots}
                   selectedUrl={selectedFolderUrl}
