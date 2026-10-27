@@ -14,6 +14,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
 import { FileItemData } from "./FileItem";
+import type { SolidStorage } from "../lib/hooks/useSolidStorages";
 import {
   moveFileResource,
   moveFileWithConflictChoice,
@@ -34,7 +35,7 @@ interface MoveDialogProps {
   isOpen: boolean;
   onClose: () => void;
   file: FileItemData | null;
-  availableFolders: FileItemData[];
+  storages: SolidStorage[];
   currentLocationUrl: string;
   onMoved?: (destinationUrl: string) => void;
 }
@@ -51,7 +52,7 @@ export default function MoveDialog({
   isOpen,
   onClose,
   file,
-  availableFolders,
+  storages,
   currentLocationUrl,
   onMoved,
 }: MoveDialogProps) {
@@ -146,12 +147,15 @@ export default function MoveDialog({
   if (!file) return null;
 
   // Move is scoped to the storage the file already lives in.
-  const fileStorage = availableFolders.find(
-    (folder) => folder.type === "folder" && file.url.startsWith(folder.url),
+  const fileStorage = storages.find(
+    (storage) => file.url.startsWith(ensureTrailingSlash(storage.url)),
   );
 
   const roots: FolderTreeChild[] = fileStorage
-    ? [{ url: ensureTrailingSlash(fileStorage.url), name: fileStorage.name }]
+    ? [{
+      url: ensureTrailingSlash(fileStorage.url),
+      name: fileStorage.name || fileStorage.url
+    }]
     : [];
 
   return (

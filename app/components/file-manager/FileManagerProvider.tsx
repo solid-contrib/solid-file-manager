@@ -77,7 +77,6 @@ export default function FileManagerProvider({
             displayFiles: browse.displayFiles,
             isLoadingFiles: browse.isLoadingFiles,
             browseError: browse.browseError,
-            availableFolders: browse.availableFolders,
             getCurrentLocationUrl: browse.getCurrentLocationUrl,
             refresh: browse.refresh,
             triggerDelayedRefresh: browse.triggerDelayedRefresh,

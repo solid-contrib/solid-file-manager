@@ -75,7 +75,6 @@ export default function FileManagerContent() {
         displayFiles,
         isLoadingFiles,
         browseError,
-        availableFolders,
         getCurrentLocationUrl,
         refresh,
         triggerDelayedRefresh,
@@ -505,7 +504,7 @@ export default function FileManagerContent() {
                 isOpen={isDialog(activeDialog, "move")}
                 onClose={closeDialog}
                 file={isDialog(activeDialog, "move") ? activeDialog.file : null}
-                availableFolders={availableFolders}
+                storages={storages}
                 currentLocationUrl={getCurrentLocationUrl()}
                 onMoved={(destinationUrl) => {
                     invalidateContainers([destinationUrl]);
