@@ -18,7 +18,6 @@ export interface UseContainerBrowseResult {
   displayFiles: FileItemData[];
   isLoadingFiles: boolean;
   browseError: Error | null;
-  availableFolders: FileItemData[];
   getCurrentLocationUrl: () => string;
   refresh: () => void;
   triggerDelayedRefresh: () => void;
@@ -113,17 +112,6 @@ export function useContainerBrowse({
   // Root: show storages. Inside a storage, show browsed container contents.
   const displayFiles = selectedStorageId ? browsedFiles : storageFiles;
 
-  // Move dialog targets: all storages + folders in the current listing.
-  const availableFolders: FileItemData[] = useMemo(
-    () => [
-      ...storageFiles,
-      ...(selectedStorageId
-        ? browsedFiles.filter((f) => f.type === "folder")
-        : []),
-    ],
-    [browsedFiles, selectedStorageId, storageFiles],
-  );
-
   /** Absolute URL of the folder the user is currently in (for move dialog, etc.). */
   const getCurrentLocationUrl = useCallback((): string => {
     if (!selectedStorageId) {
@@ -141,7 +129,6 @@ export function useContainerBrowse({
     displayFiles,
     isLoadingFiles,
     browseError,
-    availableFolders,
     getCurrentLocationUrl,
     refresh,
     triggerDelayedRefresh,

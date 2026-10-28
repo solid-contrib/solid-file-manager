@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useMemo} from "react";
 import { ChevronRight, ChevronDown, Folder } from "lucide-react";
 import { SolidStorage } from "../lib/hooks/useSolidStorages";
-import { FolderTreeChild, folderUrlsEqual, ensureTrailingSlash, getAuthenticatedSession, fetchContainerListing, foldersFromListing } from "../lib/helpers";
-import { getContainerListing, loadContainerListing, subscribeContainerCache, getContainerCacheVersion } from "../lib/cache";
+import { FolderTreeChild, folderUrlsEqual, ensureTrailingSlash } from "../lib/helpers";
 import {
     SidebarMenu,
     SidebarMenuButton,
@@ -13,6 +12,7 @@ import {
     SidebarMenuSubItem,
     SidebarMenuSkeleton,
 } from "@/components/ui/sidebar";
+import { useFolderTree } from "../lib/hooks/useFolderTree";
 
 interface FolderTreeProps {
     storages: SolidStorage[];
@@ -25,116 +25,16 @@ export default function FolderTree({
     currentFolderUrl,
     onNavigate
 }: FolderTreeProps) {
-    const [expandedUrls, setExpandedUrls] = useState<Set<string>>(new Set());
-    const [loadingUrls, setLoadingUrls] = useState<Set<string>>(new Set());
-    const [errorByUrl, setErrorByUrl] = useState<Record<string, string>>({});
-
-    const cacheVersion = useSyncExternalStore(
-        subscribeContainerCache,
-        getContainerCacheVersion,
-        getContainerCacheVersion,
-    )
-
-    // Children come from the shared cache, not a local copy.
-    // cacheVersion makes this recompute when listings are written or invalidated.
-    const childrenByUrl = useMemo(() => {
-        // cacheVersion is read so listings recompute after cache writes/invalidation.
-        void cacheVersion;
-        const next: Record<string, FolderTreeChild[]> = {};
-        for (const url of expandedUrls) {
-            const cached = getContainerListing(url);
-            if (cached) {
-                next[url] = foldersFromListing(cached);
-            }
-        }
-        return next;
-    }, [cacheVersion, expandedUrls])
-
-    const expandedUrlsRef = useRef(expandedUrls);
-    expandedUrlsRef.current = expandedUrls;
+    const { expandedUrls, loadingUrls, errorByUrl, childrenByUrl, toggleExpand } =
+        useFolderTree();
 
     // Keep the current folder URL in one shape so highlight checks stay reliable.
     const normalizedCurrentFolderUrl = useMemo(() => (
         currentFolderUrl ? ensureTrailingSlash(currentFolderUrl) : null
     ), [currentFolderUrl]);
 
-    // Load child folders via the shared container cache (same data as main browse).
-    const loadChildren = useCallback(async (folderUrl: string) => {
-        const normalizedUrl = ensureTrailingSlash(folderUrl);
-
-        if (getContainerListing(normalizedUrl)) {
-            return;
-        }
-
-        setLoadingUrls((prev) => {
-            const next = new Set(prev);
-            next.add(normalizedUrl);
-            return next;
-        });
-
-        setErrorByUrl((prev) => {
-            if (!(normalizedUrl in prev)) return prev;
-            const next = { ...prev };
-            delete next[normalizedUrl];
-            return next;
-        });
-
-        try {
-            const { fetch } = getAuthenticatedSession();
-            await loadContainerListing(
-                normalizedUrl,
-                () => fetchContainerListing(normalizedUrl, fetch),
-            );
-        } catch (error) {
-            const message =
-                error instanceof Error ? error.message : "Failed to load folders";
-            setErrorByUrl((prev) => ({ ...prev, [normalizedUrl]: message }));
-        } finally {
-            setLoadingUrls((prev) => {
-                const next = new Set(prev);
-                next.delete(normalizedUrl);
-                return next;
-            });
-        }
-    }, []);
-
-
-    // After cache invalidation, refetch any expanded folder that no longer has a listing.
-    useEffect(() => {
-        return subscribeContainerCache(() => {
-            for (const url of expandedUrlsRef.current) {
-                if (!getContainerListing(url)) {
-                    void loadChildren(url)
-                }
-            }
-        })
-    }, [loadChildren])
-
-    // Open or close a folder branch. Fetch children only when opening.
-    const toggleExpand = useCallback(async (folderUrl: string) => {
-        const normalizedUrl = ensureTrailingSlash(folderUrl);
-
-        const isExpanded = expandedUrls.has(normalizedUrl);
-        if (isExpanded) {
-            setExpandedUrls((prev) => {
-                const next = new Set(prev);
-                next.delete(normalizedUrl);
-                return next;
-            });
-            return;
-        }
-
-        setExpandedUrls((prev) => {
-            const next = new Set(prev);
-            next.add(normalizedUrl);
-            return next;
-        });
-
-        await loadChildren(normalizedUrl);
-    }, [expandedUrls, loadChildren]);
-
     // Render one folder row and its nested children when expanded.
-    const renderNode = useCallback((node: FolderTreeChild) => {
+    function renderNode(node: FolderTreeChild) {
         const nodeUrl = ensureTrailingSlash(node.url);
         const isExpanded = expandedUrls.has(nodeUrl);
         const isLoading = loadingUrls.has(nodeUrl);
@@ -194,16 +94,7 @@ export default function FolderTree({
                 )}
             </SidebarMenuItem>
         );
-    }, [
-        childrenByUrl,
-        errorByUrl,
-        expandedUrls,
-        loadingUrls,
-        normalizedCurrentFolderUrl,
-        onNavigate,
-        toggleExpand,
-    ],
-    );
+    }
 
     // Turn storage roots into the same shape used by child folder nodes.
     const rootNodes: FolderTreeChild[] = useMemo(

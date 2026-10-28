@@ -28,7 +28,6 @@ export interface FileManagerBrowseContextValue {
   displayFiles: FileItemData[];
   isLoadingFiles: boolean;
   browseError: Error | null;
-  availableFolders: FileItemData[];
   getCurrentLocationUrl: () => string;
   refresh: () => void;
   triggerDelayedRefresh: () => void;
