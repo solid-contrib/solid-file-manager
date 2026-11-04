@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "license": "MIT OR Apache-2.0",
+  "engines": {
+    "node": ">=24.22.1"
+  },
   "scripts": {
     "dev": "next dev --port=3001",
     "build": "npm run build:next",
