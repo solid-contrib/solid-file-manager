@@ -69,3 +69,39 @@ export function removeUrlFromStorage(): void {
     sessionStorage.removeItem(STORAGE_KEY);
 }
 
+
+/**
+ * The storage a URL from `?url=` (or sessionStorage) belongs to, with the URL
+ * normalised. It must parse as http(s) without credentials, share the
+ * storage's origin, and lie inside the storage's path once dot segments
+ * (also percent-encoded ones) are resolved; the most specific storage wins.
+ * Null otherwise, so a crafted link can't point the app outside the storages.
+ */
+export function findStorageFor<T extends { url: string }>(
+    candidate: string,
+    storages: T[],
+): { storage: T; url: string; isRoot: boolean } | null {
+    let target: URL;
+    try {
+        target = new URL(candidate);
+    } catch {
+        return null;
+    }
+    if (!["http:", "https:"].includes(target.protocol) || target.username || target.password) return null;
+    target.hash = "";
+
+    let best: { storage: T; url: string; isRoot: boolean; depth: number } | null = null;
+    for (const storage of storages) {
+        let root: URL;
+        try {
+            root = new URL(storage.url);
+        } catch {
+            continue;
+        }
+        const rootPath = root.pathname.endsWith("/") ? root.pathname : `${root.pathname}/`;
+        const isRoot = target.pathname === root.pathname || target.pathname === rootPath;
+        if (target.origin !== root.origin || !(isRoot || target.pathname.startsWith(rootPath))) continue;
+        if (!best || rootPath.length > best.depth) best = { storage, url: target.href, isRoot, depth: rootPath.length };
+    }
+    return best && { storage: best.storage, url: best.url, isRoot: best.isRoot };
+}

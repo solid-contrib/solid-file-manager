@@ -1,58 +1,54 @@
 "use client";
 
-import AuthWrapper from "./AuthWrapper";
 import LoadingSpinner from "./shared/LoadingSpinner";
 import ErrorDisplay from "./shared/ErrorDisplay";
 import { useSolidStorages } from "../lib/hooks";
 import { FileManagerProvider } from "./file-manager";
 import FileManagerContent from "./file-manager/FileManagerContent";
+import AddStorageForm from "./AddStorageForm";
 
-/** Loads storages, then mounts the file-manager provider and UI. */
+/**
+ * Loads storages, then mounts the file-manager provider and UI.
+ * Rendered only for a logged-in user: app/page.tsx wraps it in AuthGuard.
+ */
 export default function FileManager() {
-  const { storages, isLoading, error } = useSolidStorages();
+  const { storages, isLoading, error, addStorage } = useSolidStorages();
 
   if (isLoading) {
     return (
-      <AuthWrapper>
-        <div className="flex min-h-screen items-center justify-center bg-background">
-          <LoadingSpinner size="md" text="Loading your Solid storages..." />
-        </div>
-      </AuthWrapper>
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <LoadingSpinner size="md" text="Loading your Solid storages..." />
+      </div>
     );
   }
 
   if (error) {
     return (
-      <AuthWrapper>
-        <ErrorDisplay
-          title="Failed to Load Storages"
-          message={error.message || "Unable to discover your Solid storage roots. Please try again."}
-          onRetry={() => window.location.reload()}
-        />
-      </AuthWrapper>
+      <ErrorDisplay
+        title="Failed to Load Storages"
+        message={error.message || "Unable to discover your Solid storage roots. Please try again."}
+        onRetry={() => window.location.reload()}
+      />
     );
   }
 
   if (storages.length === 0) {
     return (
-      <AuthWrapper>
-        <div className="flex min-h-screen items-center justify-center bg-background">
-          <div className="text-center">
-            <h2 className="mb-2 text-xl font-semibold text-foreground">No Storages Found</h2>
-            <p className="text-muted-foreground">
-              Unable to discover any Solid storage roots from your WebID profile.
-            </p>
-          </div>
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="text-center">
+          <h2 className="mb-2 text-xl font-semibold text-foreground">No Storages Found</h2>
+          <p className="text-muted-foreground">
+            Your WebID profile doesn&apos;t list a storage. Enter your storage URL to continue.
+          </p>
+          <AddStorageForm onAdd={addStorage} />
         </div>
-      </AuthWrapper>
+      </div>
     );
   }
 
   return (
-    <AuthWrapper>
-      <FileManagerProvider storages={storages}>
-        <FileManagerContent />
-      </FileManagerProvider>
-    </AuthWrapper>
+    <FileManagerProvider storages={storages}>
+      <FileManagerContent />
+    </FileManagerProvider>
   );
 }

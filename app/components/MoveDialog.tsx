@@ -19,7 +19,6 @@ import {
   moveFileResource,
   moveFileWithConflictChoice,
   findMoveConflict,
-  getAuthenticatedSession,
   getParentContainerUrl,
   ensureTrailingSlash,
   describeMoveError,
@@ -30,6 +29,7 @@ import {
 import { useNameConflictPrompt } from "./useNameConflictPrompt";
 import { Folder, FolderInput } from "lucide-react";
 import FolderTreePicker from "./FolderTreePicker";
+import { useSolidFetch } from "./providers/SolidFetchProvider";
 
 interface MoveDialogProps {
   isOpen: boolean;
@@ -56,6 +56,7 @@ export default function MoveDialog({
   currentLocationUrl,
   onMoved,
 }: MoveDialogProps) {
+  const fetchFn = useSolidFetch();
   const [selectedFolderUrl, setSelectedFolderUrl] = useState<string | null>(null);
   const [isMoving, setIsMoving] = useState(false);
   const [newName, setNewName] = useState("");
@@ -81,14 +82,6 @@ export default function MoveDialog({
   const handleMove = async () => {
     if (!file || !selectedFolderUrl) {
       toast.add({ title: "Please select a destination folder", type: "error" });
-      return;
-    }
-
-    let fetchFn: typeof fetch;
-    try {
-      ({ fetch: fetchFn } = getAuthenticatedSession());
-    } catch {
-      toast.add({ title: "Not authenticated", type: "error" });
       return;
     }
 

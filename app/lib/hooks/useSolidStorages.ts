@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSolidAuth } from "@ldo/solid-react";
 import { Parser, Store, NamedNode } from "n3";
 import { fetchAndParseProfile } from "../helpers/profileUtils";
+import { useOwnServers, useSolidFetch } from "../../components/providers/SolidFetchProvider";
+import { loadManualStorages, normaliseStorageUrl, saveManualStorage, storageProblem } from "../helpers/manualStorages";
 
 // Storage predicates and types
 const PIM_STORAGE_TYPE = "http://www.w3.org/ns/pim/space#Storage";
@@ -19,7 +21,11 @@ interface UseSolidStoragesResult {
   storages: SolidStorage[];
   isLoading: boolean;
   error: Error | null;
+  /** Adds a storage URL typed by the user, after checking they can open it. Resolves to an error message, or null. */
+  addStorage: (input: string) => Promise<string | null>;
 }
+
+const toStorage = (url: string): SolidStorage => ({ id: url, name: url, url });
 
 /**
  * Discovers storage by traversing up the folder hierarchy from the WebID
@@ -162,15 +168,40 @@ async function discoverStorageViaTraversal(
  * Uses two methods:
  * 1. Direct RDF parsing to discover storage locations via pim:storage and solid:storage predicates
  * 2. Hierarchical traversal to find pim:Storage containers by walking up the directory tree
+ * plus any storage URLs the user added by hand (for servers whose profile lists
+ * none, such as ESS 3 at the moment). It never guesses a storage from the WebID.
  */
 export function useSolidStorages(): UseSolidStoragesResult {
   const { session } = useSolidAuth();
+  const fetchFn = useSolidFetch();
+  const ownServers = useOwnServers();
   const [storages, setStorages] = useState<SolidStorage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  // The WebID signed in right now, so a slow check can't add a storage to another account.
+  const currentWebId = useRef(session.webId);
+  currentWebId.current = session.isLoggedIn ? session.webId : undefined;
+  // Registrations of storages added by hand (or being checked) while mounted;
+  // they end with the hook, and a check still running then is dropped.
+  const addedByHand = useRef(new Set<() => void>());
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    const added = addedByHand.current;
+    return () => {
+      mounted.current = false;
+      added.forEach((release) => release());
+      added.clear();
+    };
+  }, [ownServers]);
 
   useEffect(() => {
     let isMounted = true;
+    // What this run registered, released again on cleanup.
+    const registered: (() => void)[] = [];
+    const register = (url: string, webId: string) => {
+      if (isMounted) registered.push(ownServers.add(url, webId));
+    };
 
     async function fetchStorages() {
       try {
@@ -188,24 +219,15 @@ export function useSolidStorages(): UseSolidStoragesResult {
         const webId = session.webId;
 
         // Use shared profile fetching utility (with caching)
-        const mainSubject = await fetchAndParseProfile(webId);
+        const mainSubject = await fetchAndParseProfile(webId, fetchFn);
 
         // Get storage roots using both pim:storage and solid:storage predicates
-        const storageUrls: Set<string> = mainSubject.storageUrls;
-        console.log("URLS", storageUrls);
+        const storageUrls = new Set<string>(mainSubject.storageUrls);
 
         // Method 2: Hierarchical traversal (if no storage found via predicates)
         // Based on: https://github.com/SolidLabResearch/Bashlib/blob/80de25cbb4b3ed057f95e25bc057f1be9b00cef3/src/utils/util.ts#L73-L104
         if (storageUrls.size === 0) {
           try {
-            // LDO's session object has fetch property, but TypeScript types may not include it
-            // Use type assertion to access it, with fallback to regular fetch
-            type SessionWithFetch = typeof session & { fetch?: typeof fetch };
-            const sessionWithFetch = session as SessionWithFetch;
-            const fetchFn =
-              typeof sessionWithFetch.fetch === "function"
-                ? sessionWithFetch.fetch.bind(sessionWithFetch)
-                : fetch;
             const traversalStorages = await discoverStorageViaTraversal(
               webId,
               fetchFn,
@@ -220,40 +242,22 @@ export function useSolidStorages(): UseSolidStoragesResult {
           }
         }
 
-        // If still no storage found, try to infer from WebID
-        if (storageUrls.size === 0) {
-          // Extract base URL from WebID
-          const webIdUrl = new URL(webId);
-          const baseUrl = `${webIdUrl.protocol}//${webIdUrl.host}/`;
+        loadManualStorages(webId).forEach((url) => storageUrls.add(url));
 
-          // For solidcommunity.net, storage is typically at the root
-          if (webId.includes("solidcommunity.net")) {
-            storageUrls.add(baseUrl);
-          } else {
-            // For other providers, try common patterns
-            storageUrls.add(baseUrl);
-          }
-        }
-
-        // Convert to SolidStorage format
-        const discoveredStorages: SolidStorage[] = [...storageUrls].map(
-          (url) => {
-            return {
-              id: url,
-              name: url,
-              url: url,
-            };
-          },
-        );
-
-        setStorages(discoveredStorages);
+        // Registered before anything can open them, so they get the user's login.
+        storageUrls.forEach((url) => register(url, webId));
+        if (isMounted) setStorages([...storageUrls].map(toStorage));
       } catch (err) {
-        const errorMessage =
-          err instanceof Error
-            ? err
-            : new Error("Failed to fetch storage roots");
-        setError(errorMessage);
-        setStorages([]);
+        // Storages the user added by hand don't depend on the profile, so a
+        // failed discovery still shows them rather than an error.
+        const manual = session.webId ? loadManualStorages(session.webId) : [];
+        if (manual.length > 0) {
+          manual.forEach((url) => register(url, session.webId!));
+          setStorages(manual.map(toStorage));
+        } else {
+          setError(err instanceof Error ? err : new Error("Failed to fetch storage roots"));
+          setStorages([]);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -267,10 +271,42 @@ export function useSolidStorages(): UseSolidStoragesResult {
 
     return () => {
       isMounted = false;
+      registered.forEach((release) => release());
     };
-    // session.fetch is read inside; isLoggedIn/webId are the auth signals we depend on
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- session identity changes often; auth fields above are sufficient
-  }, [session.isLoggedIn, session.webId]);
+  }, [session.isLoggedIn, session.webId, fetchFn, ownServers]);
 
-  return { storages, isLoading, error };
+  const addStorage = useCallback(
+    async (input: string): Promise<string | null> => {
+      const webId = session.webId;
+      if (!webId) return "You are not signed in.";
+      const normalised = normaliseStorageUrl(input);
+      if ("error" in normalised) return normalised.error;
+      // The user chose this storage, so its server may get their login, but
+      // only for as long as it checks out.
+      const release = ownServers.add(normalised.url, webId);
+      addedByHand.current.add(release);
+      let problem: string | null;
+      try {
+        problem = storageProblem(await fetchFn(normalised.url, { headers: { Accept: "text/turtle" } }));
+      } catch {
+        problem = "Couldn't reach that storage. Check the URL and try again.";
+      }
+      if (!mounted.current) return "Cancelled."; // cleanup already removed the registration
+      if (!problem && currentWebId.current !== webId) problem = "You signed in as someone else; please try again.";
+      release();
+      addedByHand.current.delete(release);
+      if (problem) return problem;
+      // Registered afresh, in case a logout cleared the check's registration meanwhile.
+      addedByHand.current.add(ownServers.add(normalised.url, webId));
+      const urls = saveManualStorage(webId, normalised.url);
+      setStorages((current) => {
+        const known = new Set(current.map((storage) => storage.url));
+        return [...current, ...urls.filter((url) => !known.has(url)).map(toStorage)];
+      });
+      return null;
+    },
+    [session.webId, fetchFn, ownServers],
+  );
+
+  return { storages, isLoading, error, addStorage };
 }

@@ -1,5 +1,4 @@
 import { Parser, Store, DataFactory } from "n3";
-import { getSession } from "./sessionUtils";
 import { WebIdDataset, type Agent } from "@solid/object/webid";
 
 // Cache for parsed profile documents
@@ -8,16 +7,14 @@ const profileCache = new Map<string, Agent>();
 /**
  * Fetches and parses the WebID profile document, with caching to avoid duplicate fetches
  * @param webId - The WebID to fetch
+ * @param fetchFn - The fetch to use
  * @returns The parsed RDF store, base URL, and main subject
  */
-export async function fetchAndParseProfile(webId: string): Promise<Agent> {
+export async function fetchAndParseProfile(webId: string, fetchFn: typeof fetch): Promise<Agent> {
   // Check cache first
   if (profileCache.has(webId)) {
     return profileCache.get(webId)!;
   }
-
-  const session = getSession();
-  const fetchFn = session.fetch || fetch;
 
   // Try different Accept headers to get the profile
   const acceptHeaders = [

@@ -3,11 +3,11 @@
 import { useRef, useEffect, type InputHTMLAttributes } from "react";
 import { toast } from "@/components/ui/toast";
 import {
-  getAuthenticatedSession,
   uploadFolderFilesToContainer,
   FolderUploadFile,
 } from "../lib/helpers";
 import { useUploadConflictPrompt } from "./useUploadConflictPrompt";
+import { useSolidFetch } from "./providers/SolidFetchProvider";
 
 type FileWithRelativePath = File & {
   webkitRelativePath?: string;
@@ -25,6 +25,7 @@ export default function FileUploadHandler({
   triggerUpload,
   triggerFolderUpload,
 }: FileUploadHandlerProps) {
+  const fetchFn = useSolidFetch();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
@@ -48,15 +49,6 @@ export default function FileUploadHandler({
 
     if (!currentContainerUrl) {
       toast.add({ title: "Please select a storage first", type: "error" });
-      e.target.value = "";
-      return;
-    }
-
-    let fetchFn: typeof fetch;
-    try {
-      ({ fetch: fetchFn } = getAuthenticatedSession());
-    } catch {
-      toast.add({ title: "Not authenticated", type: "error" });
       e.target.value = "";
       return;
     }
@@ -102,15 +94,6 @@ export default function FileUploadHandler({
 
     if (!currentContainerUrl) {
       toast.add({ title: "Please select a storage first", type: "error" });
-      e.target.value = "";
-      return;
-    }
-
-    let fetchFn: typeof fetch;
-    try {
-      ({ fetch: fetchFn } = getAuthenticatedSession());
-    } catch {
-      toast.add({ title: "Not authenticated", type: "error" });
       e.target.value = "";
       return;
     }

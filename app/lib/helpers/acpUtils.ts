@@ -1,555 +1,415 @@
 /**
- * ACP Utils
+ * Sharing on ACP servers (Community Solid Server, ESS): reads and edits a
+ * resource's Access Control Resource (ACR).
  *
- * This file contains the utility functions for ACP operations.
- * It creates, updates, and reads Access Control Resources (ACRs) that define who can access resources.
- * The file uses a hybrid approach:
- * rdfjs-wrapper (RDF/JS Wrapper): for reading/parsing existing ACRs
- * N3.js: for creating/updating ACRs
+ * The app only ever edits grants it could have written itself: policies that
+ * allow nothing beyond acl:Read, acl:Write and acl:Append and deny nothing.
+ * Policies that grant Control (the owner's) or deny access are never touched,
+ * and every edit only narrows the access of the agent being changed.
  */
 
-import { getAuthenticatedSession } from "./sessionUtils";
-import type { DatasetCore } from "@rdfjs/types";
-import {
-  AcrDataset,
-  AccessControlResource,
-  AccessControl,
-  Matcher,
-  Policy,
-} from "@solid/object/acp";
-import { ACP } from "@solid/object/vocabulary";
+import type { NamedNode, Quad_Object, Quad_Subject, Term } from "@rdfjs/types";
 import { DataFactory, Parser, Store, Writer } from "n3";
-import { getHttpStatus } from "./httpErrorUtils";
+import { discoverAccessControl, UnsupportedAccessControlError } from "./accessControl";
 
 export type AccessLevel = "Editor" | "Viewer";
+export type AccessMode = "Read" | "Write" | "Append" | "Control";
 
-/**
- * Maps access level to ACP access modes
- *
- * Note: According to PolicyShape, acp:allow is [1..1] (exactly one).
- * So for Editor (Read+Write), we need separate policies - one for Read, one for Write.
- * Each AccessControl can only have one Policy, so I created multiple AccessControls.
- */
-function getAccessModes(accessLevel: AccessLevel): ("Read" | "Write")[] {
-  if (accessLevel === "Editor") {
-    return ["Read", "Write"];
-  }
-  return ["Read"];
+export interface AccessEntry {
+  webId: string;
+  accessModes: AccessMode[];
+  /** False when some of this agent's access isn't the app's to remove (e.g. an owner's Control). */
+  canRemove: boolean;
 }
 
-/**
- * Gets the ACR URL for a resource
- */
-async function getAcrUrl(
-  resourceUrl: string,
-  fetchFn: typeof fetch,
-): Promise<string> {
-  try {
-    const response = await fetchFn(resourceUrl, {
-      method: "HEAD",
-      headers: {
-        Accept: "*/*",
-      },
-    });
+const { blankNode, namedNode, quad } = DataFactory;
+const ACP = "http://www.w3.org/ns/solid/acp#";
+const ACL = "http://www.w3.org/ns/auth/acl#";
+const RDF_TYPE = namedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#type");
+const acp = (name: string) => namedNode(ACP + name);
+const ACCESS_CONTROL = acp("accessControl");
+const MEMBER_ACCESS_CONTROL = acp("memberAccessControl");
+const APPLY = acp("apply");
+const ALLOW = acp("allow");
+const DENY = acp("deny");
+const ANY_OF = acp("anyOf");
+const AGENT = acp("agent");
+const MODES: AccessMode[] = ["Read", "Write", "Append", "Control"];
+const SHAREABLE_MODES = new Set([ACL + "Read", ACL + "Write", ACL + "Append"]);
 
-    const linkHeader = response.headers.get("Link");
-    if (linkHeader) {
-      // If found, converts .acl to .acr if needed, or uses the provided .acr URL if already present
-      const aclMatch = linkHeader.match(/<([^>]+)>;\s*rel=["']acl["']/i);
-      if (aclMatch && aclMatch[1]) {
-        const aclUrl = aclMatch[1];
-        if (aclUrl.includes(".acr")) {
-          return aclUrl;
-        }
-        if (aclUrl.includes(".acl")) {
-          return aclUrl.replace(".acl", ".acr");
-        }
-        return aclUrl;
-      }
-    }
-  } catch (error) {
-    console.warn(
-      "Failed to discover ACR via Link header, using .acr extension:",
-      error,
-    );
-  }
+export const LEVEL_MODES: Record<AccessLevel, AccessMode[]> = {
+  Viewer: ["Read"],
+  Editor: ["Read", "Write"],
+};
 
-  if (resourceUrl.endsWith("/")) {
-    return resourceUrl + ".acr";
+/** Thrown when an agent's existing access can't be changed without changing its meaning. */
+export class UnmanagedAccessError extends Error {
+  constructor(readonly webId: string) {
+    super(`${webId} already has access here with full control or extra conditions, which this app can't change.`);
+    this.name = "UnmanagedAccessError";
   }
-  return resourceUrl + ".acr";
 }
 
-/**
- * Detects if the server supports ACP or only WAC
- */
-export async function detectServerAuthMethod(
-  resourceUrl: string,
-  fetchFn: typeof fetch,
-): Promise<"acp" | "wac" | "unknown"> {
-  try {
-    const response = await fetchFn(resourceUrl, {
-      method: "HEAD",
-      headers: {
-        Accept: "*/*",
-      },
-    });
-
-    const linkHeader = response.headers.get("Link");
-    if (linkHeader) {
-      if (
-        linkHeader.includes("AccessControlResource") ||
-        linkHeader.includes(".acr")
-      ) {
-        return "acp";
-      }
-      if (linkHeader.includes(".acl") && !linkHeader.includes(".acr")) {
-        return "wac";
-      }
-    }
-
-    try {
-      const acrUrl = resourceUrl.endsWith("/")
-        ? resourceUrl + ".acr"
-        : resourceUrl + ".acr";
-      const acrResponse = await fetchFn(acrUrl, { method: "HEAD" });
-      if (acrResponse.ok) {
-        return "acp";
-      }
-    } catch {
-      // .acr doesn't exist, likely WAC
-    }
-
-    return "unknown";
-  } catch {
-    return "unknown";
+/** Thrown when asked to change the signed-in user's own access. */
+export class OwnAccessError extends Error {
+  constructor() {
+    super("You can't change your own access here.");
+    this.name = "OwnAccessError";
   }
 }
 
 /**
- * Fetches an existing ACR or returns null if it doesn't exist
- * Returns both the ACR and the dataset for further manipulation
+ * The resource's ACR, from its Link rel="acl" header. Throws
+ * UnsupportedAccessControlError on WAC servers and servers without one.
  */
-async function fetchAcr(
+async function getAcrUrl(resourceUrl: string, fetchFn: typeof fetch): Promise<string> {
+  const accessControl = await discoverAccessControl(resourceUrl, fetchFn);
+  if (accessControl?.kind !== "acp") throw new UnsupportedAccessControlError(accessControl?.kind ?? "none");
+  return accessControl.url;
+}
+
+/**
+ * PUTs an ACR, failing if someone else changed it since we read it (If-Match),
+ * or created one while we were creating ours (If-None-Match). An existing ACR
+ * served without an ETag can't be guarded, so it is saved unconditionally:
+ * refusing would make sharing impossible on such servers (ESS sends none;
+ * Community Solid Server does).
+ */
+export async function saveAcr(
   acrUrl: string,
+  body: string,
+  previous: { etag: string | null } | "new",
   fetchFn: typeof fetch,
-): Promise<AcrDataset | null> {
-  try {
-    const getResponse = await fetchFn(acrUrl, {
-      method: "GET",
-      headers: {
-        Accept: "text/turtle",
-      },
-    });
-
-    if (!getResponse.ok) {
-      if (getResponse.status === 404) {
-        // ACR doesn't exist yet - this is normal, not an error
-        // Return null silently - the browser may log the 404, but that's expected
-        return null;
-      }
-      throw new Error(`Failed to fetch ACR: ${getResponse.statusText}`);
-    }
-
-    const content = await getResponse.text();
-
-    const dataset = new Store();
-    dataset.addQuads(new Parser().parse(content));
-
-    // Get typed AccessControlResource from the dataset
-    const acrDataset = new AcrDataset(dataset, DataFactory);
-
-    if (acrDataset.acr === undefined) {
-      throw new Error(); // TODO: Handle properly
-    }
-
-    // Ensure resource is set
-    if (!acrDataset.acr.resource) {
-      const resourceUrl = acrUrl.replace(/\.acr$/, "");
-      acrDataset.acr.resource = resourceUrl;
-    }
-
-    return acrDataset;
-  } catch (error: unknown) {
-    if (getHttpStatus(error) === 404) {
-      return null;
-    }
-    throw error;
-  }
-}
-
-/**
- * Creates a new ACR with the given policies using N3.js
- * Returns the Turtle serialization ready to be PUT to the server
- *
- * NOTE: N3.js is used for creation/updates because LDO doesn't initialize
- * properties that don't exist in RDF. LDO is only used for reading existing ACRs.
- */
-async function createAcr(
-  resourceUrl: string,
-  acrUrl: string,
-  webIds: string[],
-  accessLevel: AccessLevel,
-): Promise<AcrDataset> {
-  const { namedNode, blankNode } = DataFactory;
-  const ds = new Store();
-
-  const acr = new AccessControlResource(namedNode(acrUrl), ds, DataFactory);
-
-  // Add ACR type and resource
-  acr.type.add(ACP.AccessControlResource);
-  acr.resource = resourceUrl;
-
-  // Create Access Controls for each WebID and access mode
-  const accessModes = getAccessModes(accessLevel);
-
-  webIds.forEach((webId) => {
-    accessModes.forEach(() => {
-      // Create blank nodes for nested structure
-      const matcher = new Matcher(blankNode(), ds, DataFactory);
-      const policy = new Policy(blankNode(), ds, DataFactory);
-      const accessControl = new AccessControl(blankNode(), ds, DataFactory);
-
-      // Matcher: type and agent
-      matcher.type.add(ACP.Matcher);
-      matcher.agent.add(webId);
-
-      // Policy: type, allow, and anyOf (matcher)
-      policy.type.add(ACP.Policy);
-      policy.allow.add(ACP.mode);
-      policy.anyOf.add(matcher);
-
-      // AccessControl: type and apply (policy)
-      accessControl.type.add(ACP.AccessControl);
-      accessControl.apply.add(policy);
-
-      // Link AccessControl to ACR
-      acr.accessControl.add(accessControl);
-    });
-  });
-
-  return new AcrDataset(ds, DataFactory);
-}
-
-function write(ds: DatasetCore): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const writer = new Writer();
-
-    writer.addQuads([...ds]);
-
-    writer.end((error, result) => {
-      if (error) reject(error);
-      else resolve(result);
-    });
-  });
-}
-
-/**
- * Updates an existing ACR by adding new policies for the given WebIDs
- * Uses N3.js to build new access controls, then merges with existing ACR Turtle
- * Returns the combined Turtle serialization
- *
- * NOTE: LDO is used only to read the existing ACR and extract existing agents.
- * All updates are done with N3.js.
- */
-async function updateAcr(
-  acrDataset: AcrDataset,
-  acrUrl: string,
-  webIds: string[],
-  accessLevel: AccessLevel,
 ): Promise<void> {
-  if (acrDataset.acr === undefined) {
-    throw new Error(); // TODO: Handle properly
+  const condition: Record<string, string> =
+    previous === "new" ? { "If-None-Match": "*" } : previous.etag ? { "If-Match": previous.etag } : {};
+  const response = await fetchFn(acrUrl, {
+    method: "PUT",
+    headers: { "Content-Type": "text/turtle", ...condition },
+    body,
+  });
+  if (response.status === 412) {
+    throw new Error("The sharing settings were changed by someone else just now. Please try again.");
   }
+  if (!response.ok) {
+    throw new Error(`Failed to save ACR: ${response.status} ${response.statusText}`);
+  }
+}
 
-  const existingAgents = new Set<string>();
-  try {
-    if (acrDataset.acr.accessControl) {
-      for (const accessControl of acrDataset.acr.accessControl) {
-        for (const policy of accessControl.apply) {
-          for (const matcher of policy.anyOf) {
-            for (const agent of matcher.agent) {
-              existingAgents.add(agent);
-            }
-          }
+interface LoadedAcr {
+  store: Store;
+  /** The ACR node itself (CSS: a fragment such as <#root>; ESS: the document). */
+  acr: Quad_Subject;
+  etag: string | null;
+}
+
+/** GETs and parses an ACR (relative IRIs resolved against it). Null when it doesn't exist yet. */
+async function loadAcr(acrUrl: string, resourceUrl: string, fetchFn: typeof fetch): Promise<LoadedAcr | null> {
+  const response = await fetchFn(acrUrl, { headers: { Accept: "text/turtle" } });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Couldn't read the sharing settings (${response.status}).`);
+
+  const store = new Store(new Parser({ baseIRI: response.url || acrUrl }).parse(await response.text()));
+  return { store, acr: findAcrNode(store, resourceUrl), etag: response.headers.get("ETag") };
+}
+
+/**
+ * The node describing the resource's access: the one with acp:resource <resource>
+ * (Community Solid Server), else the only node typed acp:AccessControlResource
+ * (ESS, which omits acp:resource).
+ */
+function findAcrNode(store: Store, resourceUrl: string): Quad_Subject {
+  const forResource = store.getSubjects(acp("resource"), namedNode(resourceUrl), null);
+  if (forResource.length === 1) return forResource[0];
+  const typed = store.getSubjects(RDF_TYPE, acp("AccessControlResource"), null);
+  if (forResource.length === 0 && typed.length === 1) return typed[0];
+  throw new Error("Couldn't read the sharing settings for this item.");
+}
+
+function newAcr(acrUrl: string, resourceUrl: string): LoadedAcr {
+  const store = new Store();
+  const acr = namedNode(acrUrl);
+  store.addQuads([
+    quad(acr, RDF_TYPE, acp("AccessControlResource")),
+    quad(acr, acp("resource"), namedNode(resourceUrl)),
+  ]);
+  return { store, acr, etag: null };
+}
+
+/** Access controls that apply to the resource itself, and for a folder also to its contents. */
+function attachmentsFor(resourceUrl: string): NamedNode[] {
+  return resourceUrl.endsWith("/") ? [ACCESS_CONTROL, MEMBER_ACCESS_CONTROL] : [ACCESS_CONTROL];
+}
+
+/** A policy the app may edit: it allows only Read/Write/Append and denies nothing. */
+function isShareablePolicy(store: Store, policy: Term): boolean {
+  const allowed = store.getObjects(policy, ALLOW, null);
+  return (
+    allowed.length > 0 &&
+    allowed.every((mode) => SHAREABLE_MODES.has(mode.value)) &&
+    store.countQuads(policy, DENY, null, null) === 0
+  );
+}
+
+/** Every policy applied by an access control attached to the ACR through `attachments`. */
+function policiesOf(store: Store, acr: Quad_Subject, attachments: NamedNode[]): Term[] {
+  const policies = attachments.flatMap((attachment) =>
+    store.getObjects(acr, attachment, null).flatMap((control) => store.getObjects(control, APPLY, null)),
+  );
+  return policies.filter((policy, i) => policies.findIndex((other) => other.equals(policy)) === i);
+}
+
+/** Deletes a node's own triples once nothing points at it, then does the same for what it pointed at. */
+function dropIfUnused(store: Store, node: Term): void {
+  if (node.termType === "Literal" || store.countQuads(null, null, node, null) > 0) return;
+  const children = [APPLY, ANY_OF, acp("allOf"), acp("noneOf")].flatMap((p) =>
+    store.getObjects(node as Quad_Subject, p, null),
+  );
+  store.removeQuads(store.getQuads(node as Quad_Subject, null, null, null));
+  children.forEach((child) => dropIfUnused(store, child));
+}
+
+/**
+ * Removes the agent from every shareable policy attached through `attachments`.
+ * Only ever narrows access: the agent is taken out of an acp:anyOf matcher that
+ * names other agents too (copied first if other policies use it, so they keep
+ * it); a matcher naming only this agent is dropped from the policy, and a
+ * policy left without anyOf matchers is detached (rather than left matching on
+ * its other conditions). Returns whether anything changed.
+ */
+function removeAgent(store: Store, acr: Quad_Subject, webId: string, attachments: NamedNode[]): boolean {
+  const agent = namedNode(webId);
+  let changed = false;
+  ownControls(store, acr, agent, attachments);
+  const managed = attachments.flatMap((attachment) => store.getObjects(acr, attachment, null));
+  for (const policy of policiesOf(store, acr, attachments)) {
+    if (!isShareablePolicy(store, policy)) continue;
+    if (!store.getObjects(policy, ANY_OF, null).some((m) => store.has(quad(m as Quad_Subject, AGENT, agent)))) continue;
+    const p = ownCopy(store, policy as Quad_Subject, managed);
+    let touched = false;
+    for (const matcher of store.getObjects(p, ANY_OF, null)) {
+      const m = matcher as Quad_Subject;
+      if (!store.has(quad(m, AGENT, agent))) continue;
+      touched = true;
+      const conditions = store.getQuads(m, null, null, null).filter((q) => !q.predicate.equals(RDF_TYPE));
+      const otherAgents = conditions.filter((q) => q.predicate.equals(AGENT) && !q.object.equals(agent));
+      if (otherAgents.length > 0) {
+        // Still limited to the other agents, so this narrows. A matcher also used elsewhere is copied, not edited.
+        if (store.countQuads(null, null, m, null) > 1) {
+          const copy = blankNode();
+          store.removeQuad(quad(p, ANY_OF, m));
+          store.addQuads([
+            quad(p, ANY_OF, copy),
+            quad(copy, RDF_TYPE, acp("Matcher")),
+            ...conditions
+              .filter((q) => !(q.predicate.equals(AGENT) && q.object.equals(agent)))
+              .map((q) => quad(copy, q.predicate, q.object)),
+          ]);
+        } else {
+          store.removeQuad(quad(m, AGENT, agent));
         }
+      } else {
+        store.removeQuad(quad(p, ANY_OF, m));
+        dropIfUnused(store, m);
       }
     }
-  } catch (error) {
-    console.warn("Could not parse existing ACR to extract agents:", error);
+    if (!touched) continue;
+    changed = true;
+    if (store.countQuads(p, ANY_OF, null, null) > 0) continue;
+    // Detach the emptied policy from this ACR's controls (the only ones applying it, see ownCopy).
+    for (const holder of store.getSubjects(APPLY, p, null)) {
+      store.removeQuad(quad(holder, APPLY, p));
+      if (store.countQuads(holder, APPLY, null, null) === 0) {
+        for (const via of [ACCESS_CONTROL, MEMBER_ACCESS_CONTROL]) store.removeQuad(quad(acr, via, holder as Quad_Object));
+        dropIfUnused(store, holder);
+      }
+    }
+    dropIfUnused(store, p);
   }
+  return changed;
+}
 
-  // Filter out WebIDs that already have access
-  const newWebIds = webIds.filter((webId) => !existingAgents.has(webId));
-  if (newWebIds.length === 0) {
-    // No new WebIDs to add, return existing Turtle
-    return;
+/**
+ * Gives this ACR its own copy of every access control that grants `agent`
+ * something and is also referenced from elsewhere (another ACR in the same
+ * document, say), so that editing it here can't change access there.
+ */
+function ownControls(store: Store, acr: Quad_Subject, agent: NamedNode, attachments: NamedNode[]): void {
+  const namesAgent = (policy: Term) =>
+    store.getObjects(policy, ANY_OF, null).some((m) => store.has(quad(m as Quad_Subject, AGENT, agent)));
+  const controls = attachments.flatMap((attachment) => store.getObjects(acr, attachment, null));
+  for (const control of controls.filter((c, i) => controls.findIndex((o) => o.equals(c)) === i)) {
+    if (!store.getObjects(control, APPLY, null).some(namesAgent)) continue;
+    const elsewhere = store
+      .getQuads(null, null, control, null)
+      .some((q) => !(q.subject.equals(acr) && attachments.some((a) => a.equals(q.predicate))));
+    if (!elsewhere) continue;
+    const copy = blankNode();
+    store.addQuads(store.getQuads(control as Quad_Subject, null, null, null).map((q) => quad(copy, q.predicate, q.object)));
+    for (const attachment of attachments) {
+      if (!store.has(quad(acr, attachment, control as Quad_Object))) continue;
+      store.removeQuad(quad(acr, attachment, control as Quad_Object));
+      store.addQuad(quad(acr, attachment, copy));
+    }
   }
+}
 
-  // Build new access controls
-  const { namedNode, blankNode } = DataFactory;
+/**
+ * The policy to edit for this ACR: the policy itself, or, if controls outside
+ * `managed` also apply it, a copy that only `managed` controls apply from now
+ * on, so editing it can't change anyone's access elsewhere.
+ */
+function ownCopy(store: Store, policy: Quad_Subject, managed: Term[]): Quad_Subject {
+  const holders = store.getSubjects(APPLY, policy, null);
+  if (holders.every((holder) => managed.some((m) => m.equals(holder)))) return policy;
+  const copy = blankNode();
+  store.addQuads(store.getQuads(policy, null, null, null).map((q) => quad(copy, q.predicate, q.object)));
+  for (const holder of holders.filter((h) => managed.some((m) => m.equals(h)))) {
+    store.removeQuad(quad(holder, APPLY, policy));
+    store.addQuad(quad(holder, APPLY, copy));
+  }
+  return copy;
+}
 
-  const ds = new Store();
-  const acr = new AccessControlResource(namedNode(acrUrl), ds, DataFactory);
+/**
+ * Whether the agent has access here that the app can't replace with a plain
+ * grant without changing its meaning: through a policy granting Control or
+ * denying access, a policy with acp:allOf / acp:noneOf conditions, or a matcher
+ * with conditions besides acp:agent (such as acp:client).
+ */
+function hasUnmanagedGrant(store: Store, acr: Quad_Subject, webId: string, attachments: NamedNode[]): boolean {
+  const agent = namedNode(webId);
+  return policiesOf(store, acr, attachments).some((policy) => {
+    const p = policy as Quad_Subject;
+    const matchers = [ANY_OF, acp("allOf"), acp("noneOf")].flatMap((via) =>
+      store.getObjects(p, via, null).map((matcher) => ({ via, matcher: matcher as Quad_Subject })),
+    );
+    const naming = matchers.filter(({ matcher }) => store.has(quad(matcher, AGENT, agent)));
+    if (naming.length === 0) return false;
+    if (!isShareablePolicy(store, p) || matchers.some(({ via }) => !via.equals(ANY_OF))) return true;
+    return naming.some(({ matcher }) =>
+      store.getQuads(matcher, null, null, null).some((q) => !q.predicate.equals(RDF_TYPE) && !q.predicate.equals(AGENT)),
+    );
+  });
+}
 
-  // Create new access controls for new WebIDs
-  newWebIds.forEach((webId) => {
-    const accessModes = getAccessModes(accessLevel);
-    accessModes.forEach(() => {
-      const matcher = new Matcher(blankNode(), ds, DataFactory);
-      const policy = new Policy(blankNode(), ds, DataFactory);
-      const accessControl = new AccessControl(blankNode(), ds, DataFactory);
+/** Adds one access control granting the agent `modes`, as named nodes in the ACR document. */
+function addGrant(store: Store, acr: Quad_Subject, acrUrl: string, webId: string, modes: AccessMode[], attachments: NamedNode[]) {
+  const base = `${acrUrl.split("#")[0]}#share-${crypto.randomUUID()}`;
+  const control = namedNode(base);
+  const policy = namedNode(`${base}-policy`);
+  const matcher = namedNode(`${base}-matcher`);
+  store.addQuads([
+    quad(control, RDF_TYPE, acp("AccessControl")),
+    quad(control, APPLY, policy),
+    quad(policy, RDF_TYPE, acp("Policy")),
+    ...modes.map((mode) => quad(policy, ALLOW, namedNode(ACL + mode))),
+    quad(policy, ANY_OF, matcher),
+    quad(matcher, RDF_TYPE, acp("Matcher")),
+    quad(matcher, AGENT, namedNode(webId)),
+    ...attachments.map((attachment) => quad(acr, attachment, control)),
+  ]);
+}
 
-      matcher.type.add(ACP.Matcher);
-      matcher.agent.add(webId);
-
-      policy.type.add(ACP.Policy);
-      policy.allow.add(ACP.mode);
-      policy.anyOf.add(matcher);
-
-      accessControl.type.add(ACP.AccessControl);
-      accessControl.apply.add(policy);
-
-      acr.accessControl.add(accessControl);
-    });
+function serialise(store: Store): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const writer = new Writer({ prefixes: { acp: ACP, acl: ACL } });
+    writer.addQuads(store.getQuads(null, null, null, null));
+    writer.end((error, result) => (error ? reject(error) : resolve(result)));
   });
 }
 
 /**
- * Shares a resource with the given WebIDs using ACP
+ * Gives each WebID exactly `accessLevel` on the resource (and, for a folder,
+ * its contents): their earlier plain grants are replaced, so a viewer can
+ * become an editor and back. Refuses to change `ownWebId`'s access, or access
+ * the app can't represent (Control, extra conditions).
  */
 export async function shareResourceWithAcp(
   resourceUrl: string,
   webIds: string[],
   accessLevel: AccessLevel,
+  fetchFn: typeof fetch,
+  ownWebId: string | undefined,
 ): Promise<void> {
-  if (webIds.length === 0) {
-    return;
+  if (webIds.length === 0) return;
+  if (ownWebId && webIds.includes(ownWebId)) throw new OwnAccessError();
+
+  const acrUrl = await getAcrUrl(resourceUrl, fetchFn);
+  const existing = await loadAcr(acrUrl, resourceUrl, fetchFn);
+  const { store, acr } = existing ?? newAcr(acrUrl, resourceUrl);
+  const attachments = attachmentsFor(resourceUrl);
+  const unmanaged = webIds.find((webId) => hasUnmanagedGrant(store, acr, webId, attachments));
+  if (unmanaged) throw new UnmanagedAccessError(unmanaged);
+
+  for (const webId of new Set(webIds)) {
+    removeAgent(store, acr, webId, attachments);
+    addGrant(store, acr, acrUrl, webId, LEVEL_MODES[accessLevel], attachments);
   }
-
-  const { fetch } = getAuthenticatedSession();
-  const acrUrl = await getAcrUrl(resourceUrl, fetch);
-
-  // Fetch existing ACR or create new one
-  let acrDataset = await fetchAcr(acrUrl, fetch);
-
-  if (acrDataset) {
-    await updateAcr(acrDataset, acrUrl, webIds, accessLevel);
-  } else {
-    acrDataset = await createAcr(resourceUrl, acrUrl, webIds, accessLevel);
-  }
-
-  // Save ACR
-  const response = await fetch(acrUrl, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "text/turtle",
-    },
-    body: await write(acrDataset),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to save ACR: ${response.statusText}`);
-  }
+  await saveAcr(acrUrl, await serialise(store), existing ? { etag: existing.etag } : "new", fetchFn);
 }
 
 /**
- * Verifies that the current user has access to a resource
- */
-export async function verifyResourceAccess(resourceUrl: string): Promise<{
-  hasAccess: boolean;
-  canRead: boolean;
-  canWrite: boolean;
-  error?: string;
-}> {
-  try {
-    const { fetch } = getAuthenticatedSession();
-
-    const headResponse = await fetch(resourceUrl, {
-      method: "HEAD",
-      headers: {
-        Accept: "*/*",
-      },
-    });
-
-    const canRead =
-      headResponse.ok ||
-      headResponse.status === 200 ||
-      headResponse.status === 304;
-
-    let canWrite = false;
-    if (canRead) {
-      try {
-        const optionsResponse = await fetch(resourceUrl, {
-          method: "OPTIONS",
-        });
-
-        const allowHeader =
-          optionsResponse.headers.get("Allow") ||
-          optionsResponse.headers.get("WAC-Allow");
-        if (allowHeader) {
-          canWrite =
-            allowHeader.includes("PUT") ||
-            allowHeader.includes("PATCH") ||
-            allowHeader.includes("POST");
-        }
-      } catch (error) {
-        console.warn("Could not check write permissions:", error);
-      }
-    }
-
-    return {
-      hasAccess: canRead,
-      canRead,
-      canWrite,
-    };
-  } catch (error) {
-    return {
-      hasAccess: false,
-      canRead: false,
-      canWrite: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    };
-  }
-}
-
-/**
- * Fetches the ACR for a resource to see who has access
+ * Who has access to the resource through its own ACR, and with which modes.
+ * Access inherited from a parent folder, or defined in other documents (as
+ * ESS does), isn't listed. Null when the ACR can't be read.
  */
 export async function getResourceAccessList(
   resourceUrl: string,
-): Promise<Array<{
-  webId: string;
-  accessModes: string[];
-}> | null> {
+  fetchFn: typeof fetch,
+): Promise<AccessEntry[] | null> {
   try {
-    const { fetch } = getAuthenticatedSession();
-    const acrUrl = await getAcrUrl(resourceUrl, fetch);
+    const acrUrl = await getAcrUrl(resourceUrl, fetchFn);
+    const loaded = await loadAcr(acrUrl, resourceUrl, fetchFn);
+    if (!loaded) return [];
+    const { store, acr } = loaded;
 
-    const response = await fetch(acrUrl, {
-      method: "GET",
-      headers: {
-        Accept: "text/turtle",
-      },
-    });
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        return [];
+    const entries = new Map<string, { modes: Set<AccessMode>; canRemove: boolean }>();
+    for (const policy of policiesOf(store, acr, [ACCESS_CONTROL])) {
+      const modes = store
+        .getObjects(policy, ALLOW, null)
+        .map((mode) => MODES.find((m) => ACL + m === mode.value))
+        .filter((mode): mode is AccessMode => mode !== undefined);
+      if (modes.length === 0) continue;
+      const shareable = isShareablePolicy(store, policy);
+      for (const matcher of store.getObjects(policy, ANY_OF, null)) {
+        for (const agent of store.getObjects(matcher, AGENT, null)) {
+          const entry = entries.get(agent.value) ?? { modes: new Set<AccessMode>(), canRemove: true };
+          modes.forEach((mode) => entry.modes.add(mode));
+          entry.canRemove &&= shareable;
+          entries.set(agent.value, entry);
+        }
       }
-      throw new Error(`Failed to fetch ACR: ${response.statusText}`);
     }
-
-    const turtle = await response.text();
-
-    const dataset = new Store();
-    dataset.addQuads(new Parser().parse(turtle));
-
-    const acr = new AccessControlResource(
-      DataFactory.namedNode(acrUrl),
-      dataset,
-      DataFactory,
-    );
-
-    const rawModesByWebId = [...acr.accessControl].flatMap((ac) =>
-      [...ac.apply].flatMap((p) =>
-        [...p.anyOf].flatMap((m) =>
-          [...m.agent].flatMap((a) => ({
-            webId: a,
-            accessModes: p.allow,
-          })),
-        ),
-      ),
-    );
-
-    const grouped = rawModesByWebId.reduce(groupByWebId, new Map());
-    return [...grouped].map(shape);
+    return [...entries].map(([webId, { modes, canRemove }]) => ({
+      webId,
+      accessModes: MODES.filter((mode) => modes.has(mode)),
+      canRemove,
+    }));
   } catch (error) {
     console.error("Failed to get resource access list:", error);
     return null;
   }
 }
 
-function groupByWebId(
-  previous: Map<string, Set<string>>,
-  current: { webId: string; accessModes: Set<string> },
-) {
-  if (!previous.has(current.webId)) {
-    previous.set(current.webId, new Set());
-  }
-
-  for (const mode of current.accessModes) {
-    previous.get(current.webId)!.add(mode);
-  }
-
-  return previous;
-}
-
-function shape(item: [string, Set<string>]) {
-  return {
-    webId: item[0],
-    accessModes: [...item[1]],
-  };
-}
-
 /**
- * Removes access for a specific WebID from a resource's ACR
- * This removes all access controls that grant access to the specified WebID
+ * Removes the access the app can manage for `webIdToRemove` (on the resource
+ * and, for a folder, its contents). Never touches Control or deny policies, and
+ * refuses to change `ownWebId`'s access.
  */
 export async function removeAccessFromResource(
   resourceUrl: string,
   webIdToRemove: string,
+  fetchFn: typeof fetch,
+  ownWebId: string | undefined,
 ): Promise<void> {
-  const { fetch } = getAuthenticatedSession();
-  const acrUrl = await getAcrUrl(resourceUrl, fetch);
+  if (ownWebId && webIdToRemove === ownWebId) throw new OwnAccessError();
 
-  // Fetch the existing ACR
-  const response = await fetch(acrUrl, {
-    method: "GET",
-    headers: {
-      Accept: "text/turtle",
-    },
-  });
+  const acrUrl = await getAcrUrl(resourceUrl, fetchFn);
+  const loaded = await loadAcr(acrUrl, resourceUrl, fetchFn);
+  if (!loaded) return;
+  const { store, acr, etag } = loaded;
 
-  if (!response.ok) {
-    if (response.status === 404) {
-      // No ACR exists, nothing to remove
-      return;
-    }
-    throw new Error(`Failed to fetch ACR: ${response.statusText}`);
-  }
-
-  const turtle = await response.text();
-  const dataset = new Store();
-  dataset.addQuads(new Parser().parse(turtle));
-
-  const acr = new AccessControlResource(
-    DataFactory.namedNode(acrUrl),
-    dataset,
-    DataFactory,
-  );
-
-  // Remove the WebID from all matchers that contain it
-  for (const accessControl of acr.accessControl) {
-    for (const policy of accessControl.apply) {
-      for (const matcher of policy.anyOf) {
-        matcher.agent.delete(webIdToRemove);
-      }
-    }
-  }
-
-  // Save the updated ACR
-  const updatedTurtle = await write(dataset);
-
-  const saveResponse = await fetch(acrUrl, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "text/turtle",
-    },
-    body: updatedTurtle,
-  });
-
-  if (!saveResponse.ok) {
-    throw new Error(`Failed to save ACR: ${saveResponse.statusText}`);
-  }
+  if (!removeAgent(store, acr, webIdToRemove, attachmentsFor(resourceUrl))) return;
+  await saveAcr(acrUrl, await serialise(store), { etag }, fetchFn);
 }

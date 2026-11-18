@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/empty";
 import { AlertCircle, FileWarning } from "lucide-react";
 import { getFile, UrlString } from "@inrupt/solid-client";
-import { getAuthenticatedSession } from "../lib/helpers";
+import { useSolidFetch } from "./providers/SolidFetchProvider";
 import { FileItemData } from "./FileItem";
 import { getHttpStatus } from "../lib/helpers";
 
@@ -35,6 +35,7 @@ export default function PreviewModal({
   onClose,
   file,
 }: PreviewModalProps) {
+  const fetchFn = useSolidFetch();
   const [previewContent, setPreviewContent] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -73,7 +74,6 @@ export default function PreviewModal({
       setError(null);
 
       try {
-        const { fetch: fetchFn } = getAuthenticatedSession();
 
 
         let fileBlob: Blob;
@@ -135,7 +135,7 @@ export default function PreviewModal({
 
         // PDFs: open in new tab
         if (actualMimeType === "application/pdf") {
-          window.open(blobUrl, "_blank");
+          window.open(blobUrl, "_blank", "noopener,noreferrer");
           onClose();
           setIsLoading(false);
           return;
@@ -224,7 +224,7 @@ export default function PreviewModal({
     };
 
     loadPreview();
-  }, [isOpen, file, onClose]);
+  }, [isOpen, file, onClose, fetchFn]);
 
   if (!file) return null;
 

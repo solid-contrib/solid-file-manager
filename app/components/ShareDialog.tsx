@@ -19,7 +19,11 @@ import UrlCombobox, { ComboboxOption } from "./shared/UrlCombobox";
 import { FileItemData } from "./FileItem";
 import { fetchUserContacts, Contact } from "../lib/helpers/contactUtils";
 import { fetchAndParseProfile } from "../lib/helpers/profileUtils";
-import { getResourceAccessList, removeAccessFromResource } from "../lib/helpers/acpUtils";
+import type { AccessEntry } from "../lib/helpers/acpUtils";
+import { getAccessList, removeAccess } from "../lib/helpers/sharing";
+import { discoverAccessControl, type AccessControlKind } from "../lib/helpers/accessControl";
+import { useSolidAuth } from "@ldo/solid-react";
+import { useSolidFetch } from "./providers/SolidFetchProvider";
 import { User, Search, Lock, X, CheckCircle, Trash2 } from "lucide-react";
 
 export type AccessLevel = "Editor" | "Viewer";
@@ -43,6 +47,8 @@ export default function ShareDialog({
   file,
   onShare,
 }: ShareDialogProps) {
+  const fetchFn = useSolidFetch();
+  const { session } = useSolidAuth();
   const [webIdInput, setWebIdInput] = useState("");
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoadingContacts, setIsLoadingContacts] = useState(false);
@@ -50,15 +56,18 @@ export default function ShareDialog({
   const [peopleChips, setPeopleChips] = useState<PersonChip[]>([]);
   const [isAddingWebId, setIsAddingWebId] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
-  const [accessList, setAccessList] = useState<Array<{ webId: string; accessModes: string[] }> | null>(null);
+  const [accessList, setAccessList] = useState<AccessEntry[] | null>(null);
   const [isLoadingAccessList, setIsLoadingAccessList] = useState(false);
+  // What the server supports for which resource: sharing works with ACP and WAC.
+  const [checked, setChecked] = useState<{ url: string; kind: AccessControlKind | "none" | "error" } | null>(null);
   const [removingWebId, setRemovingWebId] = useState<string | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
 
   // Fetch contacts and access list when dialog opens
   useEffect(() => {
     if (isOpen && file) {
       setIsLoadingContacts(true);
-      fetchUserContacts()
+      fetchUserContacts(session.webId, fetchFn)
         .then((fetchedContacts) => {
           setContacts(fetchedContacts);
           setIsLoadingContacts(false);
@@ -71,7 +80,7 @@ export default function ShareDialog({
       // Load current access list
       setIsLoadingAccessList(true);
       const resourceUrl = file.type === "folder" && !file.url.endsWith("/") ? file.url + "/" : file.url;
-      getResourceAccessList(resourceUrl)
+      getAccessList(resourceUrl, fetchFn)
         .then((list) => {
           setAccessList(list);
           setIsLoadingAccessList(false);
@@ -87,22 +96,51 @@ export default function ShareDialog({
       setPeopleChips([]);
       setAccessList(null);
       setRemovingWebId(null);
+      setRemoveError(null);
     }
-  }, [isOpen, file]);
+  }, [isOpen, file, session.webId, fetchFn]);
+
+  const resourceUrlForCheck = file ? (file.type === "folder" && !file.url.endsWith("/") ? file.url + "/" : file.url) : null;
+
+  useEffect(() => {
+    if (!isOpen || !resourceUrlForCheck) {
+      setChecked(null); // a later reopen must check again, not reuse this result
+      return;
+    }
+    let current = true;
+    discoverAccessControl(resourceUrlForCheck, fetchFn)
+      .then((info) => current && setChecked({ url: resourceUrlForCheck, kind: info?.kind ?? "none" }))
+      .catch(() => current && setChecked({ url: resourceUrlForCheck, kind: "error" }));
+    return () => {
+      current = false;
+    };
+  }, [isOpen, resourceUrlForCheck, fetchFn]);
+
+  // Only a result for the item shown counts; until then we're still checking.
+  const accessControl = checked && checked.url === resourceUrlForCheck ? checked.kind : "checking";
+  const canShare = accessControl === "acp" || accessControl === "wac";
+  const sharingUnsupported = !canShare && accessControl !== "checking";
+  const sharingNotice: Record<string, string> = {
+    restricted: "You don't have permission to manage sharing for this item.",
+    none: "This server doesn't offer sharing for this item.",
+    error: "Couldn't check whether this item can be shared. Please try again.",
+  };
 
   const handleRemoveAccess = async (webIdToRemove: string) => {
     if (!file) return;
 
     setRemovingWebId(webIdToRemove);
+    setRemoveError(null);
     try {
       const resourceUrl = file.type === "folder" && !file.url.endsWith("/") ? file.url + "/" : file.url;
-      await removeAccessFromResource(resourceUrl, webIdToRemove);
+      await removeAccess(resourceUrl, webIdToRemove, fetchFn, session.webId);
 
       // Refresh the access list
-      const updatedList = await getResourceAccessList(resourceUrl);
+      const updatedList = await getAccessList(resourceUrl, fetchFn);
       setAccessList(updatedList);
     } catch (error) {
       console.error("Failed to remove access:", error);
+      setRemoveError(error instanceof Error ? error.message : "Couldn't remove access. Please try again.");
     } finally {
       setRemovingWebId(null);
     }
@@ -153,7 +191,7 @@ export default function ShareDialog({
 
     try {
       // Fetch profile to get name and email 
-      const { name, email } = await fetchAndParseProfile(webId);
+      const { name, email } = await fetchAndParseProfile(webId, fetchFn);
 
       setPeopleChips([
         ...peopleChips,
@@ -201,7 +239,7 @@ export default function ShareDialog({
         // Refresh access list after sharing
         if (file) {
           const resourceUrl = file.type === "folder" && !file.url.endsWith("/") ? file.url + "/" : file.url;
-          const updatedList = await getResourceAccessList(resourceUrl);
+          const updatedList = await getAccessList(resourceUrl, fetchFn);
           setAccessList(updatedList);
         }
 
@@ -240,9 +278,17 @@ export default function ShareDialog({
     return chip.webId.charAt(0).toUpperCase();
   };
 
-  const footer = (
-    <Button onClick={handleDone} variant="default" disabled={isSharing || peopleChips.length === 0}>
-      {isSharing ? "Sharing..." : "Share"}
+  const footer = sharingUnsupported ? (
+    <Button onClick={onClose} variant="default">
+      Close
+    </Button>
+  ) : (
+    <Button
+      onClick={handleDone}
+      variant="default"
+      disabled={isSharing || peopleChips.length === 0 || !canShare}
+    >
+      {isSharing ? "Sharing..." : accessControl === "checking" ? "Checking…" : "Share"}
     </Button>
   );
 
@@ -257,6 +303,11 @@ export default function ShareDialog({
             </DialogDescription>
           ) : null}
         </DialogHeader>
+      {sharingUnsupported ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          {sharingNotice[accessControl]}
+        </p>
+      ) : (
       <div className="space-y-6">
         {/* Add people section */}
         <div>
@@ -333,9 +384,13 @@ export default function ShareDialog({
                 </div>
               ) : (
                 accessList.map((access, index) => {
-                  const hasWrite = access.accessModes.some((mode) => mode.includes("Write"));
-                  const accessLevel = hasWrite ? "Editor" : "Viewer";
+                  const accessLevel = access.accessModes.includes("Control")
+                    ? "Full control"
+                    : access.accessModes.includes("Write")
+                      ? "Editor"
+                      : "Viewer";
                   const isRemoving = removingWebId === access.webId;
+                  const canRemove = access.canRemove && access.webId !== session.webId;
 
                   return (
                     <div
@@ -350,6 +405,7 @@ export default function ShareDialog({
                       </div>
                       <div className="flex items-center gap-2 shrink-0 ml-2">
                         <span className="text-xs text-muted-foreground">{accessLevel}</span>
+                        {canRemove && (
                         <button
                           type="button"
                           onClick={() => handleRemoveAccess(access.webId)}
@@ -364,6 +420,7 @@ export default function ShareDialog({
                             <Trash2 className="h-4 w-4" />
                           )}
                         </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -373,12 +430,19 @@ export default function ShareDialog({
           </div>
         )}
 
+        {removeError && (
+          <p role="alert" className="text-sm text-destructive">
+            {removeError}
+          </p>
+        )}
+
         {isLoadingContacts && (
           <div className="flex items-center justify-center py-4">
             <Spinner className="size-5" />
           </div>
         )}
       </div>
+      )}
         <DialogFooter>{footer}</DialogFooter>
       </DialogContent>
     </Dialog>

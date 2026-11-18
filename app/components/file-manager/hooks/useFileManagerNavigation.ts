@@ -15,6 +15,7 @@ import {
   saveUrlToStorage,
   removeUrlFromStorage,
   safeEncodeUrl,
+  findStorageFor,
 } from "@/app/lib/helpers";
 
 export interface UseFileManagerNavigationOptions {
@@ -77,15 +78,13 @@ export function useFileManagerNavigation({
       return;
     }
 
-    const matchingStorage = storages.find(
-      (s) => urlParam === s.url || urlParam.startsWith(s.url),
-    );
+    const match = findStorageFor(urlParam, storages);
 
-    if (matchingStorage) {
+    if (match) {
       return defer(() => {
-        setSelectedStorageId(matchingStorage.id);
-        setCurrentPath(urlParam === matchingStorage.url ? "/" : urlParam);
-        saveUrlToStorage(urlParam);
+        setSelectedStorageId(match.storage.id);
+        setCurrentPath(match.isRoot ? "/" : match.url);
+        saveUrlToStorage(match.url);
       });
     }
   }, [searchParams, storages, isInitialized, selectedStorageId]);
@@ -103,21 +102,18 @@ export function useFileManagerNavigation({
       });
     }
 
-    saveUrlToStorage(urlParam);
-
     try {
-      const matchingStorage = storages.find(
-        (s) => urlParam === s.url || urlParam.startsWith(s.url),
-      );
+      const match = findStorageFor(urlParam, storages);
 
-      if (matchingStorage) {
+      if (match) {
         return defer(() => {
-          setSelectedStorageId(matchingStorage.id);
-          setCurrentPath(urlParam === matchingStorage.url ? "/" : urlParam);
+          setSelectedStorageId(match.storage.id);
+          setCurrentPath(match.isRoot ? "/" : match.url);
+          saveUrlToStorage(match.url); // only a URL that checked out is remembered
 
           if (typeof window !== "undefined") {
             const params = new URLSearchParams();
-            params.set("url", safeEncodeUrl(urlParam));
+            params.set("url", safeEncodeUrl(match.url));
             router.replace(`/?${params.toString()}`, { scroll: false });
           }
 

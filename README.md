@@ -136,6 +136,16 @@ NEXT_PUBLIC_ADMIN_WEBID="https://id.inrupt.com/your-webid"
 NEXT_PUBLIC_OIDC_ISSUER="https://login.inrupt.com"
 ```
 
+### End-to-end tests
+
+`npm run test:e2e` builds the app, then signs in, browses, uploads, previews, shares and cleans up a throwaway folder on each test server, in your installed Chrome (set `E2E_BROWSER_CHANNEL=""` to use Playwright's own Chromium instead).
+
+- **Local Community Solid Server:** always runs. The tests start a throwaway server with a fictional account in a temporary folder, so ports 3000 and 3001 must be free.
+- **solidcommunity.net:** runs when `CSS_TEST_USERNAME` and `CSS_TEST_PASSWORD` are set in `.env.local`. Optionally, `CSS_TEST_WEBID` picks one of the account's WebIDs.
+- **ESS:** runs when `ESS_TEST_USERNAME` and `ESS_TEST_PASSWORD` are set. The storage must be found from the profile's `pim:storage`; optionally, `ESS_TEST_STORAGE_URL` checks it is the expected one. Sharing is skipped there, because ESS 3 refuses access rules that name a specific WebID.
+
+Use dedicated test accounts: the tests write to them, then delete what they wrote. Traces, videos, screenshots and page snapshots are turned off, so typed credentials aren't recorded.
+
 ## Project Structure
 
 ```

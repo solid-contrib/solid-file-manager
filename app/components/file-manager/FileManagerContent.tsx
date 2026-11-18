@@ -31,7 +31,6 @@ import LoadingSpinner from "../shared/LoadingSpinner";
 import ErrorDisplay from "../shared/ErrorDisplay";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import {
-    getAuthenticatedSession,
     uploadFolderFilesToContainer,
     processDragDropItems,
     hasFiles as hasFilesInDrag,
@@ -46,6 +45,7 @@ import {
     useFileManagerDialogs
 } from "./context/fileManagerContext";
 import { useUploadConflictPrompt } from "../useUploadConflictPrompt";
+import { useSolidFetch } from "../providers/SolidFetchProvider";
 
 type ContextMenuState =
     | { type: "new"; position: { x: number; y: number } }
@@ -57,6 +57,7 @@ type ContextMenuState =
  * sidebar, drag-drop, and context menu as local UI state.
  */
 export default function FileManagerContent() {
+    const fetchFn = useSolidFetch();
     // Context (owned by provider hooks)
     const {
         storages,
@@ -193,14 +194,6 @@ export default function FileManagerContent() {
             toast.add({ title: "Please select a storage first", type: "error" });
             return;
         }
-        let fetchFn: typeof fetch;
-        try {
-            ({ fetch: fetchFn } = getAuthenticatedSession());
-        } catch {
-            toast.add({ title: "Not authenticated", type: "error" });
-            return;
-        }
-
         const { singleFiles, folderFiles } = await processDragDropItems(e);
 
         if (

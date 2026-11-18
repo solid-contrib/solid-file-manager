@@ -43,3 +43,7 @@ seed-config.json
 *.tsbuildinfo
 next-env.d.ts
 .history
+
+# end-to-end tests
+/test-results/
+/playwright-report/

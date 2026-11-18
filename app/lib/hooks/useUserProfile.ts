@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSolidAuth } from "@ldo/solid-react";
 import { fetchAndParseProfile } from "../helpers/profileUtils";
+import { useSolidFetch } from "../../components/providers/SolidFetchProvider";
 
 export interface UserProfile {
   name: string | null;
@@ -26,6 +27,7 @@ interface UseUserProfileResult {
  */
 export function useUserProfile(): UseUserProfileResult {
   const { session } = useSolidAuth();
+  const fetchFn = useSolidFetch();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -45,7 +47,7 @@ export function useUserProfile(): UseUserProfileResult {
         const webId = session.webId;
 
         // Use shared profile fetching utility (with caching)
-        const { name, email, photoUrl, phone, organization, role, title, website } = await fetchAndParseProfile(webId);
+        const { name, email, photoUrl, phone, organization, role, title, website } = await fetchAndParseProfile(webId, fetchFn);
 
         const profileData: UserProfile = {
           name,
@@ -70,7 +72,7 @@ export function useUserProfile(): UseUserProfileResult {
     }
 
     fetchProfile();
-  }, [session.isLoggedIn, session.webId]);
+  }, [session.isLoggedIn, session.webId, fetchFn]);
 
   return { profile, isLoading, error };
 }

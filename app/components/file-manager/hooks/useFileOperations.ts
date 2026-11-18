@@ -5,15 +5,16 @@ import { toast } from "@/components/ui/toast";
 import type { FileItemData } from "../../FileItem";
 import type { AccessLevel } from "../../ShareDialog";
 import {
-  getAuthenticatedSession,
   copyFileResource,
   downloadFile,
   downloadFolderAsZip,
   deleteFileResource,
   deleteFolderResource,
 } from "@/app/lib/helpers";
-import { shareResourceWithAcp } from "@/app/lib/helpers/acpUtils";
+import { shareResource } from "@/app/lib/helpers/sharing";
 import type { FileAction } from "../types/fileActions";
+import { useSolidFetch } from "../../providers/SolidFetchProvider";
+import { useSolidAuth } from "@ldo/solid-react";
 
 async function runWithToast<T>(
   loadingMessage: string,
@@ -86,6 +87,8 @@ export function useFileOperations({
   onAfterDelete,
   dialogHandlers,
 }: UseFileOperationsOptions): UseFileOperationsResult {
+  const fetchFn = useSolidFetch();
+  const { session } = useSolidAuth();
   const [isDeleting, setIsDeleting] = useState(false);
 
   const copyFile = useCallback(
@@ -97,7 +100,6 @@ export function useFileOperations({
       const result = await runWithToast(
         `Copying "${file.name}"...`,
         async () => {
-          const { fetch: fetchFn } = getAuthenticatedSession();
           await copyFileResource(file, fetchFn);
         },
         {
@@ -111,7 +113,7 @@ export function useFileOperations({
         onRefresh();
       }
     },
-    [onRefresh],
+    [onRefresh, fetchFn],
   );
 
   const downloadFileResource = useCallback(async (file: FileItemData) => {
@@ -123,7 +125,6 @@ export function useFileOperations({
         ? `Preparing "${file.name}" for download...`
         : `Downloading "${file.name}"...`,
       async () => {
-        const { fetch: fetchFn } = getAuthenticatedSession();
         if (file.type === "folder") {
           await downloadFolderAsZip(file.url, file.name, fetchFn);
           return `${file.name}.zip`;
@@ -137,7 +138,7 @@ export function useFileOperations({
         errorPrefix: "Failed to download",
       },
     );
-  }, []);
+  }, [fetchFn]);
 
   /** Deletes a resource; returns true on success so callers can close dialogs. */
   const confirmDelete = useCallback(
@@ -147,7 +148,6 @@ export function useFileOperations({
       const result = await runWithToast(
         `Deleting "${file.name}"...`,
         async () => {
-          const { fetch: fetchFn } = getAuthenticatedSession();
           if (file.type === "folder") {
             await deleteFolderResource(file.url, fetchFn);
           } else {
@@ -172,7 +172,7 @@ export function useFileOperations({
       }, 1000);
       return true;
     },
-    [onAfterDelete, onRefresh],
+    [onAfterDelete, onRefresh, fetchFn],
   );
 
   const confirmShare = useCallback(
@@ -189,7 +189,7 @@ export function useFileOperations({
             resourceUrl += "/";
           }
 
-          await shareResourceWithAcp(resourceUrl, webIds, accessLevel);
+          await shareResource(resourceUrl, webIds, accessLevel, fetchFn, session.webId);
 
           return {
             resourceUrl,
@@ -203,7 +203,7 @@ export function useFileOperations({
         },
       );
     },
-    [],
+    [fetchFn, session.webId],
   );
 
   const dispatchFileAction = useCallback(

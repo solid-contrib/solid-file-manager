@@ -12,10 +12,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Input } from "@/components/ui/input";
-import { UrlString, getFile, overwriteFile, deleteFile, createContainerAt } from "@inrupt/solid-client";
 import { toast } from "@/components/ui/toast";
 import { FileItemData } from "./FileItem";
-import { getAuthenticatedSession, sanitizeResourceName, getParentContainerUrl, ensureTrailingSlash, copyFolderContents, deleteFolderResource } from "../lib/helpers";
+import { sanitizeResourceName, renameResource, NameTakenError } from "../lib/helpers";
+import { useSolidFetch } from "./providers/SolidFetchProvider";
 
 interface RenameDialogProps {
   isOpen: boolean;
@@ -30,6 +30,7 @@ export default function RenameDialog({
   file,
   onRenamed,
 }: RenameDialogProps) {
+  const fetchFn = useSolidFetch();
   const [newName, setNewName] = useState("");
   const [isRenaming, setIsRenaming] = useState(false);
   const [isLoadingName, setIsLoadingName] = useState(false);
@@ -64,60 +65,43 @@ export default function RenameDialog({
     setIsRenaming(true);
 
     try {
-      const { fetch: fetchFn } = getAuthenticatedSession();
       const sanitizedName = sanitizeResourceName(newName.trim());
-      const parentUrl = getParentContainerUrl(file.url);
-      const parentWithSlash = ensureTrailingSlash(parentUrl);
-      const encodedName = encodeURIComponent(sanitizedName);
-      const isContainer = file.url.endsWith("/");
-      const newUrl = isContainer ? `${parentWithSlash}${encodedName}/` : `${parentWithSlash}${encodedName}`;
+      const { url: newUrl, sourceRemoved, keptBecause } = await renameResource(file, sanitizedName, fetchFn);
 
-      // Check if target already exists
-      try {
-        const response = await fetchFn(newUrl, { method: "HEAD" });
-        if (response.status !== 404) {
-          toast.add({ title: `A resource with the name "${sanitizedName}" already exists`, type: "error" });
-          setIsRenaming(false);
-          return;
-        }
-      } catch {
-        // Continue if check fails
-      }
+      toast.add(
+        sourceRemoved
+          ? { title: `Renamed to "${sanitizedName}"`, type: "success" }
+          : {
+              title:
+                keptBecause === "changed"
+                  ? `Saved as "${sanitizedName}", but the original was changed meanwhile, so it was kept. Please check both`
+                  : keptBecause === "unverified"
+                    ? `Saved as "${sanitizedName}", but the server can't confirm the original is unchanged, so it was kept. Please check both`
+                    : file.url.endsWith("/")
+                    ? `Copied to "${sanitizedName}", but the original folder couldn't be fully removed; what's left of it is still there`
+                    : `Saved as "${sanitizedName}", but the original couldn't be removed, so both now exist`,
+              type: "error",
+            },
+      );
 
-      if (isContainer) {
-        // For folders: create new container, copy contents recursively, delete old
-        await createContainerAt(newUrl as UrlString, { fetch: fetchFn });
-        
-        await copyFolderContents(file.url, newUrl, fetchFn);
-        
-        await deleteFolderResource(file.url, fetchFn);
-      } else {
-        // For files: fetch, create at new URL, delete old
-        const fileBlob = await getFile(file.url as UrlString, { fetch: fetchFn });
-        const contentType = fileBlob.type || "application/octet-stream";
-        
-        await overwriteFile(newUrl as UrlString, fileBlob, {
-          fetch: fetchFn,
-          contentType,
-        });
-        
-        await deleteFile(file.url as UrlString, { fetch: fetchFn });
-      }
-      
-      toast.add({ title: `Renamed to "${sanitizedName}"`, type: "success" });
-      
       // Notify parent to refresh
       if (onRenamed) {
         onRenamed(newUrl);
       }
-      
+
       // Close modal
       onClose();
     } catch (error) {
       console.error("Failed to rename:", error);
-      toast.add({ title: error instanceof Error
-          ? `Failed to rename: ${error.message}`
-          : "Failed to rename", type: "error" });
+      toast.add({
+        title:
+          error instanceof NameTakenError
+            ? `A resource with the name "${error.newName}" already exists`
+            : error instanceof Error
+              ? `Failed to rename: ${error.message}`
+              : "Failed to rename",
+        type: "error",
+      });
     } finally {
       setIsRenaming(false);
     }

@@ -95,7 +95,7 @@ export default function ShareSuccessModal({
           )}
           <Button
             onClick={() => {
-              window.open(resourceUrl, "_blank");
+              window.open(resourceUrl, "_blank", "noopener,noreferrer");
             }}
             variant="outline"
             className="flex items-center gap-2"

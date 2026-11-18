@@ -11,7 +11,6 @@ import {
 import {
     FolderTreeChild,
     ensureTrailingSlash,
-    getAuthenticatedSession,
     fetchContainerListing,
     foldersFromListing,
 } from "../helpers";
@@ -21,6 +20,7 @@ import {
     subscribeContainerCache,
     getContainerCacheVersion,
 } from "../cache";
+import { useSolidFetch } from "../../components/providers/SolidFetchProvider";
 
 
 export interface UseFolderTreeResult {
@@ -40,6 +40,7 @@ export interface UseFolderTreeResult {
  */
 
 export function useFolderTree(): UseFolderTreeResult {
+    const fetchFn = useSolidFetch();
     const [expandedUrls, setExpandedUrls] = useState<Set<string>>(new Set());
     const [loadingUrls, setLoadingUrls] = useState<Set<string>>(new Set());
     const [errorByUrl, setErrorByUrl] = useState<Record<string, string>>({});
@@ -88,9 +89,8 @@ export function useFolderTree(): UseFolderTreeResult {
         });
 
         try {
-            const { fetch } = getAuthenticatedSession();
             await loadContainerListing(normalizedUrl,
-                () => fetchContainerListing(normalizedUrl, fetch));
+                () => fetchContainerListing(normalizedUrl, fetchFn));
         } catch (error) {
             const message = error instanceof Error ? error.message : "Failed to load folders";
             setErrorByUrl((prev) => ({ ...prev, [normalizedUrl]: message }));
@@ -101,7 +101,7 @@ export function useFolderTree(): UseFolderTreeResult {
                 return next;
             });
         }
-    }, []);
+    }, [fetchFn]);
 
     // After cache invalidation, refetch any expanded folder that no longer has a listing.
     useEffect(() => {

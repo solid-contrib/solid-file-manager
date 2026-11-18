@@ -14,7 +14,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Input } from "@/components/ui/input";
 import { createContainerAt, getSolidDataset, UrlString } from "@inrupt/solid-client";
 import { toast } from "@/components/ui/toast";
-import { getAuthenticatedSession } from "../lib/helpers";
+import { useSolidFetch } from "./providers/SolidFetchProvider";
 
 interface NewFolderDialogProps {
   isOpen: boolean;
@@ -29,6 +29,7 @@ export default function NewFolderDialog({
   currentContainerUrl,
   onFolderCreated,
 }: NewFolderDialogProps) {
+  const fetchFn = useSolidFetch();
   const [folderName, setFolderName] = useState("Untitled folder");
   const [isCreating, setIsCreating] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -61,7 +62,6 @@ export default function NewFolderDialog({
     setIsCreating(true);
 
     try {
-      const { fetch: fetchFn } = getAuthenticatedSession();
 
       // Ensure the current container exists
       await getSolidDataset(currentContainerUrl, { fetch: fetchFn });

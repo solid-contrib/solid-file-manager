@@ -1,0 +1,54 @@
+diff --git a/node_modules/@inrupt/solid-client-authn-browser/dist/index.js b/node_modules/@inrupt/solid-client-authn-browser/dist/index.js
+index 9626ea4..a021828 100644
+--- a/node_modules/@inrupt/solid-client-authn-browser/dist/index.js
++++ b/node_modules/@inrupt/solid-client-authn-browser/dist/index.js
+@@ -709,6 +709,19 @@ class AuthCodeRedirectHandler {
+         if (!sessionInfo) {
+             throw new Error(`Could not retrieve session: [${storedSessionId}].`);
+         }
++        // solid-file-manager patch: expose the ID token, and a way to sign DPoP proofs
++        // with the key it is bound to (needed for ESS token exchange). The key itself
++        // stays private.
++        // A failing listener must never break login or token refresh.
++        try {
++            eventEmitter?.emit(solidClientAuthnCore.EVENTS.NEW_TOKENS, {
++                idToken: tokens.idToken,
++                dpopProof: tokens.dpopKey ? (url, method, ath) => solidClientAuthnCore.createDpopHeader(url, method, tokens.dpopKey, ath) : undefined,
++            });
++        }
++        catch {
++            // ignore
++        }
+         return Object.assign(sessionInfo, {
+             fetch: authFetch,
+             getLogoutUrl: solidClientAuthnCore.maybeBuildRpInitiatedLogout({
+diff --git a/node_modules/@inrupt/solid-client-authn-browser/dist/index.mjs b/node_modules/@inrupt/solid-client-authn-browser/dist/index.mjs
+index 5bffccc..0f95eca 100644
+--- a/node_modules/@inrupt/solid-client-authn-browser/dist/index.mjs
++++ b/node_modules/@inrupt/solid-client-authn-browser/dist/index.mjs
+@@ -1,4 +1,4 @@
+-import { StorageUtility, ClientAuthentication as ClientAuthentication$1, isValidRedirectUrl, EVENTS, removeOpenIdParams, ConfigurationError, handleRegistration, normalizeScopes, AuthorizationCodeWithPkceOidcHandlerBase, SessionInfoManagerBase, isSupportedTokenType, clear as clear$1, getUnauthenticatedSession, loadOidcContextFromStorage, buildAuthenticatedFetch, saveSessionInfoToStorage, maybeBuildRpInitiatedLogout, AggregateHandler, isKnownClientType, InMemoryStorage, IWaterfallLogoutHandler, SOLID_CLIENT_AUTHN_KEY_PREFIX } from '@inrupt/solid-client-authn-core';
++import { StorageUtility, ClientAuthentication as ClientAuthentication$1, isValidRedirectUrl, EVENTS, removeOpenIdParams, ConfigurationError, handleRegistration, normalizeScopes, AuthorizationCodeWithPkceOidcHandlerBase, SessionInfoManagerBase, isSupportedTokenType, clear as clear$1, getUnauthenticatedSession, loadOidcContextFromStorage, buildAuthenticatedFetch, saveSessionInfoToStorage, maybeBuildRpInitiatedLogout, AggregateHandler, isKnownClientType, InMemoryStorage, IWaterfallLogoutHandler, SOLID_CLIENT_AUTHN_KEY_PREFIX, createDpopHeader } from '@inrupt/solid-client-authn-core';
+ export { ConfigurationError, EVENTS, InMemoryStorage, NotImplementedError } from '@inrupt/solid-client-authn-core';
+ import { v4 } from 'uuid';
+ import EventEmitter from 'events';
+@@ -708,6 +708,19 @@ class AuthCodeRedirectHandler {
+         if (!sessionInfo) {
+             throw new Error(`Could not retrieve session: [${storedSessionId}].`);
+         }
++        // solid-file-manager patch: expose the ID token, and a way to sign DPoP proofs
++        // with the key it is bound to (needed for ESS token exchange). The key itself
++        // stays private.
++        // A failing listener must never break login or token refresh.
++        try {
++            eventEmitter?.emit(EVENTS.NEW_TOKENS, {
++                idToken: tokens.idToken,
++                dpopProof: tokens.dpopKey ? (url, method, ath) => createDpopHeader(url, method, tokens.dpopKey, ath) : undefined,
++            });
++        }
++        catch {
++            // ignore
++        }
+         return Object.assign(sessionInfo, {
+             fetch: authFetch,
+             getLogoutUrl: maybeBuildRpInitiatedLogout({

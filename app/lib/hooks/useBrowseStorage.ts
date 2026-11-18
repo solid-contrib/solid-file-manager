@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAuthenticatedSession } from "../helpers";
+import { useSolidFetch } from "../../components/providers/SolidFetchProvider";
 import { FileItemData } from "../../components/FileItem";
 import { loadContainerListing } from "../cache";
 import { fetchContainerListing } from "../helpers/containerListingUtils";
@@ -21,6 +21,7 @@ export function useBrowseStorage(
   containerUrl: string | null,
   refreshKey?: number,
 ): UseBrowseStorageResult {
+  const fetchFn = useSolidFetch();
   const [files, setFiles] = useState<FileItemData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -39,8 +40,6 @@ export function useBrowseStorage(
       try {
         setIsLoading(true);
         setError(null);
-
-        const { fetch: fetchFn } = getAuthenticatedSession();
 
         // After mutations, bypass HTTP cache as well as the in-memory listing cache
         const requestFetch = forceRefresh
@@ -79,7 +78,7 @@ export function useBrowseStorage(
     }
 
     browseContainer();
-  }, [containerUrl, refreshKey]); 
+  }, [containerUrl, refreshKey, fetchFn]);
 
   return { files, isLoading, error };
 }
